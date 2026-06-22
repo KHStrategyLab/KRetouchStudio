@@ -1,0 +1,251 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 얼굴 비율 및 2.5D 입체 뷰어</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Malgun Gothic', sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        h1 {
+            font-size: 16px;
+            margin: 0 0 15px 0;
+            color: #4CAF50;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #555; }
+        button.active { background-color: #4CAF50; border-color: #4CAF50; }
+        
+        #info-panel {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.4;
+            min-height: 60px;
+        }
+
+        /* 2D 비율 가이드라인 (기본적으로 숨김) */
+        #guide-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+        .line-h, .line-v {
+            position: absolute;
+            background-color: rgba(0, 255, 255, 0.4);
+        }
+        .line-h { width: 100%; height: 1px; }
+        .line-v { height: 100%; width: 1px; }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <h1>제어 패널 (구역 및 비율)</h1>
+        <button id="btn-eye">👀 눈 구역 (최저점/함몰)</button>
+        <button id="btn-nose">👃 코 구역 (최고점/돌출)</button>
+        <button id="btn-mouth">👄 입 구역 (중간 돌출)</button>
+        <button id="btn-guides">📏 2D 황금비율 가이드 (On/Off)</button>
+        <button id="btn-profile" style="margin-top: 15px; border-color: #ff9800;">📐 측면 보기 (2.5D Z축 확인)</button>
+        
+        <div id="info-panel">
+            버튼을 클릭하여 얼굴의 각 구역과<br>돌출/함몰(Z축) 깊이를 확인하세요.<br>마우스 드래그로 화면을 돌릴 수 있습니다.
+        </div>
+    </div>
+
+    <div id="guide-overlay">
+        <div class="line-h" style="top: 25%;"></div>
+        <div class="line-h" style="top: 50%;"></div>
+        <div class="line-h" style="top: 75%;"></div>
+        <div class="line-v" style="left: 20%;"></div>
+        <div class="line-v" style="left: 40%;"></div>
+        <div class="line-v" style="left: 60%;"></div>
+        <div class="line-v" style="left: 80%;"></div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. 기본 씬, 카메라, 렌더러 설정
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 25);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // 마우스로 돌려보기 위한 컨트롤
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 2. 조명 설정 (입체감을 위해 그림자/빛 중요)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 5, 10);
+        scene.add(dirLight);
+
+        // 3. 얼굴 기본 형태 만들기 (단순화된 모델)
+        const headGroup = new THREE.Group();
+        scene.add(headGroup);
+
+        // 기본 머리 (타원형 구)
+        const headGeo = new THREE.SphereGeometry(5, 32, 32);
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xead1c1, roughness: 0.5 });
+        const headMesh = new THREE.Mesh(headGeo, skinMat);
+        headMesh.scale.set(1, 1.3, 1.1); // 위아래로 길쭉하게
+        headGroup.add(headMesh);
+
+        // 코 (가장 튀어나온 부분 Z축 돌출)
+        const noseGeo = new THREE.ConeGeometry(0.8, 2.5, 4);
+        const noseMesh = new THREE.Mesh(noseGeo, skinMat);
+        noseMesh.position.set(0, -0.5, 5.2); // Z축으로 앞으로 돌출
+        noseMesh.rotation.x = Math.PI / 2.2;
+        headGroup.add(noseMesh);
+
+        // 눈 (안와 뼈 안쪽, Z축 함몰)
+        const eyeGeo = new THREE.SphereGeometry(0.5, 16, 16);
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-1.8, 1.2, 4.3); // 안쪽으로 들어감 (Z=4.3)
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(1.8, 1.2, 4.3);
+        headGroup.add(leftEye);
+        headGroup.add(rightEye);
+
+        // 입 (치아 굴곡에 따른 중간 돌출)
+        const mouthGeo = new THREE.BoxGeometry(2.5, 0.5, 0.5);
+        const mouthMat = new THREE.MeshStandardMaterial({ color: 0xcc5555 });
+        const mouthMesh = new THREE.Mesh(mouthGeo, mouthMat);
+        mouthMesh.position.set(0, -2.5, 4.8); // 코보다는 덜 튀어나옴
+        headGroup.add(mouthMesh);
+
+        // 4. 구역(Zone) 강조를 위한 투명 박스 만들기 (초기엔 숨김)
+        function createZoneBox(w, h, d, x, y, z, color) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mat = new THREE.MeshBasicMaterial({ color: color, wireframe: true, transparent: true, opacity: 0.8 });
+            const box = new THREE.Mesh(geo, mat);
+            box.position.set(x, y, z);
+            box.visible = false;
+            headGroup.add(box);
+            return box;
+        }
+
+        const eyeZone = createZoneBox(6, 2, 2, 0, 1.2, 4.5, 0x00ffff); // 눈 구역 박스
+        const noseZone = createZoneBox(2, 3, 2.5, 0, -0.5, 5.5, 0xff00ff); // 코 구역 박스
+        const mouthZone = createZoneBox(3.5, 1.5, 1.5, 0, -2.5, 5.0, 0xffff00); // 입 구역 박스
+
+        // 5. UI 버튼 클릭 이벤트 연결
+        const infoPanel = document.getElementById('info-panel');
+        
+        document.getElementById('btn-eye').addEventListener('click', (e) => {
+            eyeZone.visible = !eyeZone.visible;
+            e.target.classList.toggle('active');
+            infoPanel.innerHTML = "<b>[눈 구역]</b> 얼굴에서 가장 깊은 곳(Z축 함몰)입니다.<br>빛을 가장 덜 받으며 안와 뼈 구조에 의해 그림자가 생깁니다.";
+        });
+
+        document.getElementById('btn-nose').addEventListener('click', (e) => {
+            noseZone.visible = !noseZone.visible;
+            e.target.classList.toggle('active');
+            infoPanel.innerHTML = "<b>[코 구역]</b> 얼굴의 최고봉(Z축 돌출)입니다.<br>2.5D 표현 시 가장 강한 하이라이트와 코밑 그림자가 생깁니다.";
+        });
+
+        document.getElementById('btn-mouth').addEventListener('click', (e) => {
+            mouthZone.visible = !mouthZone.visible;
+            e.target.classList.toggle('active');
+            infoPanel.innerHTML = "<b>[입 구역]</b> 치아 구조에 얹혀 원통형으로 돌출된 구역입니다.<br>눈보다는 튀어나오고 코보다는 낮습니다.";
+        });
+
+        document.getElementById('btn-guides').addEventListener('click', (e) => {
+            const guide = document.getElementById('guide-overlay');
+            guide.style.display = guide.style.display === 'block' ? 'none' : 'block';
+            e.target.classList.toggle('active');
+        });
+
+        // 측면 보기 카메라 애니메이션 로직
+        let targetCameraPos = null;
+        document.getElementById('btn-profile').addEventListener('click', () => {
+            // 카메라를 측면(X=20, Y=0, Z=0)으로 이동 타겟 설정
+            targetCameraPos = new THREE.Vector3(20, 0, 0);
+            infoPanel.innerHTML = "<b>[측면 뷰]</b> 코가 가장 튀어나오고(돌출), 눈이 가장 깊숙하며(함몰), 입술이 계단처럼 위치하는 Z축(2.5D)의 깊이감을 확인하세요.";
+        });
+
+        // 화면 크기 변경 대응
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 6. 렌더링 루프 (애니메이션)
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 카메라 측면 이동 애니메이션 처리 (보간법 Lerp)
+            if (targetCameraPos) {
+                camera.position.lerp(targetCameraPos, 0.05);
+                camera.lookAt(0, 0, 0); // 항상 얼굴 중심을 바라봄
+                // 목표 지점에 거의 도달하면 애니메이션 종료
+                if (camera.position.distanceTo(targetCameraPos) < 0.1) {
+                    targetCameraPos = null;
+                }
+            } else {
+                controls.update(); // 사용자가 마우스로 돌릴 때 업데이트
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

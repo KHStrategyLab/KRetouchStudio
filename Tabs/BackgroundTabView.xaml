@@ -1,0 +1,248 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.BackgroundTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="DummyBackgroundSlotStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BackgroundModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BackgroundImageNavButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="NavBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BackgroundImageSlotStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ImageSlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ImageSlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ImageSlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="BackgroundExpander" Header="배경" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource DummyBackgroundSlotStyle}"
+                    ToolTip="배경 전체 되돌림 준비 중"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,10">
+                <ToggleButton Content="White"
+                              Style="{StaticResource BackgroundModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="White background"
+                              IsChecked="{Binding ElementName=Root, Path=IsWhiteBackgroundModeActive, Mode=OneWay}"
+                              Click="WhiteBackgroundButton_Click"/>
+                <ToggleButton Content="Gray"
+                              Style="{StaticResource BackgroundModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Light gray background"
+                              IsChecked="{Binding ElementName=Root, Path=IsGrayBackgroundModeActive, Mode=OneWay}"
+                              Click="GrayBackgroundButton_Click"/>
+                <ToggleButton Style="{StaticResource BackgroundModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Custom color background"
+                              IsChecked="{Binding ElementName=Root, Path=IsColorBackgroundModeActive, Mode=OneWay}"
+                              Click="ColorBackgroundButton_Click">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Border Width="8"
+                                Height="8"
+                                Margin="0,0,3,0"
+                                Background="{Binding ElementName=Root, Path=CustomBackgroundBrush}"
+                                BorderBrush="{StaticResource MenuBorder}"
+                                BorderThickness="1"/>
+                        <TextBlock Text="Color"/>
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Content="Pick"
+                              Style="{StaticResource BackgroundModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Pick background color"
+                              IsChecked="{Binding ElementName=Root, Path=IsPickBackgroundModeActive, Mode=OneWay}"
+                              Click="PickBackgroundButton_Click"/>
+                <ToggleButton Content="Image"
+                              Style="{StaticResource BackgroundModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Load custom background image"
+                              IsChecked="{Binding ElementName=Root, Path=IsImageBackgroundModeActive, Mode=OneWay}"
+                              Click="ImageBackgroundButton_Click"/>
+            </UniformGrid>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Content="&lt;"
+                        Style="{StaticResource BackgroundImageNavButtonStyle}"
+                        ToolTip="Previous background image"/>
+                <ScrollViewer Grid.Column="1"
+                              Margin="6,0"
+                              HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="Image"
+                                Style="{StaticResource BackgroundImageSlotStyle}"
+                                Margin="0"
+                                ToolTip="Background image slot 1"/>
+                        <Button Content="Image"
+                                Style="{StaticResource BackgroundImageSlotStyle}"
+                                ToolTip="Background image slot 2"/>
+                        <Button Content="Image"
+                                Style="{StaticResource BackgroundImageSlotStyle}"
+                                ToolTip="Background image slot 3"/>
+                    </StackPanel>
+                </ScrollViewer>
+                <Button Grid.Column="2"
+                        Content="&gt;"
+                        Style="{StaticResource BackgroundImageNavButtonStyle}"
+                        ToolTip="Next background image"/>
+            </Grid>
+            <Slider Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    Value="{Binding ElementName=Root, Path=BackgroundOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+    </Expander>
+</UserControl>

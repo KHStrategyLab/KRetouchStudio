@@ -1,0 +1,2829 @@
+﻿<Window x:Class="KRetouchStudio.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tabs="clr-namespace:KRetouchStudio.Tabs"
+        Title="KRetouch Studio"
+        Width="1500"
+        Height="950"
+        MinWidth="900"
+        MinHeight="720"
+        WindowState="Maximized"
+        Loaded="Window_Loaded"
+        SizeChanged="Window_SizeChanged"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewKeyUp="Window_PreviewKeyUp"
+        AllowDrop="True"
+         DragEnter="Window_DragEnter"
+         DragOver="Window_DragOver"
+         Drop="Window_Drop"
+         Background="{StaticResource WindowBg}"
+         Icon="Assets/AppIcon.ico">
+    <Window.Resources>
+        <Style x:Key="AppSliderTrackButtonStyle" TargetType="{x:Type RepeatButton}">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RepeatButton}">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="1.5"
+                                SnapsToDevicePixels="True"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="AppSliderThumbStyle" TargetType="{x:Type Thumb}">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border Background="{StaticResource SliderThumbFill}"
+                                BorderBrush="{StaticResource SliderThumbBorder}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                SnapsToDevicePixels="True"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="{x:Type Slider}">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Foreground" Value="{StaticResource SliderTrackFill}"/>
+            <Setter Property="Background" Value="{StaticResource SliderTrackBg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Slider}">
+                        <Grid VerticalAlignment="Center"
+                              SnapsToDevicePixels="True">
+                            <Border Height="3"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="1.5"
+                                    VerticalAlignment="Center"/>
+                            <Track x:Name="PART_Track"
+                                   VerticalAlignment="Center">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource AppSliderTrackButtonStyle}"
+                                                  Background="{TemplateBinding Foreground}"
+                                                  Command="Slider.DecreaseLarge"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource AppSliderThumbStyle}"/>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource AppSliderTrackButtonStyle}"
+                                                  Background="{TemplateBinding Background}"
+                                                  Command="Slider.IncreaseLarge"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="PART_Track" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="{x:Type Menu}">
+            <Setter Property="Background" Value="{StaticResource MenuBg}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background" Value="{StaticResource MenuBg}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style TargetType="{x:Type MenuItem}">
+            <Setter Property="Background" Value="{StaticResource MenuBg}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="MenuItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="IconColumn" Width="0"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition x:Name="CheckColumn" Width="0"/>
+                                    <ColumnDefinition x:Name="ArrowColumn" Width="0"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter x:Name="HeaderPresenter"
+                                                  Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CheckGlyph"
+                                           Grid.Column="2"
+                                           Text="✓"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           FontFamily="Segoe UI"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Margin="0"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           Visibility="Collapsed"/>
+                                <Path x:Name="SubmenuArrow"
+                                      Grid.Column="3"
+                                      Width="5"
+                                      Height="8"
+                                      Margin="8,0,8,0"
+                                      Fill="{StaticResource TextSub}"
+                                      Data="M 0 0 L 5 4 L 0 8 Z"
+                                      VerticalAlignment="Center"
+                                      Visibility="Collapsed"/>
+                                <Popup x:Name="PART_Popup"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Placement="Bottom"
+                                       PopupAnimation="Fade">
+                                    <Border x:Name="SubMenuBorder"
+                                            Background="{StaticResource MenuBg}"
+                                            BorderBrush="{StaticResource MenuBorder}"
+                                            BorderThickness="1"
+                                            SnapsToDevicePixels="True">
+                                        <ScrollViewer CanContentScroll="True">
+                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsCheckable" Value="True">
+                                    <Setter TargetName="CheckColumn" Property="Width" Value="18"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <Trigger Property="Role" Value="TopLevelHeader">
+                                    <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                                    <Setter TargetName="MenuItemBorder" Property="BorderThickness" Value="0"/>
+                                </Trigger>
+                                <Trigger Property="Role" Value="SubmenuHeader">
+                                <Setter TargetName="IconColumn" Property="Width" Value="8"/>
+                                <Setter TargetName="ArrowColumn" Property="Width" Value="22"/>
+                                <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Right"/>
+                            </Trigger>
+                            <Trigger Property="Role" Value="SubmenuItem">
+                                <Setter TargetName="IconColumn" Property="Width" Value="8"/>
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{StaticResource MenuItemHoverBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{StaticResource MenuItemPressedBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{StaticResource MenuItemHoverBg}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource MenuItemPressedBg}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type Separator}">
+            <Setter Property="Background" Value="{StaticResource MenuBorder}"/>
+        </Style>
+        <Style x:Key="RetouchExpanderHeaderToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="AppActionButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ToolboxButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource AppActionButtonStyle}">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="{x:Type Expander}">
+            <Setter Property="Background" Value="{StaticResource PanelBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Expander}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top"
+                                        Background="{StaticResource SurfacePrimary}"
+                                        BorderBrush="{StaticResource MenuBorder}"
+                                        BorderThickness="0,0,0,1"
+                                        SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton x:Name="HeaderSite"
+                                                      Style="{StaticResource RetouchExpanderHeaderToggleStyle}"
+                                                      Background="Transparent"
+                                                      BorderThickness="0"
+                                                      IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                            <ContentPresenter x:Name="HeaderContent"
+                                                              ContentSource="Header"
+                                                              HorizontalAlignment="Stretch"
+                                                              VerticalAlignment="Center"
+                                                              RecognizesAccessKey="True"/>
+                                        </ToggleButton>
+                                        <ContentPresenter x:Name="HeaderActionSite"
+                                                          Grid.Column="1"
+                                                          Content="{TemplateBinding Tag}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,8,0"/>
+                                    </Grid>
+                                </Border>
+                                <ContentPresenter x:Name="ExpandSite"
+                                                  Margin="12"
+                                                  Visibility="Collapsed"/>
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger SourceName="HeaderSite" Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderSite" Property="Foreground" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="28"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="1"
+                MinHeight="56"
+                Background="{StaticResource SurfacePrimary}"
+                BorderBrush="{StaticResource MenuBorder}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0"
+                      Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="KRetouch Studio"
+                                   Foreground="{StaticResource TextMain}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"/>
+                        <TextBlock Text="{Binding AppVersionDisplayText}"
+                                   Foreground="{StaticResource TextSub}"
+                                   FontSize="12"
+                                   Margin="8,2,0,0"
+                                   VerticalAlignment="Center"/>
+                        <Border Background="{StaticResource SurfaceSecondary}"
+                                BorderBrush="{StaticResource MenuBorder}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Margin="10,1,0,0"
+                                Padding="8,2"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="MediaPipe path ready"
+                                       Foreground="{StaticResource TextSub}"
+                                       FontSize="11"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding SelectedPhotoStatusText}"
+                               Foreground="{StaticResource TextSub}"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="12,0,0,0"
+                               TextTrimming="CharacterEllipsis"/>
+                </Grid>
+                <WrapPanel Grid.Row="1"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,10">
+                    <!-- 수정전 문의 -->
+                    <Button Style="{StaticResource AppActionButtonStyle}" Content="사진 불러오기" Click="LoadPhotosButton_Click" Margin="4"/>
+                    <Button Style="{StaticResource AppActionButtonStyle}" Content="저장" Click="SavePhotoButton_Click" Margin="4"/>
+                    <Button Style="{StaticResource AppActionButtonStyle}" Content="코 작업대 열기" Click="OpenNoseWorkbench_Click" Margin="4"/>
+                    <Button Style="{StaticResource AppActionButtonStyle}" Content="이중턱 작업대 열기" Click="OpenDoubleChinWorkbench_Click" Margin="4"/>
+                    <Button Style="{StaticResource AppActionButtonStyle}"
+                            Content="MediaPipe Test"
+                            Click="MediaPipeTestButton_Click"
+                            Margin="4"/>
+                    <TextBlock Text="{Binding MediaPipeStatusText}"
+                               Foreground="{StaticResource TextSub}"
+                               VerticalAlignment="Center"
+                               Margin="8,4,4,4"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Background="{StaticResource SurfaceSecondary}" BorderBrush="{StaticResource MenuBorder}" BorderThickness="0,0,0,1">
+            <Menu FontSize="13"
+                  Padding="8,0">
+                <MenuItem Header="File">
+                    <MenuItem Header="Open" Click="LoadPhotosButton_Click"/>
+                    <MenuItem Header="Work Area" Click="WorkAreaMenuItem_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Exit" Click="ExitMenuItem_Click"/>
+                </MenuItem>
+                <MenuItem Header="Prefs">
+                    <MenuItem Header="Sort">
+                        <MenuItem Header="Name A-Z" Click="SortNameAscendingMenuItem_Click"/>
+                        <MenuItem Header="Name Z-A" Click="SortNameDescendingMenuItem_Click"/>
+                        <MenuItem Header="Newest First" Click="SortNewestFirstMenuItem_Click"/>
+                        <MenuItem Header="Oldest First" Click="SortOldestFirstMenuItem_Click"/>
+                    </MenuItem>
+                    <MenuItem Header="Color Management">
+                        <MenuItem Header="Automatic"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsColorManagementAutomatic, Mode=OneWay}"
+                                  Click="ColorManagementAutomaticMenuItem_Click"/>
+                        <MenuItem Header="Manual Display Profile"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsColorManagementManual, Mode=OneWay}"
+                                  Click="ColorManagementManualMenuItem_Click"/>
+                        <MenuItem Header="Load ICC/ICM Profile..."
+                                  Click="LoadColorManagementProfileMenuItem_Click"/>
+                        <MenuItem Header="{Binding ManualColorManagementProfileText}"
+                                  IsEnabled="False"/>
+                        <MenuItem Header="Clear Manual Profile"
+                                  IsEnabled="{Binding CanClearManualColorManagementProfile}"
+                                  Click="ClearColorManagementProfileMenuItem_Click"/>
+                        <MenuItem Header="Disabled"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsColorManagementDisabled, Mode=OneWay}"
+                                  Click="ColorManagementDisabledMenuItem_Click"/>
+                    </MenuItem>
+                    <MenuItem Header="Work Mode">
+                        <MenuItem Header="Auto Work Mode"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding AutoWorkModeEnabled}"/>
+                        <MenuItem Header="{Binding RuntimeWorkModeDisplayText}"
+                                  IsEnabled="False"/>
+                    </MenuItem>
+                    <Separator x:Name="DevelopmentPackageSeparator"
+                               Visibility="Collapsed"/>
+                    <MenuItem x:Name="DevelopmentPackageMenuItem"
+                              Header="Development Package..."
+                              Click="DevelopmentPackageMenuItem_Click"
+                              Visibility="Collapsed"/>
+                    <MenuItem Header="2"/>
+                    <MenuItem Header="3"/>
+                    <MenuItem Header="4"/>
+                    <MenuItem Header="5"/>
+                    <MenuItem Header="6"/>
+                </MenuItem>
+                <MenuItem Header="Window">
+                    <MenuItem Header="History"
+                              IsCheckable="True"
+                              IsChecked="{Binding ShowHistoryPanel}"
+                              Click="HistoryPanelMenuItem_Click"/>
+                </MenuItem>
+                <MenuItem Header="Info">
+                    <MenuItem Header="Info"/>
+                    <MenuItem Header="About"/>
+                    <MenuItem Header="Auto Check Updates"
+                              IsCheckable="True"
+                              IsChecked="{Binding AutoCheckUpdatesAtStartup}"
+                              Click="AutoCheckUpdatesAtStartupMenuItem_Click"/>
+                    <MenuItem Header="Updates" Click="UpdatesMenuItem_Click"/>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="PhotoListColumn" Width="260"/>
+                <ColumnDefinition x:Name="ToolboxColumn" Width="56"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="320"/>
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="PhotoListPanel"
+                    Grid.Column="0"
+                    Background="{StaticResource SurfaceSecondary}"
+                    BorderBrush="{StaticResource MenuBorder}"
+                    BorderThickness="0,0,1,0"
+                    Padding="12">
+                <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="{Binding PhotoSelectionText}"
+                           Foreground="{StaticResource TextSub}"
+                           Margin="0,0,0,4"/>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding WorkAreaDisplayText}"
+                                   Foreground="{StaticResource TextSub}"
+                                   FontSize="12"
+                                   Cursor="Hand"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"
+                                   ToolTip="작업 폴더 열기"
+                                   MouseLeftButtonUp="WorkAreaDisplayText_MouseLeftButtonUp"/>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource AppActionButtonStyle}"
+                                Content="Refresh"
+                                Width="68"
+                                Height="30"
+                                Margin="8,0,0,0"
+                                Padding="0"
+                                Click="RefreshWorkAreaButton_Click"
+                                HorizontalAlignment="Right"
+                                ToolTip="작업구역 다시 불러오기"/>
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Hidden">
+                        <ScrollViewer.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Sort">
+                                    <MenuItem Header="Name A-Z" Click="SortNameAscendingMenuItem_Click"/>
+                                    <MenuItem Header="Name Z-A" Click="SortNameDescendingMenuItem_Click"/>
+                                    <MenuItem Header="Newest First" Click="SortNewestFirstMenuItem_Click"/>
+                                    <MenuItem Header="Oldest First" Click="SortOldestFirstMenuItem_Click"/>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ScrollViewer.ContextMenu>
+                        <ItemsControl x:Name="PhotoListItemsControl"
+                                      Focusable="True"
+                                      ItemsSource="{Binding Photos}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                            <Border Margin="0,0,0,8"
+                                                    Padding="8"
+                                                    BorderThickness="1"
+                                                    MouseLeftButtonUp="PhotoItem_MouseLeftButtonUp"
+                                                    MouseLeftButtonDown="PhotoItem_MouseLeftButtonDown">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="{StaticResource PanelBg}"/>
+                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderSoft}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="54"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="46"
+                                                    Height="46"
+                                                    Background="{StaticResource SurfaceCanvasDark}"
+                                                    ClipToBounds="True">
+                                                <Image Source="{Binding Thumbnail}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Stretch="Uniform"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextMain}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding DisplayInfo}" Foreground="{StaticResource TextSub}" FontSize="12"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfacePrimary}"
+                    BorderBrush="{StaticResource MenuBorder}"
+                    BorderThickness="0,0,1,0"
+                    Padding="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Button Style="{StaticResource AppActionButtonStyle}"
+                            Content="{Binding PhotoListToggleText}"
+                            Width="42"
+                            Height="32"
+                            Padding="0"
+                            Margin="0,0,0,10"
+                            FontSize="11"
+                            Click="TogglePhotoListButton_Click"
+                            ToolTip="사진 목록 접기/열기"/>
+                    <WrapPanel Grid.Row="1"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Top">
+                    <Button x:Name="SelectToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="select"
+                            Content="↖"
+                            FontSize="17"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Select"/>
+                    <Button x:Name="PathSelectionToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="pathselect"
+                            Content="A"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Path / Direct Selection"/>
+                    <Button x:Name="CropToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="crop"
+                            Content="✂"
+                            FontSize="16"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Crop"/>
+                    <Button x:Name="FrameToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="frame"
+                            Content="▣"
+                            FontSize="16"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Frame"/>
+                    <Button x:Name="LassoToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="lasso"
+                            Content="L"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Lasso"/>
+                    <Button x:Name="RectangleToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="rectangle"
+                            Content="Rect"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Rectangle Tool"/>
+                    <Button x:Name="PathToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="path"
+                            Content="Path"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Paths Tool"/>
+                    <Button x:Name="TypeToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="type"
+                            Content="Type"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Type Tool"/>
+                    <Button x:Name="FreeTransformToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="freetransform"
+                            Content="Tfm"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Free Transform"/>
+                    <Button x:Name="BrushToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="brush"
+                            Content="●"
+                            FontSize="17"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Brush"/>
+                    <Button x:Name="EraserToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="eraser"
+                            Content="E"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Eraser"/>
+                    <Button x:Name="FillToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="fill"
+                            Content="G"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Gradient / Paint Bucket"/>
+                    <Button x:Name="StampToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="stamp"
+                            Content="◆"
+                            FontSize="16"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Stamp"/>
+                    <Button x:Name="HealingToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="healing"
+                            Content="H"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Healing / Patch / Spot"/>
+                    <Button x:Name="BlurSharpToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="blursharp"
+                            Content="B/S"
+                            FontSize="12"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Blur / Sharpen"/>
+                    <Button x:Name="DodgeBurnToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="dodgeburn"
+                            Content="D/B"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Dodge / Burn"/>
+                    <Button x:Name="HistoryBrushToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="historybrush"
+                            Content="Hist"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="History Brush"/>
+                    <Button x:Name="HandToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="hand"
+                            Content="Hand"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Hand"/>
+                    <Button x:Name="ZoomToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="zoom"
+                            Content="Zoom"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Zoom"/>
+                    <Button x:Name="RulerToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="ruler"
+                            Content="Rule"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Ruler"/>
+                    <Button x:Name="SamplerToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="sampler"
+                            Content="Drop"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Eyedropper / Color Sampler"/>
+                    <Button x:Name="MagicToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="magic"
+                            Content="Magic"
+                            FontSize="10"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Magic Select"/>
+                    <Button x:Name="LiquifyToolButton"
+                            Style="{StaticResource ToolboxButtonStyle}"
+                            Tag="liquify"
+                            Content="Liq"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Click="ToolboxButton_Click"
+                            ToolTip="Liquify"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="2" Background="{StaticResource PreviewFrameBg}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="44"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0"
+                        Background="{StaticResource SurfacePrimary}"
+                        BorderBrush="{StaticResource MenuBorder}"
+                        BorderThickness="0,0,0,1"
+                        Padding="10,6">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding SelectToolOptionsVisibility}">
+                            <TextBlock Text="Select"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Neutral view-control mode"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding FreeTransformToolOptionsVisibility}">
+                            <TextBlock Text="Free Transform"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Preview shell only"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Preview"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="FreeTransformApplyButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Close"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="FreeTransformCancelButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,14,0"
+                                    Click="FreeTransformResetButton_Click"/>
+                            <CheckBox Content="Keep Ratio"
+                                      IsChecked="{Binding FreeTransformKeepRatio, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,14,0"/>
+                            <TextBlock Text="{Binding FreeTransformSizeText}"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Angle"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="52"
+                                     Height="26"
+                                     Text="{Binding FreeTransformAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,14,0"/>
+                            <TextBlock Text="{Binding FreeTransformStatusText}"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding CropToolOptionsVisibility}">
+                            <ComboBox Width="128"
+                                      Height="26"
+                                      ItemsSource="{Binding CropPresetOptions}"
+                                      DisplayMemberPath="Label"
+                                      SelectedValuePath="Key"
+                                      SelectedValue="{Binding SelectedCropPresetKey, Mode=TwoWay}"
+                                      Margin="0,0,10,0">
+                            </ComboBox>
+                            <TextBlock Text="W"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,4,0"/>
+                            <TextBox Width="52"
+                                     Height="26"
+                                     Text="{Binding CropPresetWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="H"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,4,0"/>
+                            <TextBox Width="52"
+                                     Height="26"
+                                     Text="{Binding CropPresetHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <ComboBox Width="64"
+                                      Height="26"
+                                      ItemsSource="{Binding CropUnitOptions}"
+                                      SelectedItem="{Binding CropPresetUnit, Mode=TwoWay}"
+                                      Margin="0,0,8,0"/>
+                            <TextBlock Text="DPI"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,4,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding CropPresetDpi, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,10,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Save"
+                                    Height="26"
+                                    Padding="10,0"
+                                    Margin="0,0,10,0"
+                                    Click="CropPresetSaveButton_Click"/>
+                            <TextBlock Text="Enter = Crop"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Angle"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,6,0"/>
+                            <TextBox Width="52"
+                                     Height="26"
+                                     Text="{Binding CropRotationAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <CheckBox Content="이미지 회전"
+                                      IsChecked="{Binding CropRotateImageEnabled, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      FontSize="11"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding CropFaceMetricText}"
+                                       Visibility="{Binding CropFaceMetricVisibility}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding FrameToolOptionsVisibility}">
+                            <TextBlock Text="Frame"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="RectangleFrameShapeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Rect"
+                                    Tag="rectangle"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="FrameShapeButton_Click"/>
+                            <Button x:Name="EllipseFrameShapeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Ellipse"
+                                    Tag="ellipse"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="FrameShapeButton_Click"/>
+                            <TextBlock Text="Feather"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="0"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Region only - render pending"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding LassoToolOptionsVisibility}">
+                            <TextBlock Text="Lasso"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Feather"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding LassoToolFeather, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Closed"
+                                      IsChecked="{Binding LassoToolClosed, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="LassoToolClearButton_Click"/>
+                            <TextBlock Text="{Binding LassoToolStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding RectangleToolOptionsVisibility}">
+                            <TextBlock Text="Rectangle Tool"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="RectangleShapeModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Rect"
+                                    Tag="rectangle"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="RectangleShapeModeButton_Click"/>
+                            <Button x:Name="EllipseShapeModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Ellipse"
+                                    Tag="ellipse"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="RectangleShapeModeButton_Click"/>
+                            <Button x:Name="PolygonShapeModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Polygon"
+                                    Tag="polygon"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="RectangleShapeModeButton_Click"/>
+                            <TextBlock Text="X"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="60"
+                                     Height="26"
+                                     Text="{Binding RectangleSelectionImageX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="Y"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="60"
+                                     Height="26"
+                                     Text="{Binding RectangleSelectionImageY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="W"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="60"
+                                     Height="26"
+                                     Text="{Binding RectangleSelectionImageWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="H"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="60"
+                                     Height="26"
+                                     Text="{Binding RectangleSelectionImageHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,12,0"/>
+                            <TextBlock Text="Feather"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding RectangleSelectionFeather, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Polygon Sides"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="48"
+                                     Height="26"
+                                     Text="{Binding RectanglePolygonSides, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="RectangleSelectionResetButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Apply"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="RectangleSelectionApplyButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Click="RectangleSelectionClearButton_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding PathToolOptionsVisibility}">
+                            <TextBlock Text="Paths Tool"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <CheckBox Content="Closed"
+                                      IsChecked="{Binding PathToolClosed, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <TextBlock Text="Feather"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding PathToolFeather, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="PathToolClearButton_Click"/>
+                            <TextBlock Text="{Binding PathToolStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Geometry only - mask/shape conversion pending"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding PathSelectionToolOptionsVisibility}">
+                            <TextBlock Text="Path Selection"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="PathSelectModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Path"
+                                    Tag="pathselect"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="PathSelectionModeButton_Click"/>
+                            <Button x:Name="DirectSelectModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Direct"
+                                    Tag="directselect"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="PathSelectionModeButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="PathToolClearButton_Click"/>
+                            <TextBlock Text="{Binding PathSelectionStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding TypeToolOptionsVisibility}">
+                            <TextBlock Text="Type Tool"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Font"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="128"
+                                     Height="26"
+                                     Text="{Binding TypeToolFontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,10,0"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding TypeToolFontSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,10,0"/>
+                            <TextBlock Text="Color"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="88"
+                                     Height="26"
+                                     Text="{Binding TypeToolColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,6,0"/>
+                            <Border Width="24"
+                                    Height="24"
+                                    Background="{Binding TypeToolColorPreview}"
+                                    BorderBrush="{StaticResource MenuBorder}"
+                                    BorderThickness="1"
+                                    Margin="0,0,10,0"/>
+                            <TextBlock Text="Opacity"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding TypeToolOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Bold"
+                                      IsChecked="{Binding TypeToolBold, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,10,0"/>
+                            <CheckBox Content="Italic"
+                                      IsChecked="{Binding TypeToolItalic, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <Button x:Name="TypeAlignLeftButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Left"
+                                    Tag="left"
+                                    Height="26"
+                                    Padding="10,0"
+                                    Margin="0,0,6,0"
+                                    Click="TypeToolAlignmentButton_Click"/>
+                            <Button x:Name="TypeAlignCenterButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Center"
+                                    Tag="center"
+                                    Height="26"
+                                    Padding="10,0"
+                                    Margin="0,0,6,0"
+                                    Click="TypeToolAlignmentButton_Click"/>
+                            <Button x:Name="TypeAlignRightButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Right"
+                                    Tag="right"
+                                    Height="26"
+                                    Padding="10,0"
+                                    Margin="0,0,12,0"
+                                    Click="TypeToolAlignmentButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Delete"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="TypeToolDeleteButton_Click"/>
+                            <TextBlock Text="{Binding TypeToolStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding BrushToolOptionsVisibility}">
+                            <TextBlock Text="Brush"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="BrushModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Brush"
+                                    Tag="brush"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="BrushModeButton_Click"/>
+                            <Button x:Name="PencilModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Pencil"
+                                    Tag="pencil"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="BrushModeButton_Click"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowBrushCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <TextBlock Text="Color"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <Border Width="26"
+                                    Height="26"
+                                    Background="{Binding BrushColorPreview}"
+                                    BorderBrush="{StaticResource MenuBorder}"
+                                    BorderThickness="1"
+                                    Margin="0,0,8,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Width="26"
+                                    Height="26"
+                                    Padding="0"
+                                    Background="#F1D35A"
+                                    Tag="#F1D35A"
+                                    Margin="0,0,4,0"
+                                    Click="BrushColorPresetButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Width="26"
+                                    Height="26"
+                                    Padding="0"
+                                    Background="#FFFFFF"
+                                    Tag="#FFFFFF"
+                                    Margin="0,0,4,0"
+                                    Click="BrushColorPresetButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Width="26"
+                                    Height="26"
+                                    Padding="0"
+                                    Background="#000000"
+                                    Tag="#000000"
+                                    Margin="0,0,4,0"
+                                    Click="BrushColorPresetButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="..."
+                                    Height="26"
+                                    Padding="8,0"
+                                    Click="BrushColorPickerButton_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding FillToolOptionsVisibility}">
+                            <TextBlock Text="Gradient / Bucket"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="BucketFillModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Bucket"
+                                    Tag="bucket"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="FillModeButton_Click"/>
+                            <Button x:Name="GradientFillModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Gradient"
+                                    Tag="gradient"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="FillModeButton_Click"/>
+                            <TextBlock Text="Opacity"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding FillToolOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="{Binding FillToolStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding EraserToolOptionsVisibility}">
+                            <TextBlock Text="Eraser"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding EraserSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding EraserSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowEraserCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <TextBlock Text="Restore original pixels"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.72"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding StampToolOptionsVisibility}">
+                            <TextBlock Text="Stamp"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding StampSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding StampSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowStampCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <TextBlock Text="{Binding StampSourceText}"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Alt+Click sets source"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.72"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding HealingToolOptionsVisibility}">
+                            <TextBlock Text="Healing"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="HealingBrushModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Heal"
+                                    Tag="healing"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="HealingModeButton_Click"/>
+                            <Button x:Name="PatchHealingModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Patch"
+                                    Tag="patch"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="HealingModeButton_Click"/>
+                            <Button x:Name="SpotHealingModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Spot"
+                                    Tag="spot"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="HealingModeButton_Click"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HealingSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HealingSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Strength"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HealingStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowHealingCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <TextBlock Text="{Binding HealingModeHintText}"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.72"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding BlurSharpToolOptionsVisibility}">
+                            <TextBlock Text="Blur / Sharpen"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="BlurModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Blur"
+                                    Tag="blur"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="BlurSharpModeButton_Click"/>
+                            <Button x:Name="SharpenModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Sharpen"
+                                    Tag="sharpen"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="BlurSharpModeButton_Click"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BlurSharpSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BlurSharpSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Strength"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BlurSharpStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Radius"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding BlurSharpRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowBlurSharpCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding DodgeBurnToolOptionsVisibility}">
+                            <TextBlock Text="Dodge / Burn"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="DodgeModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Dodge"
+                                    Tag="dodge"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="DodgeBurnModeButton_Click"/>
+                            <Button x:Name="BurnModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Burn"
+                                    Tag="burn"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="DodgeBurnModeButton_Click"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding DodgeBurnSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding DodgeBurnSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Strength"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding DodgeBurnStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowDodgeBurnCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="DodgeBurnResetButton_Click"/>
+                            <TextBlock Text="{Binding DodgeBurnStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding HistoryBrushToolOptionsVisibility}">
+                            <TextBlock Text="History Brush"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HistoryBrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HistoryBrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Strength"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding HistoryBrushStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Source"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <ComboBox Width="150"
+                                      Height="26"
+                                      SelectedIndex="1"
+                                      Margin="0,0,12,0">
+                                <ComboBoxItem Content="Original"/>
+                                <ComboBoxItem Content="Before Current Tool"/>
+                                <ComboBoxItem Content="Last Saved Preview"/>
+                                <ComboBoxItem Content="Snapshot 1"/>
+                            </ComboBox>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowHistoryBrushCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding HandToolOptionsVisibility}">
+                            <TextBlock Text="Hand"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Drag preview image"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Fit In"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="PreviewFitInButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="100%"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Click="PreviewActualSizeButton_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding ZoomToolOptionsVisibility}">
+                            <TextBlock Text="Zoom"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Alt = Zoom Out"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="{Binding ZoomToolStatusText}"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Fit In"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="PreviewFitInButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="100%"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Click="PreviewActualSizeButton_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding RulerToolOptionsVisibility}">
+                            <TextBlock Text="Ruler"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Drag to measure"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Measure"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding RulerMeasurementText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Unit"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <ComboBox Width="74"
+                                      Height="26"
+                                      SelectedIndex="0"
+                                      Margin="0,0,12,0">
+                                <ComboBoxItem Content="px"/>
+                            </ComboBox>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Click="RulerClearButton_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding SamplerToolOptionsVisibility}">
+                            <TextBlock Text="Eyedropper / Sampler"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Range"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding SampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px avg"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <Border Width="26"
+                                    Height="26"
+                                    Background="{Binding SampleColorPreview}"
+                                    BorderBrush="{StaticResource MenuBorder}"
+                                    BorderThickness="1"
+                                    Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding SampleResultText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding MagicToolOptionsVisibility}">
+                            <TextBlock Text="Magic Select"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <Button x:Name="MagicWandModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Wand"
+                                    Tag="wand"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,6,0"
+                                    Click="MagicModeButton_Click"/>
+                            <Button x:Name="QuickSelectModeButton"
+                                    Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Quick"
+                                    Tag="quickselect"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="MagicModeButton_Click"/>
+                            <TextBlock Text="Tolerance"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding MagicTolerance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="rgb sum"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Sample"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding MagicSampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px avg"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Contiguous"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Clear"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="MagicClearButton_Click"/>
+                            <TextBlock Text="{Binding MagicSelectionInfoText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding LiquifyToolOptionsVisibility}">
+                            <TextBlock Text="Liquify / Forward Warp"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0"/>
+                            <TextBlock Text="Size"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding LiquifySize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="px"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Softness"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding LiquifySoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Text="Strength"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Width="56"
+                                     Height="26"
+                                     Text="{Binding LiquifyStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <CheckBox Content="Show Circle"
+                                      IsChecked="{Binding ShowLiquifyCircle, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSub}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="LiquifyResetButton_Click"/>
+                            <TextBlock Text="{Binding LiquifyStatusText}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Grid x:Name="PreviewSurface"
+                      Grid.Row="1"
+                      Margin="4"
+                      ClipToBounds="True"
+                      Background="Transparent"
+                      SizeChanged="PreviewSurface_SizeChanged"
+                      MouseMove="PreviewSurface_MouseMove"
+                      MouseLeftButtonDown="PreviewSurface_MouseLeftButtonDown"
+                      MouseLeftButtonUp="PreviewSurface_MouseLeftButtonUp"
+                      MouseLeave="PreviewSurface_MouseLeave"
+                      MouseWheel="PreviewSurface_MouseWheel">
+                    <Border Background="{StaticResource PreviewSurfaceBg}"/>
+                    <Grid x:Name="MultiPreviewLayer" Visibility="{Binding MultiPreviewVisibility}">
+                        <ItemsControl x:Name="MultiPreviewItemsControl" ItemsSource="{Binding SelectedPreviewPhotos}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="{Binding DataContext.PreviewGridColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="4"
+                                            Background="{StaticResource SurfaceCanvasDark}"
+                                            BorderBrush="{StaticResource MenuBorder}"
+                                            BorderThickness="1"
+                                            ClipToBounds="True"
+                                            MouseLeftButtonDown="PreviewTile_MouseLeftButtonDown"
+                                            MouseLeftButtonUp="PreviewTile_MouseLeftButtonUp"
+                                            MouseMove="PreviewTile_MouseMove">
+                                        <Grid>
+                                            <Image Source="{Binding Image}"
+                                                   Stretch="Uniform"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   RenderTransformOrigin="0.5,0.5"
+                                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                                <Image.RenderTransform>
+                                                    <TransformGroup>
+                                                        <ScaleTransform ScaleX="{Binding MultiPreviewZoomScale}"
+                                                                        ScaleY="{Binding MultiPreviewZoomScale}"/>
+                                                        <TranslateTransform X="{Binding MultiPreviewOffsetX}"
+                                                                           Y="{Binding MultiPreviewOffsetY}"/>
+                                                    </TransformGroup>
+                                                </Image.RenderTransform>
+                                            </Image>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                    <Canvas IsHitTestVisible="False"
+                            Visibility="{Binding SinglePreviewVisibility}">
+                        <Image Source="{Binding SinglePreviewImageSource}"
+                               Canvas.Left="{Binding PreviewImageLeft}"
+                               Canvas.Top="{Binding PreviewImageTop}"
+                               Width="{Binding PreviewImageWidth}"
+                               Height="{Binding PreviewImageHeight}"
+                               Stretch="Uniform"
+                               RenderTransformOrigin="0.5,0.5"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.RenderTransform>
+                                <RotateTransform Angle="{Binding SinglePreviewImageRotationAngle}"/>
+                            </Image.RenderTransform>
+                        </Image>
+                    </Canvas>
+
+                    <Canvas IsHitTestVisible="True"
+                            Visibility="{Binding SinglePreviewVisibility}">
+                        <Border Visibility="{Binding LocalWorkbenchVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding LocalWorkbenchGuideLeft}"
+                                Canvas.Top="{Binding LocalWorkbenchGuideTop}"
+                                Width="{Binding LocalWorkbenchGuideWidth}"
+                                Height="{Binding LocalWorkbenchGuideHeight}"
+                                BorderBrush="{StaticResource Accent}"
+                                BorderThickness="2"
+                                Background="{StaticResource AccentSoftFill}">
+                            <TextBlock Text="WorkArea"
+                                       Foreground="{StaticResource Accent}"
+                                       FontWeight="SemiBold"
+                                       Margin="5,3,0,0"/>
+                        </Border>
+                        <Rectangle Visibility="{Binding RectangleFrameSelectionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding FrameSelectionLeft}"
+                                   Canvas.Top="{Binding FrameSelectionTop}"
+                                   Width="{Binding FrameSelectionWidth}"
+                                   Height="{Binding FrameSelectionHeight}"
+                                   Stroke="{StaticResource Accent}"
+                                   StrokeThickness="1.5"
+                                   Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding EllipseFrameSelectionVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding FrameSelectionLeft}"
+                                 Canvas.Top="{Binding FrameSelectionTop}"
+                                 Width="{Binding FrameSelectionWidth}"
+                                 Height="{Binding FrameSelectionHeight}"
+                                 Stroke="{StaticResource Accent}"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                        <Rectangle Visibility="{Binding RectangleOutlineSelectionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding RectangleSelectionLeft}"
+                                   Canvas.Top="{Binding RectangleSelectionTop}"
+                                   Width="{Binding RectangleSelectionWidth}"
+                                   Height="{Binding RectangleSelectionHeight}"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   Stroke="#F1D35A"
+                                   StrokeThickness="1.5"
+                                   StrokeDashArray="5,3"
+                                   Fill="Transparent">
+                            <Rectangle.RenderTransform>
+                                <RotateTransform Angle="{Binding RectangleSelectionRotationAngle}"/>
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
+                        <Line Visibility="{Binding CropCenterGuideVisibility}"
+                              IsHitTestVisible="False"
+                              X1="{Binding CropCenterGuideHorizontalX1}"
+                              Y1="{Binding CropCenterGuideCenterY}"
+                              X2="{Binding CropCenterGuideHorizontalX2}"
+                              Y2="{Binding CropCenterGuideCenterY}"
+                              Stroke="#F1D35A"
+                              StrokeThickness="1.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round">
+                            <Line.RenderTransform>
+                                <RotateTransform Angle="{Binding RectangleSelectionRotationAngle}"
+                                                 CenterX="{Binding CropCenterGuideCenterX}"
+                                                 CenterY="{Binding CropCenterGuideCenterY}"/>
+                            </Line.RenderTransform>
+                        </Line>
+                        <Line Visibility="{Binding CropCenterGuideVisibility}"
+                              IsHitTestVisible="False"
+                              X1="{Binding CropCenterGuideCenterX}"
+                              Y1="{Binding CropCenterGuideVerticalY1}"
+                              X2="{Binding CropCenterGuideCenterX}"
+                              Y2="{Binding CropCenterGuideVerticalY2}"
+                              Stroke="#F1D35A"
+                              StrokeThickness="1.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round">
+                            <Line.RenderTransform>
+                                <RotateTransform Angle="{Binding RectangleSelectionRotationAngle}"
+                                                 CenterX="{Binding CropCenterGuideCenterX}"
+                                                 CenterY="{Binding CropCenterGuideCenterY}"/>
+                            </Line.RenderTransform>
+                        </Line>
+                        <Border Visibility="{Binding CropRotateHandleVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateTopLeftHandleLeft}"
+                                Canvas.Top="{Binding CropRotateTopLeftHandleTop}"
+                                Width="10"
+                                Height="10"
+                                CornerRadius="5"
+                                Background="{StaticResource SurfacePrimary}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1.5"/>
+                        <Border Visibility="{Binding CropRotateHandleVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateTopRightHandleLeft}"
+                                Canvas.Top="{Binding CropRotateTopRightHandleTop}"
+                                Width="10"
+                                Height="10"
+                                CornerRadius="5"
+                                Background="{StaticResource SurfacePrimary}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1.5"/>
+                        <Border Visibility="{Binding CropRotateHandleVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateBottomRightHandleLeft}"
+                                Canvas.Top="{Binding CropRotateBottomRightHandleTop}"
+                                Width="10"
+                                Height="10"
+                                CornerRadius="5"
+                                Background="{StaticResource SurfacePrimary}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1.5"/>
+                        <Border Visibility="{Binding CropRotateHandleVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateBottomLeftHandleLeft}"
+                                Canvas.Top="{Binding CropRotateBottomLeftHandleTop}"
+                                Width="10"
+                                Height="10"
+                                CornerRadius="5"
+                                Background="{StaticResource SurfacePrimary}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1.5"/>
+                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateCursorLeft}"
+                                Canvas.Top="{Binding CropRotateCursorTop}"
+                                Width="24"
+                                Height="24">
+                            <Path Stroke="#F1D35A"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M 7 17 A 6 6 0 0 1 7 7"/>
+                            <Polyline Points="7,7 4.5,8 5.4,5.2"
+                                      Stroke="#F1D35A"
+                                      StrokeThickness="1.6"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"/>
+                            <Path Stroke="#F1D35A"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M 17 7 A 6 6 0 0 1 17 17"/>
+                            <Polyline Points="17,17 19.5,16 18.6,18.8"
+                                      Stroke="#F1D35A"
+                                      StrokeThickness="1.6"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"/>
+                        </Canvas>
+                        <Ellipse Visibility="{Binding RectangleEllipseSelectionVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding RectangleSelectionLeft}"
+                                 Canvas.Top="{Binding RectangleSelectionTop}"
+                                 Width="{Binding RectangleSelectionWidth}"
+                                 Height="{Binding RectangleSelectionHeight}"
+                                 Stroke="#F1D35A"
+                                 StrokeThickness="1.5"
+                                 StrokeDashArray="5,3"
+                                 Fill="Transparent"/>
+                        <Polygon Visibility="{Binding RectanglePolygonSelectionVisibility}"
+                                 IsHitTestVisible="False"
+                                 Points="{Binding RectangleSelectionPolygonPoints}"
+                                 Stroke="#F1D35A"
+                                 StrokeThickness="1.5"
+                                 StrokeDashArray="5,3"
+                                 Fill="Transparent"/>
+                        <Path Data="{Binding LassoToolGeometry}"
+                              Visibility="{Binding LassoToolVisibility}"
+                              IsHitTestVisible="False"
+                              Stroke="#75F5B8"
+                              StrokeThickness="1.5"
+                              StrokeDashArray="4,2"
+                              Fill="Transparent"/>
+                        <Path Data="{Binding PathToolGeometry}"
+                              Visibility="{Binding PathToolVisibility}"
+                              IsHitTestVisible="False"
+                              Stroke="#F08A5D"
+                              StrokeThickness="1.5"
+                              Fill="Transparent"/>
+                        <ItemsControl ItemsSource="{Binding PathAnchorPoints}"
+                                      Visibility="{Binding PathToolVisibility}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Canvas.Left" Value="{Binding DisplayLeft}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding DisplayTop}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MouseLeftButtonDown="PathAnchor_MouseLeftButtonDown"
+                                          MouseMove="PathAnchor_MouseMove"
+                                          MouseLeftButtonUp="PathAnchor_MouseLeftButtonUp"
+                                          Cursor="SizeAll"
+                                          ToolTip="{Binding Label}"
+                                          Width="{Binding VisualSize}"
+                                          Height="{Binding VisualSize}">
+                                        <Ellipse Width="{Binding CircleSize}"
+                                                 Height="{Binding CircleSize}"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{Binding Color}"
+                                                 Stroke="{StaticResource SurfaceCanvasDark}"
+                                                 StrokeThickness="2"/>
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="{StaticResource TextMain}"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Top"
+                                                   Margin="0,-12,0,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding TypeTextItems}"
+                                      Visibility="{Binding TypeTextOverlayVisibility}"
+                                      IsHitTestVisible="{Binding TypeToolHitTestEnabled}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Canvas.Left" Value="{Binding DisplayLeft}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding DisplayTop}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Width="{Binding EffectiveDisplayWidth}"
+                                          Height="{Binding EffectiveDisplayHeight}"
+                                          MinWidth="40"
+                                          MinHeight="24"
+                                          Background="Transparent"
+                                          Cursor="SizeAll"
+                                          MouseLeftButtonDown="TypeTextItem_MouseLeftButtonDown"
+                                          MouseMove="TypeTextItem_MouseMove"
+                                          MouseLeftButtonUp="TypeTextItem_MouseLeftButtonUp">
+                                        <Border Visibility="{Binding SelectionVisibility}"
+                                                BorderBrush="{StaticResource Accent}"
+                                                BorderThickness="1"
+                                                CornerRadius="2"
+                                                Background="#22000000"/>
+                                        <TextBlock Text="{Binding Text}"
+                                                   Visibility="{Binding DisplayVisibility}"
+                                                   Foreground="{Binding FontColor}"
+                                                   FontFamily="{Binding FontFamilyName}"
+                                                   FontSize="{Binding FontSize}"
+                                                   FontWeight="{Binding FontWeightValue}"
+                                                   FontStyle="{Binding FontStyleValue}"
+                                                   TextAlignment="{Binding TextAlignment}"
+                                                   TextWrapping="Wrap"
+                                                   Opacity="{Binding OpacityValue}"
+                                                   Padding="4,2"/>
+                                        <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Visibility="{Binding EditorVisibility}"
+                                                 Foreground="{Binding FontColor}"
+                                                 FontFamily="{Binding FontFamilyName}"
+                                                 FontSize="{Binding FontSize}"
+                                                 FontWeight="{Binding FontWeightValue}"
+                                                 FontStyle="{Binding FontStyleValue}"
+                                                 TextAlignment="{Binding TextAlignment}"
+                                                 TextWrapping="Wrap"
+                                                 Opacity="{Binding OpacityValue}"
+                                                 Background="#CC1E1E1E"
+                                                 BorderBrush="{StaticResource Accent}"
+                                                 BorderThickness="1"
+                                                 Padding="4,2"
+                                                 AcceptsReturn="False"
+                                                 Loaded="TypeTextEditor_Loaded"
+                                                 LostKeyboardFocus="TypeTextEditor_LostKeyboardFocus"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Ellipse Visibility="{Binding BrushCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding BrushCircleLeft}"
+                                 Canvas.Top="{Binding BrushCircleTop}"
+                                 Width="{Binding BrushCircleSize}"
+                                 Height="{Binding BrushCircleSize}"
+                                 Stroke="{Binding BrushColorPreview}"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding EraserCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding EraserCircleLeft}"
+                                 Canvas.Top="{Binding EraserCircleTop}"
+                                 Width="{Binding EraserCircleSize}"
+                                 Height="{Binding EraserCircleSize}"
+                                 Stroke="#E5E5E5"
+                                 StrokeThickness="1.5"
+                                 StrokeDashArray="3,2"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding StampCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding StampCircleLeft}"
+                                 Canvas.Top="{Binding StampCircleTop}"
+                                 Width="{Binding StampCircleSize}"
+                                 Height="{Binding StampCircleSize}"
+                                 Stroke="{StaticResource Accent}"
+                                 StrokeThickness="1.5"
+                                 StrokeDashArray="4,3"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding HealingCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding HealingCircleLeft}"
+                                 Canvas.Top="{Binding HealingCircleTop}"
+                                 Width="{Binding HealingCircleSize}"
+                                 Height="{Binding HealingCircleSize}"
+                                 Stroke="#75F5B8"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding BlurSharpCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding BlurSharpCircleLeft}"
+                                 Canvas.Top="{Binding BlurSharpCircleTop}"
+                                 Width="{Binding BlurSharpCircleSize}"
+                                 Height="{Binding BlurSharpCircleSize}"
+                                 Stroke="#D9D9D9"
+                                 StrokeThickness="1.5"
+                                 StrokeDashArray="2,2"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding DodgeBurnCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding DodgeBurnCircleLeft}"
+                                 Canvas.Top="{Binding DodgeBurnCircleTop}"
+                                 Width="{Binding DodgeBurnCircleSize}"
+                                 Height="{Binding DodgeBurnCircleSize}"
+                                 Stroke="{Binding DodgeBurnCircleStroke}"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                        <Ellipse Visibility="{Binding HistoryBrushCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding HistoryBrushCircleLeft}"
+                                 Canvas.Top="{Binding HistoryBrushCircleTop}"
+                                 Width="{Binding HistoryBrushCircleSize}"
+                                 Height="{Binding HistoryBrushCircleSize}"
+                                 Stroke="#F1D35A"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                        <Border Visibility="{Binding FreeTransformOverlayVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding PreviewImageLeft}"
+                                Canvas.Top="{Binding PreviewImageTop}"
+                                Width="{Binding PreviewImageWidth}"
+                                Height="{Binding PreviewImageHeight}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1.5"
+                                Background="Transparent">
+                            <Grid>
+                                <Rectangle Width="8"
+                                           Height="8"
+                                           Fill="{StaticResource SurfacePrimary}"
+                                           Stroke="#F1D35A"
+                                           StrokeThickness="1"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Top"
+                                           Margin="-4,-4,0,0"/>
+                                <Rectangle Width="8"
+                                           Height="8"
+                                           Fill="{StaticResource SurfacePrimary}"
+                                           Stroke="#F1D35A"
+                                           StrokeThickness="1"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Top"
+                                           Margin="0,-4,-4,0"/>
+                                <Rectangle Width="8"
+                                           Height="8"
+                                           Fill="{StaticResource SurfacePrimary}"
+                                           Stroke="#F1D35A"
+                                           StrokeThickness="1"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Bottom"
+                                           Margin="-4,0,0,-4"/>
+                                <Rectangle Width="8"
+                                           Height="8"
+                                           Fill="{StaticResource SurfacePrimary}"
+                                           Stroke="#F1D35A"
+                                           StrokeThickness="1"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom"
+                                           Margin="0,0,-4,-4"/>
+                            </Grid>
+                        </Border>
+                        <Rectangle Visibility="{Binding ZoomSelectionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding ZoomSelectionLeft}"
+                                   Canvas.Top="{Binding ZoomSelectionTop}"
+                                   Width="{Binding ZoomSelectionWidth}"
+                                   Height="{Binding ZoomSelectionHeight}"
+                                   Stroke="#F1D35A"
+                                   StrokeThickness="1.5"
+                                   StrokeDashArray="4,2"
+                                   Fill="Transparent"/>
+                        <Line Visibility="{Binding RulerVisibility}"
+                              IsHitTestVisible="False"
+                              X1="{Binding RulerX1}"
+                              Y1="{Binding RulerY1}"
+                              X2="{Binding RulerX2}"
+                              Y2="{Binding RulerY2}"
+                              Stroke="#F1D35A"
+                              StrokeThickness="1.5"/>
+                        <Border Visibility="{Binding RulerVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding RulerLabelLeft}"
+                                Canvas.Top="{Binding RulerLabelTop}"
+                                Background="{StaticResource OverlayLabelBg}"
+                                BorderBrush="#F1D35A"
+                                BorderThickness="1"
+                                Padding="5,2">
+                            <TextBlock Text="{Binding RulerMeasurementText}"
+                                       Foreground="#F1D35A"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"/>
+                        </Border>
+                        <Rectangle Visibility="{Binding SampleRegionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding SampleRegionLeft}"
+                                   Canvas.Top="{Binding SampleRegionTop}"
+                                   Width="{Binding SampleRegionWidth}"
+                                   Height="{Binding SampleRegionHeight}"
+                                   Stroke="#75F5B8"
+                                   StrokeThickness="1.5"
+                                   Fill="Transparent"/>
+                        <Border Visibility="{Binding SampleRegionVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding SampleLabelLeft}"
+                                Canvas.Top="{Binding SampleLabelTop}"
+                                Background="{StaticResource OverlayLabelBg}"
+                                BorderBrush="#75F5B8"
+                                BorderThickness="1"
+                                Padding="5,2">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="14"
+                                        Height="14"
+                                        Background="{Binding SampleColorPreview}"
+                                        BorderBrush="{StaticResource MenuBorder}"
+                                        BorderThickness="1"
+                                        Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding SampleResultText}"
+                                           Foreground="#75F5B8"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Image Source="{Binding MagicSelectionOverlayImage}"
+                               Visibility="{Binding MagicSelectionVisibility}"
+                               IsHitTestVisible="False"
+                               Canvas.Left="{Binding PreviewImageLeft}"
+                               Canvas.Top="{Binding PreviewImageTop}"
+                               Width="{Binding PreviewImageWidth}"
+                               Height="{Binding PreviewImageHeight}"
+                               Stretch="Fill"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <Ellipse Visibility="{Binding LiquifyCircleVisibility}"
+                                 IsHitTestVisible="False"
+                                 Canvas.Left="{Binding LiquifyCircleLeft}"
+                                 Canvas.Top="{Binding LiquifyCircleTop}"
+                                 Width="{Binding LiquifyCircleSize}"
+                                 Height="{Binding LiquifyCircleSize}"
+                                 Stroke="#F08A5D"
+                                 StrokeThickness="1.5"
+                                 Fill="Transparent"/>
+                    </Canvas>
+
+                    <Border Visibility="{Binding LocalWorkbenchVisibility}"
+                            Background="{StaticResource WorkbenchOverlayBg}"
+                            BorderBrush="{StaticResource Accent}"
+                            BorderThickness="2"
+                            CornerRadius="8"
+                            Width="680"
+                            MaxHeight="760"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Padding="14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Margin="0,0,0,10">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding LocalWorkbenchTitle}"
+                                               Foreground="{StaticResource TextMain}"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding LocalWorkbenchInfo}"
+                                               Foreground="{StaticResource TextSub}"
+                                               Margin="16,3,0,0"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding LocalWorkbenchStatusText}"
+                                           Foreground="{StaticResource TextSub}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Row="1"
+                                    Width="620"
+                                    Height="620"
+                                    HorizontalAlignment="Center"
+                                    Background="{StaticResource SurfaceCanvasDark}"
+                                    BorderBrush="{StaticResource BorderStrong}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Image Source="{Binding LocalWorkbenchImage}"
+                                           Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    <Image Source="{Binding LocalWorkbenchApplyMaskImage}" Stretch="UniformToFill"/>
+                                    <Image Source="{Binding LocalWorkbenchProtectMaskImage}" Stretch="UniformToFill"/>
+                                    <Image Source="{Binding LocalWorkbenchBlockMaskImage}" Stretch="UniformToFill"/>
+                                    <Image Source="{Binding LocalWorkbenchWorkMaskImage}" Stretch="UniformToFill"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Bottom"
+                                                Margin="8"
+                                                Background="{StaticResource OverlayLabelBg}">
+                                        <TextBlock Text="Apply" Foreground="{StaticResource ApplyMaskText}" Margin="6,3"/>
+                                        <TextBlock Text="Protect" Foreground="{StaticResource Accent}" Margin="6,3"/>
+                                        <TextBlock Text="Block" Foreground="{StaticResource BlockMaskText}" Margin="6,3"/>
+                                        <TextBlock Text="Work" Foreground="{StaticResource WorkMaskText}" Margin="6,3"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Grid Grid.Row="2" Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Display-only preview. Close returns to the main photo without applying image changes."
+                                           Foreground="{StaticResource TextSub}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,12,0"/>
+                                <Button Grid.Column="1"
+                                        Content="Close"
+                                        Click="CancelWorkbench_Click"
+                                        Margin="4"
+                                        Padding="18,7"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+                <Border Grid.Row="2" Background="{StaticResource SurfacePrimary}" BorderBrush="{StaticResource MenuBorder}" BorderThickness="0,1,0,0" Padding="16,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="64"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Zoom"
+                                   Foreground="{StaticResource TextSub}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
+                        <Slider Grid.Column="1"
+                                Minimum="25"
+                                Maximum="300"
+                                TickFrequency="25"
+                                Value="{Binding PreviewZoomPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding PreviewZoomDisplayText}"
+                                   Foreground="{StaticResource TextSub}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Column="3"
+                    Background="{StaticResource SurfacePrimary}"
+                    BorderBrush="{StaticResource MenuBorder}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ScrollViewer Grid.Row="0"
+                                  VerticalScrollBarVisibility="Hidden"
+                                  Padding="14">
+                        <StackPanel IsEnabled="{Binding RetouchPanelEditingEnabled}">
+                            <tabs:PhotoAdjustTabView x:Name="PhotoAdjustRetouchTab"/>
+                            <tabs:SkinTabView x:Name="SkinRetouchTab"/>
+                            <tabs:WrinkleTabView x:Name="WrinkleRetouchTab"/>
+                            <tabs:FaceShapeTabView x:Name="FaceShapeRetouchTab"/>
+                            <tabs:MouthTabView x:Name="MouthRetouchTab"/>
+                            <tabs:BodyTabView x:Name="BodyRetouchTab"/>
+                            <tabs:BackgroundTabView x:Name="BackgroundRetouchTab"/>
+                            <tabs:EyesTabView x:Name="EyesRetouchTab"/>
+                            <tabs:NoseTabView x:Name="NoseRetouchTab"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Border Grid.Row="1"
+                            Visibility="{Binding HistoryPanelVisibility}"
+                            Background="{StaticResource SurfacePrimary}"
+                            BorderBrush="{StaticResource MenuBorder}"
+                            BorderThickness="0,1,0,0"
+                            Padding="14"
+                            MinHeight="150">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="History"
+                                           Foreground="{StaticResource TextMain}"
+                                           FontWeight="Bold"
+                                           Margin="0,0,0,10"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding HistoryPanelStatusText}"
+                                           Foreground="{StaticResource TextSub}"
+                                           VerticalAlignment="Center"
+                                           Margin="10,0,0,10"/>
+                            </Grid>
+                            <Border Grid.Row="1"
+                                    Background="{StaticResource SurfaceCanvasDark}"
+                                    BorderBrush="{StaticResource MenuBorder}"
+                                    BorderThickness="1"
+                                    Padding="10">
+                                <Grid>
+                                    <Grid Visibility="{Binding HistoryPanelEmptyVisibility}">
+                                        <StackPanel VerticalAlignment="Top">
+                                            <TextBlock Text="No edit history yet."
+                                                       Foreground="{StaticResource TextSub}"
+                                                       Margin="0,0,0,6"/>
+                                            <TextBlock Text="Open a photo and start editing to build steps here."
+                                                       Foreground="{StaticResource TextSub}"
+                                                       Margin="0,0,0,6"/>
+                                            <TextBlock Text="Applied tool actions and snapshots will appear in this panel."
+                                                       Foreground="{StaticResource TextSub}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListBox Visibility="{Binding HistoryPanelListVisibility}"
+                                             ItemsSource="{Binding HistoryPanelItems}"
+                                             SelectedItem="{Binding SelectedHistoryPanelItem, Mode=TwoWay}"
+                                             MaxHeight="216"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Foreground="{StaticResource TextMain}"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="{x:Type ListBoxItem}">
+                                                <Setter Property="Padding" Value="0"/>
+                                                <Setter Property="Margin" Value="0,0,0,8"/>
+                                                <Setter Property="Height" Value="64"/>
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{StaticResource MenuBorder}"
+                                                        BorderThickness="1"
+                                                        Background="{StaticResource SurfacePrimary}"
+                                                        Padding="8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           Foreground="{StaticResource TextMain}"
+                                                                           FontWeight="SemiBold"
+                                                                           VerticalAlignment="Center"/>
+                                                                <Border Background="{StaticResource PanelSelectedBg}"
+                                                                        BorderBrush="{StaticResource Accent}"
+                                                                        BorderThickness="1"
+                                                                        Padding="5,1"
+                                                                        Margin="8,0,0,0"
+                                                                        VerticalAlignment="Center">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="{x:Type Border}">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock Text="Current"
+                                                                               Foreground="{StaticResource Accent}"
+                                                                               FontSize="10"
+                                                                               FontWeight="Bold"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Detail}"
+                                                                       Foreground="{StaticResource TextSub}"
+                                                                       FontSize="12"
+                                                                       Margin="0,3,0,0"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding TimeLabel}"
+                                                                   Foreground="{StaticResource TextSub}"
+                                                                   FontSize="11"
+                                                                   Margin="10,0,0,0"
+                                                                   VerticalAlignment="Top"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

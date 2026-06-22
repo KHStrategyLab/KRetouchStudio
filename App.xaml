@@ -1,0 +1,44 @@
+﻿<Application x:Class="KRetouchStudio.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WindowBg" Color="#1B1D1F"/>
+        <SolidColorBrush x:Key="SurfacePrimary" Color="#202326"/>
+        <SolidColorBrush x:Key="SurfaceSecondary" Color="#181A1C"/>
+        <SolidColorBrush x:Key="PanelBg" Color="#25292C"/>
+        <SolidColorBrush x:Key="PanelSoft" Color="#303539"/>
+        <SolidColorBrush x:Key="PanelSelectedBg" Color="#313940"/>
+        <SolidColorBrush x:Key="PreviewFrameBg" Color="#3A3D3F"/>
+        <SolidColorBrush x:Key="SurfaceCanvasDark" Color="#101214"/>
+        <SolidColorBrush x:Key="SurfaceCanvasDeep" Color="#101112"/>
+        <SolidColorBrush x:Key="PreviewSurfaceBg" Color="#111315"/>
+        <SolidColorBrush x:Key="CurveCanvasBg" Color="#151719"/>
+        <SolidColorBrush x:Key="TextMain" Color="#EEF3F6"/>
+        <SolidColorBrush x:Key="TextSoft" Color="#D4DADE"/>
+        <SolidColorBrush x:Key="TextSub" Color="#A9B3BA"/>
+        <SolidColorBrush x:Key="Accent" Color="#F1D35A"/>
+        <SolidColorBrush x:Key="AccentSoftFill" Color="#18F1D35A"/>
+        <SolidColorBrush x:Key="MenuBg" Color="#181A1C"/>
+        <SolidColorBrush x:Key="MenuItemHoverBg" Color="#303539"/>
+        <SolidColorBrush x:Key="MenuItemPressedBg" Color="#3A3D3F"/>
+        <SolidColorBrush x:Key="MenuBorder" Color="#343A3F"/>
+        <SolidColorBrush x:Key="BorderSoft" Color="#4A5157"/>
+        <SolidColorBrush x:Key="BorderStrong" Color="#596169"/>
+        <SolidColorBrush x:Key="SliderTrackBg" Color="#40454A"/>
+        <SolidColorBrush x:Key="SliderTrackFill" Color="#9AA1A8"/>
+        <SolidColorBrush x:Key="SliderThumbFill" Color="#D7DCE0"/>
+        <SolidColorBrush x:Key="SliderThumbBorder" Color="#70767C"/>
+        <SolidColorBrush x:Key="CurveHistogramFill" Color="#30363B"/>
+        <SolidColorBrush x:Key="CurveGridLine" Color="#2B3034"/>
+        <SolidColorBrush x:Key="CurveGuideLine" Color="#56616A"/>
+        <SolidColorBrush x:Key="UiWhite" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="GuideBlueStroke" Color="#60A5FA"/>
+        <SolidColorBrush x:Key="GuideBlueFill" Color="#1260A5FA"/>
+        <SolidColorBrush x:Key="GuideBlueText" Color="#DCEBFF"/>
+        <SolidColorBrush x:Key="OverlayLabelBg" Color="#AA101214"/>
+        <SolidColorBrush x:Key="WorkbenchOverlayBg" Color="#D91A1D20"/>
+        <SolidColorBrush x:Key="ApplyMaskText" Color="#55EEDC"/>
+        <SolidColorBrush x:Key="BlockMaskText" Color="#FF7070"/>
+        <SolidColorBrush x:Key="WorkMaskText" Color="#75F5B8"/>
+    </Application.Resources>
+</Application>

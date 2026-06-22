@@ -1,0 +1,135 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.FaceShapeTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="DummyFaceShapeSlotStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="FaceShapeModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="FaceShapeExpander" Header="Face Shape" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource DummyFaceShapeSlotStyle}"
+                    ToolTip="Face Shape 전체 되돌림 준비 중"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <ToggleButton Content="Sym"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Sym"
+                              IsChecked="{Binding ElementName=Root, Path=IsSymFaceShapeModeActive, Mode=OneWay}"
+                              Click="SymFaceShapeButton_Click"/>
+                <ToggleButton Content="Cheek"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Cheek"
+                              IsChecked="{Binding ElementName=Root, Path=IsCheekFaceShapeModeActive, Mode=OneWay}"
+                              Click="CheekFaceShapeButton_Click"/>
+                <ToggleButton Content="Bone"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Bone"
+                              IsChecked="{Binding ElementName=Root, Path=IsBoneFaceShapeModeActive, Mode=OneWay}"
+                              Click="BoneFaceShapeButton_Click"/>
+                <ToggleButton Content="Jaw"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Jaw"
+                              IsChecked="{Binding ElementName=Root, Path=IsJawFaceShapeModeActive, Mode=OneWay}"
+                              Click="JawFaceShapeButton_Click"/>
+                <ToggleButton Content="Chin"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Chin"
+                              IsChecked="{Binding ElementName=Root, Path=IsChinFaceShapeModeActive, Mode=OneWay}"
+                              Click="ChinFaceShapeButton_Click"/>
+            </UniformGrid>
+            <Slider Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    Value="{Binding ElementName=Root, Path=ActiveFaceShapeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+    </Expander>
+</UserControl>

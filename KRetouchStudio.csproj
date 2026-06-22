@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>KRetouchStudio</AssemblyName>
+    <RootNamespace>KRetouchStudio</RootNamespace>
+    <Product>KRetouch Studio</Product>
+    <Version>0.1.9</Version>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\AppIcon.ico" />
+    <Resource Include="Assets\AppIcon.ico" />
+    <None Include="Assets\AiModels\*.onnx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\AiModels\MediaPipe\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Tools\MediaPipe\*.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\AiModels\HaarCascades\*.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="KRetouchStudio_update.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="PackageReleaseZip" AfterTargets="Build" Condition="'$(CreateReleasePackage)' == 'true'">
+    <MakeDir Directories="$(ProjectDir)release\" />
+    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;Add-Type -AssemblyName System.IO.Compression.FileSystem; $outDir = '$(TargetDir)'; $stage = '$(ProjectDir)release\package_stage'; $zip = '$(ProjectDir)release\KRetouchStudio_latest.zip'; if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }; New-Item -ItemType Directory -Path $stage | Out-Null; Copy-Item -Path (Join-Path $outDir '*') -Destination $stage -Recurse -Force; if (Test-Path $zip) { Remove-Item $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false); $dstDir = Join-Path $env:USERPROFILE 'Documents\\KRetouchStudio\\Updates'; if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }; $dst = Join-Path $dstDir 'KRetouchStudio_latest.zip'; if (Test-Path $dst) { Remove-Item $dst -Force }; Copy-Item -Path $zip -Destination $dst -Force&quot;" />
+  </Target>
+
+</Project>

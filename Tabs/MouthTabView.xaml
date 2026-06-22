@@ -1,0 +1,135 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.MouthTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="DummyMouthSlotStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="MouthModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="MouthExpander" Header="Mouth" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource DummyMouthSlotStyle}"
+                    ToolTip="Mouth reset pending"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <ToggleButton Content="Smile"
+                              Style="{StaticResource MouthModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Smile"
+                              IsChecked="{Binding ElementName=Root, Path=IsSmileMouthModeActive, Mode=OneWay}"
+                              Click="SmileMouthButton_Click"/>
+                <ToggleButton Content="Lip"
+                              Style="{StaticResource MouthModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Lip"
+                              IsChecked="{Binding ElementName=Root, Path=IsLipMouthModeActive, Mode=OneWay}"
+                              Click="LipMouthButton_Click"/>
+                <ToggleButton Content="Size"
+                              Style="{StaticResource MouthModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Size"
+                              IsChecked="{Binding ElementName=Root, Path=IsSizeMouthModeActive, Mode=OneWay}"
+                              Click="SizeMouthButton_Click"/>
+                <ToggleButton Content="Phil"
+                              Style="{StaticResource MouthModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Philtrum"
+                              IsChecked="{Binding ElementName=Root, Path=IsPhilMouthModeActive, Mode=OneWay}"
+                              Click="PhilMouthButton_Click"/>
+                <ToggleButton Content="Corner"
+                              Style="{StaticResource MouthModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Corner"
+                              IsChecked="{Binding ElementName=Root, Path=IsCornerMouthModeActive, Mode=OneWay}"
+                              Click="CornerMouthButton_Click"/>
+            </UniformGrid>
+            <Slider Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    Value="{Binding ElementName=Root, Path=ActiveMouthStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+    </Expander>
+</UserControl>

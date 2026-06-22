@@ -1,0 +1,564 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Windows;
+
+namespace KRetouchStudio;
+
+public partial class MainWindow
+{
+    private string _brushMode = "brush";
+
+    public Visibility BrushToolOptionsVisibility => string.Equals(ActiveToolId, "brush", StringComparison.OrdinalIgnoreCase)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string BrushMode
+    {
+        get => _brushMode;
+        private set
+        {
+            if (string.Equals(_brushMode, value, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _brushMode = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BrushSize
+    {
+        get => _brushSize;
+        set
+        {
+            double clamped = Math.Clamp(value, 1, 600);
+            if (Math.Abs(_brushSize - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _brushSize = clamped;
+            BrushCircleSize = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BrushSoftness
+    {
+        get => _brushSoftness;
+        set
+        {
+            double clamped = Math.Clamp(value, 0, 100);
+            if (Math.Abs(_brushSoftness - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _brushSoftness = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowBrushCircle
+    {
+        get => _showBrushCircle;
+        set
+        {
+            if (_showBrushCircle == value)
+            {
+                return;
+            }
+
+            _showBrushCircle = value;
+            OnPropertyChanged();
+            UpdateBrushCircleVisibility();
+        }
+    }
+
+    public System.Windows.Media.Brush BrushColorPreview
+    {
+        get => _brushColorPreview;
+        private set
+        {
+            _brushColorPreview = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BrushCircleLeft
+    {
+        get => _brushCircleLeft;
+        private set
+        {
+            _brushCircleLeft = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BrushCircleTop
+    {
+        get => _brushCircleTop;
+        private set
+        {
+            _brushCircleTop = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BrushCircleSize
+    {
+        get => _brushCircleSize;
+        private set
+        {
+            _brushCircleSize = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public Visibility BrushCircleVisibility
+    {
+        get => _brushCircleVisibility;
+        private set
+        {
+            _brushCircleVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private void BrushModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not string mode || string.IsNullOrWhiteSpace(mode))
+        {
+            return;
+        }
+
+        BrushMode = mode;
+        UpdateBrushModeSelection();
+    }
+
+    private void UpdateBrushModeSelection()
+    {
+        foreach (System.Windows.Controls.Button button in GetBrushModeButtons())
+        {
+            bool isActive = button.Tag is string mode &&
+                            string.Equals(mode, BrushMode, StringComparison.OrdinalIgnoreCase);
+            button.Background = isActive
+                ? (System.Windows.Media.Brush)FindResource("PanelSelectedBg")
+                : (System.Windows.Media.Brush)FindResource("SurfacePrimary");
+            button.BorderBrush = isActive
+                ? (System.Windows.Media.Brush)FindResource("Accent")
+                : (System.Windows.Media.Brush)FindResource("MenuBorder");
+            button.Foreground = isActive
+                ? (System.Windows.Media.Brush)FindResource("Accent")
+                : (System.Windows.Media.Brush)FindResource("TextMain");
+        }
+    }
+
+    private IEnumerable<System.Windows.Controls.Button> GetBrushModeButtons()
+    {
+        yield return BrushModeButton;
+        yield return PencilModeButton;
+    }
+
+    private void BrushColorPresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button button && button.Tag is string colorText)
+        {
+            SetBrushColorFromText(colorText);
+        }
+    }
+
+    private void BrushColorPickerButton_Click(object sender, RoutedEventArgs e)
+    {
+        using System.Windows.Forms.ColorDialog dialog = new();
+        if (BrushColorPreview is System.Windows.Media.SolidColorBrush currentBrush)
+        {
+            System.Windows.Media.Color currentColor = currentBrush.Color;
+            dialog.Color = System.Drawing.Color.FromArgb(currentColor.R, currentColor.G, currentColor.B);
+        }
+
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        System.Drawing.Color pickedColor = dialog.Color;
+        BrushColorPreview = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(pickedColor.R, pickedColor.G, pickedColor.B));
+    }
+
+    private void SetBrushColorFromText(string colorText)
+    {
+        object? converted = System.Windows.Media.ColorConverter.ConvertFromString(colorText);
+        if (converted is System.Windows.Media.Color color)
+        {
+            BrushColorPreview = new System.Windows.Media.SolidColorBrush(color);
+        }
+    }
+
+    private bool CanUseBrushPreview()
+    {
+        return string.Equals(ActiveToolId, "brush", StringComparison.OrdinalIgnoreCase) &&
+               CanUseSinglePreviewTool();
+    }
+
+    private void StartBrushStroke(System.Windows.Point previewPoint)
+    {
+        if (!CanUseBrushPreview() ||
+            !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
+            !TryGetToolWorkingBitmap(out _, out System.Windows.Media.Imaging.WriteableBitmap target))
+        {
+            return;
+        }
+
+        _isBrushDragging = true;
+        ApplyPaintDab(target, imagePoint, BrushSize, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, 1.0);
+        System.Windows.Input.Mouse.Capture(PreviewSurface);
+    }
+
+    private void ContinueBrushStroke(System.Windows.Point previewPoint)
+    {
+        if (!_isBrushDragging ||
+            !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
+            !TryGetToolWorkingBitmap(out _, out System.Windows.Media.Imaging.WriteableBitmap target))
+        {
+            return;
+        }
+
+        ApplyPaintDab(target, imagePoint, BrushSize, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, 1.0);
+    }
+
+    private void StopBrushStroke()
+    {
+        if (!_isBrushDragging)
+        {
+            return;
+        }
+
+        _isBrushDragging = false;
+        System.Windows.Input.Mouse.Capture(null);
+        PushEditorHistorySnapshot(IsPencilBrushMode ? "Pencil" : "Brush", $"{BrushSize:0}px");
+    }
+
+    private void UpdateBrushCircle(System.Windows.Point previewPoint)
+    {
+        System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
+        double size = Math.Max(1, BrushSize);
+        BrushCircleSize = size;
+        BrushCircleLeft = center.X - (size * 0.5);
+        BrushCircleTop = center.Y - (size * 0.5);
+        PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
+        UpdateBrushCircleVisibility();
+    }
+
+    private void UpdateBrushCircleVisibility()
+    {
+        BrushCircleVisibility = CanUseBrushPreview() && ShowBrushCircle
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private bool IsPencilBrushMode => string.Equals(BrushMode, "pencil", StringComparison.OrdinalIgnoreCase);
+
+    private System.Windows.Media.Color GetCurrentBrushColor()
+    {
+        return BrushColorPreview is System.Windows.Media.SolidColorBrush brush
+            ? brush.Color
+            : System.Windows.Media.Colors.White;
+    }
+
+    private bool TryGetToolWorkingBitmap(out PhotoItem photo, out System.Windows.Media.Imaging.WriteableBitmap target)
+    {
+        target = null!;
+        if (SelectedPhoto is not PhotoItem selectedPhoto)
+        {
+            photo = null!;
+            return false;
+        }
+
+        photo = selectedPhoto;
+        target = EnsureToolWorkingBitmap(photo);
+        return true;
+    }
+
+    private System.Windows.Media.Imaging.WriteableBitmap EnsureToolWorkingBitmap(PhotoItem photo)
+    {
+        if (photo.Image is System.Windows.Media.Imaging.WriteableBitmap writable &&
+            writable.Format == System.Windows.Media.PixelFormats.Bgra32)
+        {
+            return writable;
+        }
+
+        System.Windows.Media.Imaging.BitmapSource currentSource = GetCurrentDisplayBitmapSource(photo);
+        System.Windows.Media.Imaging.BitmapSource bgraSource = currentSource.Format == System.Windows.Media.PixelFormats.Bgra32
+            ? currentSource
+            : new System.Windows.Media.Imaging.FormatConvertedBitmap(currentSource, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        System.Windows.Media.Imaging.WriteableBitmap workingBitmap = new(bgraSource);
+        photo.SetAdjustedImage(workingBitmap);
+        return workingBitmap;
+    }
+
+    private static bool ApplyPaintDab(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Point center,
+        double size,
+        double softness,
+        System.Windows.Media.Color color,
+        bool hardEdge,
+        double opacity)
+    {
+        CopyBgraPixels(target, out byte[] pixels, out int stride);
+        int width = target.PixelWidth;
+        int height = target.PixelHeight;
+        bool changed = false;
+
+        ForEachDabPixel(width, height, center, size, softness, hardEdge, opacity, (x, y, alpha) =>
+        {
+            int index = y * stride + x * 4;
+            pixels[index + 0] = BlendByte(pixels[index + 0], color.B, alpha);
+            pixels[index + 1] = BlendByte(pixels[index + 1], color.G, alpha);
+            pixels[index + 2] = BlendByte(pixels[index + 2], color.R, alpha);
+            pixels[index + 3] = 255;
+            changed = true;
+        });
+
+        if (changed)
+        {
+            target.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
+        }
+
+        return changed;
+    }
+
+    private static bool ApplyRestoreDab(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Media.Imaging.BitmapSource restoreSource,
+        System.Windows.Point center,
+        double size,
+        double softness,
+        double opacity)
+    {
+        CopyBgraPixels(target, out byte[] pixels, out int stride);
+        System.Windows.Media.Imaging.BitmapSource source = EnsureBgraBitmapSource(restoreSource);
+        CopyBgraPixels(source, out byte[] sourcePixels, out int sourceStride);
+        int width = target.PixelWidth;
+        int height = target.PixelHeight;
+        bool changed = false;
+
+        ForEachDabPixel(width, height, center, size, softness, false, opacity, (x, y, alpha) =>
+        {
+            int sourceX = ScaleCoordinate(x, width, source.PixelWidth);
+            int sourceY = ScaleCoordinate(y, height, source.PixelHeight);
+            int index = y * stride + x * 4;
+            int sourceIndex = sourceY * sourceStride + sourceX * 4;
+            pixels[index + 0] = BlendByte(pixels[index + 0], sourcePixels[sourceIndex + 0], alpha);
+            pixels[index + 1] = BlendByte(pixels[index + 1], sourcePixels[sourceIndex + 1], alpha);
+            pixels[index + 2] = BlendByte(pixels[index + 2], sourcePixels[sourceIndex + 2], alpha);
+            pixels[index + 3] = 255;
+            changed = true;
+        });
+
+        if (changed)
+        {
+            target.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
+        }
+
+        return changed;
+    }
+
+    private static bool ApplySourceCopyDab(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Media.Imaging.BitmapSource sourceBitmap,
+        System.Windows.Point targetCenter,
+        System.Windows.Point sourceCenter,
+        double size,
+        double softness,
+        double opacity)
+    {
+        CopyBgraPixels(target, out byte[] pixels, out int stride);
+        System.Windows.Media.Imaging.BitmapSource source = EnsureBgraBitmapSource(sourceBitmap);
+        CopyBgraPixels(source, out byte[] sourcePixels, out int sourceStride);
+        int width = target.PixelWidth;
+        int height = target.PixelHeight;
+        bool changed = false;
+
+        ForEachDabPixel(width, height, targetCenter, size, softness, false, opacity, (x, y, alpha) =>
+        {
+            int sourceX = (int)Math.Round(sourceCenter.X + (x - targetCenter.X));
+            int sourceY = (int)Math.Round(sourceCenter.Y + (y - targetCenter.Y));
+            if (sourceX < 0 || sourceY < 0 || sourceX >= source.PixelWidth || sourceY >= source.PixelHeight)
+            {
+                return;
+            }
+
+            int index = y * stride + x * 4;
+            int sourceIndex = sourceY * sourceStride + sourceX * 4;
+            pixels[index + 0] = BlendByte(pixels[index + 0], sourcePixels[sourceIndex + 0], alpha);
+            pixels[index + 1] = BlendByte(pixels[index + 1], sourcePixels[sourceIndex + 1], alpha);
+            pixels[index + 2] = BlendByte(pixels[index + 2], sourcePixels[sourceIndex + 2], alpha);
+            pixels[index + 3] = 255;
+            changed = true;
+        });
+
+        if (changed)
+        {
+            target.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
+        }
+
+        return changed;
+    }
+
+    private static bool ApplyBlurSharpDab(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Point center,
+        double size,
+        double softness,
+        double radius,
+        double strength,
+        bool sharpen)
+    {
+        CopyBgraPixels(target, out byte[] sourcePixels, out int stride);
+        byte[] outputPixels = (byte[])sourcePixels.Clone();
+        int width = target.PixelWidth;
+        int height = target.PixelHeight;
+        int kernelRadius = Math.Clamp((int)Math.Round(radius / 4.0), 1, 6);
+        double opacity = Math.Clamp(strength / 100.0, 0.0, 1.0);
+        bool changed = false;
+
+        ForEachDabPixel(width, height, center, size, softness, false, opacity, (x, y, alpha) =>
+        {
+            int count = 0;
+            int sumB = 0;
+            int sumG = 0;
+            int sumR = 0;
+            for (int yy = Math.Max(0, y - kernelRadius); yy <= Math.Min(height - 1, y + kernelRadius); yy++)
+            {
+                for (int xx = Math.Max(0, x - kernelRadius); xx <= Math.Min(width - 1, x + kernelRadius); xx++)
+                {
+                    int sampleIndex = yy * stride + xx * 4;
+                    sumB += sourcePixels[sampleIndex + 0];
+                    sumG += sourcePixels[sampleIndex + 1];
+                    sumR += sourcePixels[sampleIndex + 2];
+                    count++;
+                }
+            }
+
+            if (count == 0)
+            {
+                return;
+            }
+
+            int index = y * stride + x * 4;
+            byte avgB = (byte)(sumB / count);
+            byte avgG = (byte)(sumG / count);
+            byte avgR = (byte)(sumR / count);
+            if (sharpen)
+            {
+                outputPixels[index + 0] = BlendByte(sourcePixels[index + 0], ClampByte(sourcePixels[index + 0] + (sourcePixels[index + 0] - avgB)), alpha);
+                outputPixels[index + 1] = BlendByte(sourcePixels[index + 1], ClampByte(sourcePixels[index + 1] + (sourcePixels[index + 1] - avgG)), alpha);
+                outputPixels[index + 2] = BlendByte(sourcePixels[index + 2], ClampByte(sourcePixels[index + 2] + (sourcePixels[index + 2] - avgR)), alpha);
+            }
+            else
+            {
+                outputPixels[index + 0] = BlendByte(sourcePixels[index + 0], avgB, alpha);
+                outputPixels[index + 1] = BlendByte(sourcePixels[index + 1], avgG, alpha);
+                outputPixels[index + 2] = BlendByte(sourcePixels[index + 2], avgR, alpha);
+            }
+
+            outputPixels[index + 3] = 255;
+            changed = true;
+        });
+
+        if (changed)
+        {
+            target.WritePixels(new Int32Rect(0, 0, width, height), outputPixels, stride, 0);
+        }
+
+        return changed;
+    }
+
+    private static void ForEachDabPixel(
+        int width,
+        int height,
+        System.Windows.Point center,
+        double size,
+        double softness,
+        bool hardEdge,
+        double opacity,
+        Action<int, int, double> action)
+    {
+        double radius = Math.Max(0.5, size * 0.5);
+        int minX = Math.Max(0, (int)Math.Floor(center.X - radius));
+        int maxX = Math.Min(width - 1, (int)Math.Ceiling(center.X + radius));
+        int minY = Math.Max(0, (int)Math.Floor(center.Y - radius));
+        int maxY = Math.Min(height - 1, (int)Math.Ceiling(center.Y + radius));
+        double soft = hardEdge ? 0 : Math.Clamp(softness / 100.0, 0.0, 1.0);
+        double innerRadius = radius * (1.0 - soft);
+        double featherWidth = Math.Max(0.001, radius - innerRadius);
+
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                double dx = x + 0.5 - center.X;
+                double dy = y + 0.5 - center.Y;
+                double distance = Math.Sqrt(dx * dx + dy * dy);
+                if (distance > radius)
+                {
+                    continue;
+                }
+
+                double alpha = 1.0;
+                if (!hardEdge && distance > innerRadius)
+                {
+                    double t = Math.Clamp((radius - distance) / featherWidth, 0.0, 1.0);
+                    alpha = t * t * (3.0 - 2.0 * t);
+                }
+
+                alpha *= Math.Clamp(opacity, 0.0, 1.0);
+                if (alpha <= 0.001)
+                {
+                    continue;
+                }
+
+                action(x, y, alpha);
+            }
+        }
+    }
+
+    private static System.Windows.Media.Imaging.BitmapSource EnsureBgraBitmapSource(System.Windows.Media.Imaging.BitmapSource source)
+    {
+        return source.Format == System.Windows.Media.PixelFormats.Bgra32
+            ? source
+            : new System.Windows.Media.Imaging.FormatConvertedBitmap(source, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+    }
+
+    private static void CopyBgraPixels(System.Windows.Media.Imaging.BitmapSource source, out byte[] pixels, out int stride)
+    {
+        System.Windows.Media.Imaging.BitmapSource bgraSource = EnsureBgraBitmapSource(source);
+        stride = bgraSource.PixelWidth * 4;
+        pixels = new byte[stride * bgraSource.PixelHeight];
+        bgraSource.CopyPixels(pixels, stride, 0);
+    }
+
+    private static int ScaleCoordinate(int value, int sourceSize, int targetSize)
+    {
+        if (sourceSize <= 1 || targetSize <= 1)
+        {
+            return 0;
+        }
+
+        return Math.Clamp((int)Math.Round(value * (targetSize - 1.0) / (sourceSize - 1.0)), 0, targetSize - 1);
+    }
+
+    private static byte BlendByte(byte current, byte target, double alpha)
+    {
+        return ClampByte(current + (target - current) * alpha);
+    }
+
+    private static byte ClampByte(double value)
+    {
+        return (byte)Math.Clamp((int)Math.Round(value), 0, 255);
+    }
+}

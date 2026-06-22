@@ -1,0 +1,336 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.PhotoAdjustTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KRetouchStudio">
+    <UserControl.Resources>
+        <Style x:Key="ToneQuickButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="PhotoAdjustExpander" Header="Tone Correction" IsExpanded="True" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Padding="0"
+                    Margin="0"
+                    FontSize="15"
+                    FontWeight="Bold"
+                    Style="{StaticResource ToneQuickButtonStyle}"
+                    ToolTip="톤 보정 전체 되돌림"
+                    Click="ResetToneCorrectionButton_Click"/>
+        </Expander.Tag>
+        <StackPanel>
+            <StackPanel x:Name="CurveEditor"
+                        DataContext="{Binding ElementName=Root, Path=CurveState}"
+                        Margin="0,0,0,16">
+                <Grid Margin="0,0,0,8">
+                    <TextBlock Text="커브 조정" Foreground="{StaticResource TextSoft}"/>
+                    <Button Click="ResetCurveChannelButton_Click"
+                            Height="Auto"
+                            Margin="0"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            HorizontalAlignment="Right"
+                            HorizontalContentAlignment="Right"
+                            Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True"/>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <TextBlock Text="- 커브값 초기화 -"
+                                   Foreground="{StaticResource TextSub}"
+                                   FontSize="11"/>
+                    </Button>
+                </Grid>
+                <Border Height="190"
+                        Background="{StaticResource SurfaceCanvasDeep}"
+                        BorderBrush="{StaticResource MenuBorder}"
+                        BorderThickness="1">
+                    <Viewbox Stretch="Uniform">
+                        <Canvas Width="278"
+                                Height="188"
+                                Background="{StaticResource CurveCanvasBg}"
+                                Cursor="Cross"
+                                MouseLeftButtonDown="CurveCanvas_MouseLeftButtonDown"
+                                MouseMove="CurveCanvas_MouseMove"
+                                MouseLeftButtonUp="CurveCanvas_MouseLeftButtonUp">
+                            <Polygon Points="{Binding CurveHistogramPoints}"
+                                     Fill="{StaticResource CurveHistogramFill}"
+                                     Opacity="0.58"
+                                     IsHitTestVisible="False"/>
+                            <Line X1="4" Y1="40" X2="274" Y2="40" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="4" Y1="76" X2="274" Y2="76" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="4" Y1="112" X2="274" Y2="112" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="4" Y1="148" X2="274" Y2="148" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="58" Y1="4" X2="58" Y2="184" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="112" Y1="4" X2="112" Y2="184" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="166" Y1="4" X2="166" Y2="184" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="220" Y1="4" X2="220" Y2="184" Stroke="{StaticResource CurveGridLine}" StrokeThickness="1"/>
+                            <Line X1="4" Y1="184" X2="274" Y2="4" Stroke="{StaticResource CurveGuideLine}" StrokeThickness="1.1" StrokeDashArray="4 4"/>
+                            <Line X1="4"
+                                  X2="274"
+                                  Y1="{Binding ElementName=Root, Path=SelectedCurveGuideY}"
+                                  Y2="{Binding ElementName=Root, Path=SelectedCurveGuideY}"
+                                  Stroke="{StaticResource TextSub}"
+                                  StrokeThickness="1"
+                                  StrokeDashArray="2 2"
+                                  Visibility="{Binding ElementName=Root, Path=SelectedCurveGuideVisibility}"
+                                  IsHitTestVisible="False"/>
+                            <Line Y1="4"
+                                  Y2="184"
+                                  X1="{Binding ElementName=Root, Path=SelectedCurveGuideX}"
+                                  X2="{Binding ElementName=Root, Path=SelectedCurveGuideX}"
+                                  Stroke="{StaticResource TextSub}"
+                                  StrokeThickness="1"
+                                  StrokeDashArray="2 2"
+                                  Visibility="{Binding ElementName=Root, Path=SelectedCurveGuideVisibility}"
+                                  IsHitTestVisible="False"/>
+                            <Polyline Points="{Binding CurveControlPolylinePoints}"
+                                      Stroke="{StaticResource CurveGuideLine}"
+                                      StrokeThickness="1"
+                                      Opacity="0.95"
+                                      IsHitTestVisible="False"/>
+                            <Polyline Points="{Binding CurvePolylinePoints}"
+                                      Stroke="{StaticResource Accent}"
+                                      StrokeThickness="1"
+                                      IsHitTestVisible="False"/>
+                            <ItemsControl ItemsSource="{Binding CurvePoints}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}"/>
+                                        <Setter Property="Canvas.Top" Value="{Binding CanvasTop}"/>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Ellipse Width="8"
+                                                 Height="8"
+                                                 Fill="{StaticResource TextSoft}"
+                                                 Stroke="{StaticResource SurfaceCanvasDeep}"
+                                                 StrokeThickness="1"
+                                                 Cursor="Hand"
+                                                 MouseLeftButtonDown="CurvePoint_MouseLeftButtonDown"
+                                                 MouseMove="CurvePoint_MouseMove"
+                                                 MouseLeftButtonUp="CurvePoint_MouseLeftButtonUp">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Stroke" Value="{StaticResource UiWhite}"/>
+                                                            <Setter Property="StrokeThickness" Value="2"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsPendingDelete}" Value="True">
+                                                            <Setter Property="Opacity" Value="0.35"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Canvas>
+                    </Viewbox>
+                </Border>
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="120"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="채널" VerticalAlignment="Center" Foreground="{StaticResource TextSoft}"/>
+                    <ComboBox Grid.Column="1"
+                              SelectedValue="{Binding CurveChannel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Tag"
+                              SelectionChanged="CurveChannelComboBox_SelectionChanged">
+                        <ComboBoxItem Content="전체" Tag="{x:Static local:CurveChannel.All}"/>
+                        <ComboBoxItem Content="R" Tag="{x:Static local:CurveChannel.Red}"/>
+                        <ComboBoxItem Content="G" Tag="{x:Static local:CurveChannel.Green}"/>
+                        <ComboBoxItem Content="B" Tag="{x:Static local:CurveChannel.Blue}"/>
+                    </ComboBox>
+                </Grid>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="48"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="48"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="입력" Foreground="{StaticResource TextSub}" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding SelectedCurveInputText, Mode=OneWay}"
+                             IsEnabled="{Binding IsSelectedCurveInputEditable}"
+                             Tag="Input"
+                             Margin="6,0,0,0"
+                             KeyDown="CurvePointValueTextBox_KeyDown"
+                             LostFocus="CurvePointValueTextBox_LostFocus"/>
+                    <TextBlock Grid.Column="3"
+                               Text="출력"
+                               Foreground="{StaticResource TextSub}"
+                               FontSize="11"
+                               Margin="12,0,6,0"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"/>
+                    <TextBox Grid.Column="4"
+                             Text="{Binding SelectedCurveOutputText, Mode=OneWay}"
+                             IsEnabled="{Binding HasSelectedCurvePoint}"
+                             Tag="Output"
+                             KeyDown="CurvePointValueTextBox_KeyDown"
+                             LostFocus="CurvePointValueTextBox_LostFocus"/>
+                </Grid>
+                <Grid Margin="0,10,0,0">
+                    <TextBlock Text="{Binding CurveStrengthLabel}" Foreground="{StaticResource TextSoft}"/>
+                    <TextBlock Text="{Binding Value, StringFormat={}{0:0}}"
+                               HorizontalAlignment="Right"
+                               Foreground="{StaticResource TextSub}"/>
+                </Grid>
+                <Slider Minimum="0"
+                        Maximum="100"
+                        Value="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        PreviewMouseLeftButtonDown="CurveStrengthSlider_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="CurveStrengthSlider_PreviewMouseLeftButtonUp"
+                        LostMouseCapture="CurveStrengthSlider_LostMouseCapture"/>
+            </StackPanel>
+
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <Button Content="Exp"
+                        Click="ExposureToneButton_Click"
+                        Margin="0,0,8,0">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ToneQuickButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=Root, Path=IsExposureToneQuickControlActive}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Cnt"
+                        Click="ContrastToneButton_Click"
+                        Margin="0,0,8,0">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ToneQuickButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=Root, Path=IsContrastToneQuickControlActive}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Sat"
+                        Click="SaturationToneButton_Click"
+                        Margin="0,0,8,0">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ToneQuickButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=Root, Path=IsSaturationToneQuickControlActive}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="WB"
+                        Click="WhiteBalanceToneButton_Click"
+                        Margin="0,0,8,0">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ToneQuickButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=Root, Path=IsWhiteBalanceToneQuickControlActive}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Shp"
+                        Click="SharpnessToneButton_Click">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ToneQuickButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=Root, Path=IsSharpnessToneQuickControlActive}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </UniformGrid>
+
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="{Binding ElementName=Root, Path=ActiveToneQuickControlLabel}"
+                           Foreground="{StaticResource TextSub}"/>
+                <TextBlock Text="{Binding ElementName=Root, Path=ActiveToneQuickControlValueDisplay}"
+                           HorizontalAlignment="Right"
+                           Foreground="{StaticResource TextSub}"/>
+            </Grid>
+            <Slider Minimum="{Binding ElementName=Root, Path=ActiveToneQuickControlMinimum}"
+                    Maximum="{Binding ElementName=Root, Path=ActiveToneQuickControlMaximum}"
+                    TickFrequency="{Binding ElementName=Root, Path=ActiveToneQuickControlTickFrequency}"
+                    Value="{Binding ElementName=Root, Path=ActiveToneQuickControlValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PreviewMouseLeftButtonDown="ToneQuickSlider_PreviewMouseLeftButtonDown"
+                    PreviewMouseLeftButtonUp="ToneQuickSlider_PreviewMouseLeftButtonUp"
+                    LostMouseCapture="ToneQuickSlider_LostMouseCapture"/>
+        </StackPanel>
+    </Expander>
+</UserControl>
