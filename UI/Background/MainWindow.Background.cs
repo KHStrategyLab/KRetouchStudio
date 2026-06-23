@@ -25,6 +25,7 @@ public partial class MainWindow
     private const byte WhiteBackgroundProbeForegroundThreshold = 64;
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
+    private const int BiRefNetInputSharpenStrength = 45;
 
     private static readonly string BiRefNetOutputRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -172,6 +173,7 @@ public partial class MainWindow
             outputDirectory,
             "ZhengPeng7/BiRefNet_lite-matting",
             1024,
+            BiRefNetInputSharpenStrength,
             "auto");
 
         BiRefNetMattingRunResult result = await BiRefNetMattingService.RunAsync(

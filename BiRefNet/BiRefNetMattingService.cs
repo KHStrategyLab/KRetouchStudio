@@ -12,6 +12,7 @@ internal sealed record BiRefNetMattingRunRequest(
     string OutputDirectory,
     string Model,
     int InferenceSize,
+    int InputSharpen,
     string Device);
 
 internal sealed record BiRefNetMattingRunResult(
@@ -144,6 +145,7 @@ internal static class BiRefNetMattingService
                 ["output"] = request.OutputDirectory,
                 ["model"] = request.Model,
                 ["size"] = request.InferenceSize,
+                ["input_sharpen"] = request.InputSharpen,
                 ["device"] = request.Device,
             };
 
@@ -393,6 +395,8 @@ internal static class BiRefNetMattingService
         startInfo.ArgumentList.Add(request.Model);
         startInfo.ArgumentList.Add("--size");
         startInfo.ArgumentList.Add(request.InferenceSize.ToString());
+        startInfo.ArgumentList.Add("--input-sharpen");
+        startInfo.ArgumentList.Add(request.InputSharpen.ToString());
         startInfo.ArgumentList.Add("--device");
         startInfo.ArgumentList.Add(request.Device);
 

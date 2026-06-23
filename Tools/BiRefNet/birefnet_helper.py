@@ -11,13 +11,14 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from PIL import Image
+from PIL import Image, ImageFilter
 from torchvision import transforms
 from transformers import AutoModelForImageSegmentation
 
 
 DEFAULT_MODEL = "ZhengPeng7/BiRefNet_lite-matting"
 DEFAULT_SIZE = 1024
+DEFAULT_INPUT_SHARPEN = 45
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="Output artifact folder")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id")
     parser.add_argument("--size", type=int, default=DEFAULT_SIZE, help="Square inference size")
+    parser.add_argument("--input-sharpen", type=int, default=DEFAULT_INPUT_SHARPEN, help="Sharpen strength after resize")
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     return parser.parse_args()
 
@@ -47,10 +49,19 @@ def select_device(requested_device: str) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def create_transform(size: int) -> transforms.Compose:
+def sharpen_for_model_input(image: Image.Image, strength: int) -> Image.Image:
+    strength = max(0, min(100, int(strength)))
+    if strength <= 0:
+        return image
+
+    return image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=strength, threshold=0))
+
+
+def create_transform(size: int, input_sharpen: int = DEFAULT_INPUT_SHARPEN) -> transforms.Compose:
     return transforms.Compose(
         [
             transforms.Resize((size, size)),
+            transforms.Lambda(lambda image: sharpen_for_model_input(image, input_sharpen)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
@@ -106,7 +117,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     dtype = torch.float16 if device.type == "cuda" else torch.float32
 
     image = Image.open(image_path).convert("RGB")
-    input_tensor = create_transform(args.size)(image).unsqueeze(0).to(device=device, dtype=dtype)
+    input_tensor = create_transform(args.size, args.input_sharpen)(image).unsqueeze(0).to(device=device, dtype=dtype)
 
     load_started = time.perf_counter()
     model = AutoModelForImageSegmentation.from_pretrained(
@@ -137,6 +148,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "image": str(image_path),
         "image_size": {"width": image.width, "height": image.height},
         "inference_size": args.size,
+        "input_sharpen": args.input_sharpen,
         "device": str(device),
         "dtype": str(dtype),
         "load_seconds": round(load_seconds, 3),

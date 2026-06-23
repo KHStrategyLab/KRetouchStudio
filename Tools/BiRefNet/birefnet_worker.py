@@ -21,6 +21,7 @@ from transformers import AutoModelForImageSegmentation
 from birefnet_helper import (
     DEFAULT_MODEL,
     DEFAULT_SIZE,
+    DEFAULT_INPUT_SHARPEN,
     create_transform,
     extract_prediction,
     save_debug_outputs,
@@ -37,9 +38,10 @@ class BiRefNetWorker:
         self.device: torch.device | None = None
         self.dtype: torch.dtype | None = None
         self.transform_size: int | None = None
+        self.transform_sharpen: int | None = None
         self.transform: transforms.Compose | None = None
 
-    def ensure_loaded(self, model_id: str, size: int, device_request: str) -> float:
+    def ensure_loaded(self, model_id: str, size: int, input_sharpen: int, device_request: str) -> float:
         device = select_device(device_request)
         dtype = torch.float16 if device.type == "cuda" else torch.float32
         needs_model_load = (
@@ -70,9 +72,10 @@ class BiRefNetWorker:
             self.dtype = dtype
             load_seconds = time.perf_counter() - load_started
 
-        if self.transform is None or self.transform_size != size:
-            self.transform = create_transform(size)
+        if self.transform is None or self.transform_size != size or self.transform_sharpen != input_sharpen:
+            self.transform = create_transform(size, input_sharpen)
             self.transform_size = size
+            self.transform_sharpen = input_sharpen
 
         return load_seconds
 
@@ -95,12 +98,14 @@ class BiRefNetWorker:
         output_dir = Path(str(command.get("output", "")))
         model_id = str(command.get("model") or DEFAULT_MODEL)
         size = int(command.get("size") or DEFAULT_SIZE)
+        input_sharpen_value = command.get("input_sharpen")
+        input_sharpen = DEFAULT_INPUT_SHARPEN if input_sharpen_value is None else int(input_sharpen_value)
         device_request = str(command.get("device") or "auto")
 
         output_dir.mkdir(parents=True, exist_ok=True)
         started = time.perf_counter()
 
-        load_seconds = self.ensure_loaded(model_id, size, device_request)
+        load_seconds = self.ensure_loaded(model_id, size, input_sharpen, device_request)
         if self.model is None or self.transform is None or self.device is None or self.dtype is None:
             raise RuntimeError("BiRefNet worker model is not loaded.")
 
@@ -129,6 +134,7 @@ class BiRefNetWorker:
             "image": str(image_path),
             "image_size": {"width": image.width, "height": image.height},
             "inference_size": size,
+            "input_sharpen": input_sharpen,
             "device": str(self.device),
             "dtype": str(self.dtype),
             "load_seconds": round(load_seconds, 3),
