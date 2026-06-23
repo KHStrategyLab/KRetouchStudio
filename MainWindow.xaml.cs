@@ -3020,6 +3020,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
         CancelToneCurvePreviewRender();
         ResetPreviewProxy1200BuildQueue();
+        BiRefNetMattingService.ShutdownWorker();
         StopWorkAreaWatcher();
     }
 

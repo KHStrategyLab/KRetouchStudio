@@ -39,6 +39,7 @@ public partial class MainWindow
     private string? _personAlphaPath;
     private string? _personAlphaPhotoPath;
     private string? _personAlphaEngine;
+    private string? _personAlphaRunMode;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
 
@@ -144,7 +145,10 @@ public partial class MainWindow
             }
 
             UpdatePreviewImageFrame();
-            MediaPipeStatusText = "Background: white preview | BiRefNet";
+            string alphaRunMode = string.IsNullOrWhiteSpace(_personAlphaRunMode)
+                ? PersonAlphaEngineBiRefNet
+                : $"{PersonAlphaEngineBiRefNet} {_personAlphaRunMode}";
+            MediaPipeStatusText = "Background: white preview | " + alphaRunMode;
         }
         catch (Exception ex)
         {
@@ -180,7 +184,7 @@ public partial class MainWindow
             return null;
         }
 
-        CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet);
+        CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet, result.RunMode);
         return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
     }
 
@@ -192,7 +196,7 @@ public partial class MainWindow
                string.Equals(_personAlphaEngine, requiredEngine, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void CachePersonAlphaArtifact(string outputDirectory, string photoPath, string engine)
+    private void CachePersonAlphaArtifact(string outputDirectory, string photoPath, string engine, string? runMode = null)
     {
         string alphaJsonPath = Path.Combine(outputDirectory, "person_alpha.json");
         string? alphaPath = null;
@@ -215,6 +219,7 @@ public partial class MainWindow
         _personAlphaPath = alphaPath;
         _personAlphaPhotoPath = photoPath;
         _personAlphaEngine = engine;
+        _personAlphaRunMode = runMode;
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
     }
@@ -224,6 +229,7 @@ public partial class MainWindow
         _personAlphaPath = null;
         _personAlphaPhotoPath = null;
         _personAlphaEngine = null;
+        _personAlphaRunMode = null;
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
     }
