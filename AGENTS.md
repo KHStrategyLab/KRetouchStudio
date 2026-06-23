@@ -159,7 +159,7 @@ Read these only when the task needs them:
 - `docs\PERSON_MASK_AND_SUBJECT_FORMULA_SPEC.md`
 - `docs\KRETOUCHPRO_PHOTOGRAPHIC_TERMS_DICTIONARY.md`
 - `docs\PORTRAIT_BODY_HAIR_CLOTHING_LOCATION_DICTIONARY.md`
-- `docs\session_logs\2026-06-15.md`
+- `docs\session_logs\2026-06-23.md`
 
 Do not load or summarize all reference documents by default.
 Use them only for larger design, mask engine, local proxy, preview/save, or retouch pipeline work.
