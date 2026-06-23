@@ -1754,6 +1754,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 RemoveSelectedTypeTextItem();
                 e.Handled = true;
+                return;
+            }
+
+            if (TryDeleteSelectedPhotosFromList())
+            {
+                e.Handled = true;
             }
 
             return;
@@ -2168,6 +2174,124 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             and not System.Windows.Controls.PasswordBox
             and not System.Windows.Controls.ComboBox
             and not System.Windows.Controls.ComboBoxItem;
+    }
+
+    private bool CanDeleteSelectedPhotosWithKeyboard()
+    {
+        if (Keyboard.Modifiers != ModifierKeys.None || SelectedPreviewPhotos.Count == 0)
+        {
+            return false;
+        }
+
+        if (_isSinglePreviewPanDragging ||
+            _draggingPreviewTile is not null ||
+            _draggingTypeTextItem is not null ||
+            _isTypeTextCreating)
+        {
+            return false;
+        }
+
+        IInputElement? focusedElement = Keyboard.FocusedElement;
+        if (focusedElement is null || !IsElementInPhotoList(focusedElement))
+        {
+            return false;
+        }
+
+        return focusedElement is not System.Windows.Controls.Primitives.ScrollBar
+            and not System.Windows.Controls.Primitives.RangeBase
+            and not System.Windows.Controls.Primitives.Thumb
+            and not System.Windows.Controls.Primitives.ButtonBase
+            and not System.Windows.Controls.Primitives.TextBoxBase
+            and not System.Windows.Controls.PasswordBox
+            and not System.Windows.Controls.ComboBox
+            and not System.Windows.Controls.ComboBoxItem;
+    }
+
+    private bool TryDeleteSelectedPhotosFromList()
+    {
+        if (!CanDeleteSelectedPhotosWithKeyboard())
+        {
+            return false;
+        }
+
+        List<PhotoItem> photosToDelete = SelectedPreviewPhotos
+            .Where(photo => File.Exists(photo.Path))
+            .ToList();
+        if (photosToDelete.Count == 0)
+        {
+            return false;
+        }
+
+        string confirmationMessage = CreateDeleteSelectedPhotosConfirmationMessage(photosToDelete);
+        MessageBoxResult result = System.Windows.MessageBox.Show(
+            this,
+            confirmationMessage,
+            "파일 삭제",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.OK)
+        {
+            return true;
+        }
+
+        List<string> failedFileNames = new();
+        foreach (PhotoItem photo in photosToDelete)
+        {
+            try
+            {
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    photo.Path,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                RemoveWorkAreaPhoto(photo.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                failedFileNames.Add($"{photo.FileName}: {ex.Message}");
+            }
+        }
+
+        if (failedFileNames.Count > 0)
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                "삭제하지 못한 파일이 있어.\n\n" + string.Join("\n", failedFileNames.Take(5)),
+                "파일 삭제",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        PhotoListItemsControl?.Focus();
+        return true;
+    }
+
+    private static string CreateDeleteSelectedPhotosConfirmationMessage(IReadOnlyList<PhotoItem> photos)
+    {
+        if (photos.Count == 1)
+        {
+            PhotoItem photo = photos[0];
+            return
+                $"파일: {photo.FileName}\n" +
+                $"크기: {photo.DisplayInfo}\n" +
+                $"위치: {Path.GetDirectoryName(photo.Path)}\n\n" +
+                "이파일을 휴지통으로 버리시겠습니까?";
+        }
+
+        StringBuilder builder = new();
+        builder.AppendLine($"선택 파일: {photos.Count}개");
+        foreach (PhotoItem photo in photos.Take(5))
+        {
+            builder.AppendLine($"- {photo.FileName}  {photo.DisplayInfo}");
+        }
+
+        if (photos.Count > 5)
+        {
+            builder.AppendLine($"- 외 {photos.Count - 5}개");
+        }
+
+        builder.AppendLine();
+        builder.Append("선택한 파일들을 휴지통으로 버리시겠습니까?");
+        return builder.ToString();
     }
 
     private bool CanNavigatePhotosWithKeyboard()
