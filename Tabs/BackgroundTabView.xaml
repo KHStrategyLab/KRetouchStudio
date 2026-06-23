@@ -255,11 +255,14 @@
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"/>
                 <Slider Grid.Column="1"
+                        x:Name="BoundaryProbeStrengthSlider"
                         Minimum="0"
                         Maximum="100"
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=BoundaryProbeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="Boundary probe preserve strength"/>
+                        ToolTip="Boundary probe preserve strength"
+                        PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=BoundaryProbeStrength, StringFormat={}{0:0}}"
                            Foreground="{StaticResource TextSub}"
@@ -278,11 +281,14 @@
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"/>
                 <Slider Grid.Column="1"
+                        x:Name="BoundaryCleanStrengthSlider"
                         Minimum="0"
                         Maximum="100"
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=BoundaryCleanStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="Local background color cleanup strength"/>
+                        ToolTip="Local background color cleanup strength"
+                        PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=BoundaryCleanStrength, StringFormat={}{0:0}}"
                            Foreground="{StaticResource TextSub}"

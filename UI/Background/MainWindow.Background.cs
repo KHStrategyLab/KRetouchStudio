@@ -5,7 +5,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using MediaBrush = System.Windows.Media.Brush;
 using MediaColor = System.Windows.Media.Color;
-using MediaColors = System.Windows.Media.Colors;
 
 namespace KRetouchStudio;
 
@@ -24,7 +23,6 @@ public partial class MainWindow
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
 
     private static readonly MediaBrush PreviewSurfaceDefaultBrush = CreateFrozenBrush(MediaColor.FromRgb(17, 19, 21), 1.0);
-    private static readonly MediaBrush PreviewSurfaceWhiteBrush = CreateFrozenBrush(MediaColors.White, 1.0);
 
     private MediaBrush _previewSurfaceBackgroundBrush = PreviewSurfaceDefaultBrush;
     private BitmapSource? _backgroundPreviewImageSource;
@@ -32,6 +30,7 @@ public partial class MainWindow
     private string? _mediaPipePersonAlphaPath;
     private string? _mediaPipePersonAlphaPhotoPath;
     private bool _isBackgroundPreviewRunning;
+    private bool _hasPendingBackgroundPreviewRequest;
 
     public MediaBrush PreviewSurfaceBackgroundBrush
     {
@@ -53,13 +52,42 @@ public partial class MainWindow
         await ApplyWhiteBackgroundPreviewAsync();
     }
 
-    private async Task ApplyWhiteBackgroundPreviewAsync()
+    private async void BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted(object? sender, EventArgs e)
     {
-        if (_isBackgroundPreviewRunning)
+        if (!IsCurrentHistoryWhiteBackground())
         {
             return;
         }
 
+        await ApplyWhiteBackgroundPreviewAsync();
+    }
+
+    private async Task ApplyWhiteBackgroundPreviewAsync()
+    {
+        if (_isBackgroundPreviewRunning)
+        {
+            _hasPendingBackgroundPreviewRequest = true;
+            return;
+        }
+
+        _isBackgroundPreviewRunning = true;
+        try
+        {
+            do
+            {
+                _hasPendingBackgroundPreviewRequest = false;
+                await ApplyWhiteBackgroundPreviewCoreAsync();
+            }
+            while (_hasPendingBackgroundPreviewRequest);
+        }
+        finally
+        {
+            _isBackgroundPreviewRunning = false;
+        }
+    }
+
+    private async Task ApplyWhiteBackgroundPreviewCoreAsync()
+    {
         PhotoItem? targetPhoto = SelectedPhoto;
         if (targetPhoto is null)
         {
@@ -72,13 +100,10 @@ public partial class MainWindow
         string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength, boundaryCleanStrength);
         if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
         {
-            PreviewSurfaceBackgroundBrush = PreviewSurfaceWhiteBrush;
             MediaPipeStatusText = "Background: white already applied";
             return;
         }
 
-        _isBackgroundPreviewRunning = true;
-        PreviewSurfaceBackgroundBrush = PreviewSurfaceWhiteBrush;
         MediaPipeStatusText = "Background: white preview...";
 
         try
@@ -115,10 +140,6 @@ public partial class MainWindow
         {
             ClearBackgroundPreview();
             MediaPipeStatusText = "Background: failed | " + ex.Message;
-        }
-        finally
-        {
-            _isBackgroundPreviewRunning = false;
         }
     }
 

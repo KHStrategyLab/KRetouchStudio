@@ -20,18 +20,24 @@ public partial class MainWindow
     private static readonly MediaBrush MediaPipeFeatureStroke = CreateFrozenBrush(MediaColor.FromRgb(255, 218, 96), 0.9);
     private static readonly MediaBrush MediaPipePointStroke = CreateFrozenBrush(MediaColor.FromRgb(255, 248, 184), 0.95);
     private static readonly MediaBrush MediaPipePointFill = CreateFrozenBrush(MediaColor.FromRgb(255, 190, 72), 0.85);
+    private static readonly MediaBrush MediaPipeAllPointDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(18, 20, 24), 0.85);
+    private static readonly MediaBrush MediaPipeAllPointDebugFill = CreateFrozenBrush(MediaColor.FromRgb(255, 88, 196), 0.82);
 
     private string _mediaPipeStatusText = "MediaPipe: ready";
     private bool _isMediaPipeConnectionRunning;
+    private bool _showMediaPipeAllPointDebugLayer;
     private string? _mediaPipeOverlayPhotoPath;
     private List<MediaPipeFaceBox> _mediaPipeFaceBoxes = [];
     private List<MediaPipeFeaturePath> _mediaPipeFeaturePaths = [];
+    private List<MediaPipeLandmarkPoint> _mediaPipeAllLandmarkPoints = [];
 
     public ObservableCollection<PreviewDebugRectOverlay> MediaPipeFaceBoxOverlays { get; } = new();
 
     public ObservableCollection<PreviewDebugPolylineOverlay> MediaPipeFeaturePathOverlays { get; } = new();
 
     public ObservableCollection<PreviewDebugPointOverlay> MediaPipeFeaturePointOverlays { get; } = new();
+
+    public ObservableCollection<PreviewDebugPointOverlay> MediaPipeAllPointDebugOverlays { get; } = new();
 
     public Visibility MediaPipePreviewOverlayVisibility =>
         SelectedPreviewPhotos.Count == 1 &&
@@ -40,6 +46,16 @@ public partial class MainWindow
          MediaPipeFeaturePointOverlays.Count > 0)
             ? Visibility.Visible
             : Visibility.Collapsed;
+
+    public Visibility MediaPipeAllPointDebugOverlayVisibility =>
+        SelectedPreviewPhotos.Count == 1 &&
+        _showMediaPipeAllPointDebugLayer &&
+        MediaPipeAllPointDebugOverlays.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public string MediaPipeAllPointDebugButtonText =>
+        _showMediaPipeAllPointDebugLayer ? "MP Points On" : "MP Points";
 
     public string MediaPipeStatusText
     {
@@ -57,6 +73,25 @@ public partial class MainWindow
     }
 
     private async void MediaPipeTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunMediaPipePreviewAsync();
+    }
+
+    private async void MediaPipeAllPointDebugButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showMediaPipeAllPointDebugLayer = !_showMediaPipeAllPointDebugLayer;
+        OnPropertyChanged(nameof(MediaPipeAllPointDebugButtonText));
+
+        if (_showMediaPipeAllPointDebugLayer && _mediaPipeAllLandmarkPoints.Count == 0)
+        {
+            await RunMediaPipePreviewAsync();
+            return;
+        }
+
+        UpdateMediaPipePreviewOverlay();
+    }
+
+    private async Task RunMediaPipePreviewAsync()
     {
         if (_isMediaPipeConnectionRunning)
         {
@@ -127,6 +162,7 @@ public partial class MainWindow
         CacheMediaPipePersonAlphaArtifact(outputDirectory, photoPath);
         _mediaPipeFaceBoxes = ReadMediaPipeFaceBoxes(Path.Combine(outputDirectory, "face_box.json"));
         _mediaPipeFeaturePaths = ReadMediaPipeFeaturePaths(Path.Combine(outputDirectory, "face_pose.json"));
+        _mediaPipeAllLandmarkPoints = ReadMediaPipeAllLandmarkPoints(Path.Combine(outputDirectory, "face_pose.json"));
         UpdateMediaPipePreviewOverlay();
     }
 
@@ -135,6 +171,7 @@ public partial class MainWindow
         _mediaPipeOverlayPhotoPath = null;
         _mediaPipeFaceBoxes.Clear();
         _mediaPipeFeaturePaths.Clear();
+        _mediaPipeAllLandmarkPoints.Clear();
         ClearMediaPipePreviewOverlayItems();
     }
 
@@ -143,7 +180,9 @@ public partial class MainWindow
         MediaPipeFaceBoxOverlays.Clear();
         MediaPipeFeaturePathOverlays.Clear();
         MediaPipeFeaturePointOverlays.Clear();
+        MediaPipeAllPointDebugOverlays.Clear();
         OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+        OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
     }
 
     private void UpdateMediaPipePreviewOverlay()
@@ -151,14 +190,16 @@ public partial class MainWindow
         MediaPipeFaceBoxOverlays.Clear();
         MediaPipeFeaturePathOverlays.Clear();
         MediaPipeFeaturePointOverlays.Clear();
+        MediaPipeAllPointDebugOverlays.Clear();
 
         if (SelectedPhoto is null ||
             SelectedPreviewPhotos.Count != 1 ||
             string.IsNullOrWhiteSpace(_mediaPipeOverlayPhotoPath) ||
             !string.Equals(SelectedPhoto.Path, _mediaPipeOverlayPhotoPath, StringComparison.OrdinalIgnoreCase) ||
-            (_mediaPipeFaceBoxes.Count == 0 && _mediaPipeFeaturePaths.Count == 0))
+            (_mediaPipeFaceBoxes.Count == 0 && _mediaPipeFeaturePaths.Count == 0 && _mediaPipeAllLandmarkPoints.Count == 0))
         {
             OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
             return;
         }
 
@@ -169,6 +210,7 @@ public partial class MainWindow
             PreviewImageHeight <= 0)
         {
             OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
             return;
         }
 
@@ -222,7 +264,24 @@ public partial class MainWindow
             }
         }
 
+        if (_showMediaPipeAllPointDebugLayer)
+        {
+            foreach (MediaPipeLandmarkPoint point in _mediaPipeAllLandmarkPoints)
+            {
+                System.Windows.Point displayPoint = ToMediaPipePreviewPoint(point, source.PixelWidth, source.PixelHeight, scaleX, scaleY);
+                const double pointSize = 2.8;
+                MediaPipeAllPointDebugOverlays.Add(new PreviewDebugPointOverlay(
+                    displayPoint.X - pointSize * 0.5,
+                    displayPoint.Y - pointSize * 0.5,
+                    pointSize,
+                    MediaPipeAllPointDebugStroke,
+                    MediaPipeAllPointDebugFill,
+                    0.65));
+            }
+        }
+
         OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+        OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
     }
 
     private System.Windows.Point ToMediaPipePreviewPoint(
@@ -330,6 +389,48 @@ public partial class MainWindow
         }
 
         return paths;
+    }
+
+    private static List<MediaPipeLandmarkPoint> ReadMediaPipeAllLandmarkPoints(string path)
+    {
+        List<MediaPipeLandmarkPoint> points = [];
+        if (!File.Exists(path))
+        {
+            return points;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        if (!document.RootElement.TryGetProperty("faces", out JsonElement faces) ||
+            faces.ValueKind != JsonValueKind.Array ||
+            faces.GetArrayLength() == 0)
+        {
+            return points;
+        }
+
+        JsonElement firstFace = faces[0];
+        if (!firstFace.TryGetProperty("all_landmarks", out JsonElement landmarks) ||
+            landmarks.ValueKind != JsonValueKind.Array)
+        {
+            return points;
+        }
+
+        foreach (JsonElement point in landmarks.EnumerateArray())
+        {
+            if (!TryGetDouble(point, "x", out double x) ||
+                !TryGetDouble(point, "y", out double y) ||
+                !TryGetDouble(point, "z", out double z))
+            {
+                continue;
+            }
+
+            int index = point.TryGetProperty("index", out JsonElement indexElement) &&
+                        indexElement.TryGetInt32(out int parsedIndex)
+                ? parsedIndex
+                : -1;
+            points.Add(new MediaPipeLandmarkPoint(index, x, y, z));
+        }
+
+        return points;
     }
 
     private static bool TryGetDouble(JsonElement element, string propertyName, out double value)

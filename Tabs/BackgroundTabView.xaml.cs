@@ -3,6 +3,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace KRetouchStudio.Tabs;
@@ -32,6 +33,8 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public event EventHandler? WhiteBackgroundRequested;
+
+    public event EventHandler? WhiteBackgroundAdjustmentCommitted;
 
     public System.Windows.Media.Brush CustomBackgroundBrush { get; }
 
@@ -135,6 +138,36 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     {
         SetActiveBackgroundMode(BackgroundMode.Image, forceRefresh: true);
         e.Handled = true;
+    }
+
+    private void BoundarySlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        CommitWhiteBackgroundAdjustment();
+    }
+
+    private void BoundarySlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is System.Windows.Input.Key.Left or
+            System.Windows.Input.Key.Right or
+            System.Windows.Input.Key.Up or
+            System.Windows.Input.Key.Down or
+            System.Windows.Input.Key.PageUp or
+            System.Windows.Input.Key.PageDown or
+            System.Windows.Input.Key.Home or
+            System.Windows.Input.Key.End)
+        {
+            CommitWhiteBackgroundAdjustment();
+        }
+    }
+
+    private void CommitWhiteBackgroundAdjustment()
+    {
+        if (_activeBackgroundMode != BackgroundMode.White)
+        {
+            return;
+        }
+
+        WhiteBackgroundAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
 
     private void SetActiveBackgroundMode(BackgroundMode mode, bool forceRefresh = false)

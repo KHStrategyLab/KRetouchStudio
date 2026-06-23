@@ -31,8 +31,8 @@ FACE_LANDMARKER_NAME = "face_landmarker.task"
 FACE_OVERLAY_GROUPS: list[tuple[str, list[int], bool]] = [
     ("left_eye", [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7], True),
     ("right_eye", [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382], True),
-    ("left_eyebrow", [70, 63, 105, 66, 107, 55, 65, 52, 53, 46], False),
-    ("right_eyebrow", [336, 296, 334, 293, 300, 285, 295, 282, 283, 276], False),
+    ("left_eyebrow", [70, 63, 105, 66, 107, 55, 65, 52, 53, 46], True),
+    ("right_eyebrow", [336, 296, 334, 293, 300, 276, 283, 282, 295, 285], True),
     ("nose_bridge", [168, 6, 197, 195, 5, 4, 1, 19, 94, 2], False),
     ("nose_base", [98, 97, 2, 326, 327], False),
     ("mouth_outer", [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185], True),
@@ -207,6 +207,16 @@ def overlay_group_to_dict(name: str, indices: list[int], closed: bool, landmarks
     }
 
 
+def all_landmarks_to_list(landmarks: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "index": index,
+            **landmark_to_dict(point),
+        }
+        for index, point in enumerate(landmarks)
+    ]
+
+
 def load_mp_image(image_path: Path) -> mp.Image:
     with Image.open(image_path) as image:
         rgb_image = image.convert("RGB")
@@ -247,6 +257,7 @@ def run_face_landmarker(mp_image: mp.Image, models_dir: Path, output_dir: Path) 
                     "chin_152": landmark_to_dict(landmarks[152]) if len(landmarks) > 152 else None,
                     "forehead_10": landmark_to_dict(landmarks[10]) if len(landmarks) > 10 else None,
                 },
+                "all_landmarks": all_landmarks_to_list(landmarks),
                 "overlay_landmarks": {
                     "groups": [
                         overlay_group_to_dict(name, indices, closed, landmarks)

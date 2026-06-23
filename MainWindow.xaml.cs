@@ -314,7 +314,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly object _workAreaWatcherSync = new();
     private readonly HashSet<string> _pendingWorkAreaImports = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selfSavedOutputPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _previewProxy1200BuildSync = new();
+    private readonly Queue<PreviewProxy1200BuildItem> _previewProxy1200BuildQueue = new();
+    private readonly HashSet<PhotoItem> _queuedPreviewProxy1200Photos = new();
     private FileSystemWatcher? _workAreaWatcher;
+    private bool _isPreviewProxy1200BuildQueueRunning;
+    private int _previewProxy1200BuildGeneration;
 
     public MainWindow()
         : this(Array.Empty<string>())
@@ -335,6 +340,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
         BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
+        BackgroundRetouchTab.WhiteBackgroundAdjustmentCommitted += BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted;
         HistoryPanelItems.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HistoryPanelListVisibility));
@@ -438,6 +444,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ClearBackgroundPreview();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
+            if (sender is PhotoItem photo)
+            {
+                QueuePreviewProxy1200Build(photo);
+            }
         }
     }
 
@@ -2447,6 +2457,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         double scale = Math.Min(tileWidth / imageWidth, tileHeight / imageHeight) * photo.MultiPreviewZoomScale;
         double displayedWidth = imageWidth * scale;
         double displayedHeight = imageHeight * scale;
+        photo.UseOriginalForMultiPreview = Math.Max(displayedWidth, displayedHeight) > PhotoItem.PreviewProxyLongSide;
 
         double minLeft;
         double maxLeft;
@@ -2548,16 +2559,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AddPhotos(IEnumerable<string> fileNames)
     {
+        List<PhotoItem> addedPhotos = [];
         foreach (string fileName in fileNames.Where(File.Exists))
         {
             try
             {
-                Photos.Add(PhotoItem.Load(fileName));
+                PhotoItem photo = PhotoItem.Load(fileName);
+                Photos.Add(photo);
+                addedPhotos.Add(photo);
             }
             catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
             {
             }
         }
+
+        QueuePreviewProxy1200Builds(addedPhotos);
 
         if (SelectedPhoto is null && Photos.Count > 0)
         {
@@ -2565,6 +2581,138 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(PhotoSelectionText));
+    }
+
+    private void QueuePreviewProxy1200Builds(IEnumerable<PhotoItem> photos)
+    {
+        foreach (PhotoItem photo in photos)
+        {
+            QueuePreviewProxy1200Build(photo);
+        }
+    }
+
+    private void QueuePreviewProxy1200Build(PhotoItem photo)
+    {
+        if (photo.PreviewProxy1200State != PreviewProxy1200State.Missing)
+        {
+            return;
+        }
+
+        bool shouldStartWorker = false;
+        lock (_previewProxy1200BuildSync)
+        {
+            if (!_queuedPreviewProxy1200Photos.Add(photo))
+            {
+                return;
+            }
+
+            _previewProxy1200BuildQueue.Enqueue(new PreviewProxy1200BuildItem(photo, _previewProxy1200BuildGeneration));
+            photo.SetPreviewProxy1200Building(true);
+            if (!_isPreviewProxy1200BuildQueueRunning)
+            {
+                _isPreviewProxy1200BuildQueueRunning = true;
+                shouldStartWorker = true;
+            }
+        }
+
+        if (shouldStartWorker)
+        {
+            _ = ProcessPreviewProxy1200BuildQueueAsync();
+        }
+    }
+
+    private void ResetPreviewProxy1200BuildQueue()
+    {
+        lock (_previewProxy1200BuildSync)
+        {
+            _previewProxy1200BuildGeneration++;
+            _previewProxy1200BuildQueue.Clear();
+            _queuedPreviewProxy1200Photos.Clear();
+        }
+    }
+
+    private async Task ProcessPreviewProxy1200BuildQueueAsync()
+    {
+        while (true)
+        {
+            PreviewProxy1200BuildItem item;
+            lock (_previewProxy1200BuildSync)
+            {
+                if (_previewProxy1200BuildQueue.Count == 0)
+                {
+                    _isPreviewProxy1200BuildQueueRunning = false;
+                    return;
+                }
+
+                item = _previewProxy1200BuildQueue.Dequeue();
+                _queuedPreviewProxy1200Photos.Remove(item.Photo);
+            }
+
+            if (!IsPreviewProxy1200GenerationCurrent(item.Generation))
+            {
+                continue;
+            }
+
+            PreviewProxy1200BuildSource? buildSource = await Dispatcher.InvokeAsync(() =>
+            {
+                if (!IsPreviewProxy1200GenerationCurrent(item.Generation) ||
+                    !Photos.Contains(item.Photo))
+                {
+                    return null;
+                }
+
+                ImageSource imageIdentity = item.Photo.Image;
+                BitmapSource source = imageIdentity as BitmapSource ?? item.Photo.BaseImage;
+                BitmapSource safeSource = source.IsFrozen ? source : CloneBitmapSource(source);
+                return new PreviewProxy1200BuildSource(item.Photo, item.Generation, imageIdentity, safeSource);
+            });
+
+            if (buildSource is null)
+            {
+                continue;
+            }
+
+            BitmapSource? proxy;
+            try
+            {
+                proxy = await Task.Run(() => PhotoItem.CreatePreviewProxy1200(buildSource.Source));
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (IsPreviewProxy1200GenerationCurrent(buildSource.Generation) &&
+                        Photos.Contains(buildSource.Photo) &&
+                        ReferenceEquals(buildSource.Photo.Image, buildSource.ImageIdentity))
+                    {
+                        buildSource.Photo.SetPreviewProxy1200Building(false);
+                    }
+                });
+                continue;
+            }
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (!IsPreviewProxy1200GenerationCurrent(buildSource.Generation) ||
+                    !Photos.Contains(buildSource.Photo) ||
+                    !ReferenceEquals(buildSource.Photo.Image, buildSource.ImageIdentity))
+                {
+                    return;
+                }
+
+                buildSource.Photo.SetPreviewProxy1200(proxy);
+            });
+
+            await Task.Delay(35);
+        }
+    }
+
+    private bool IsPreviewProxy1200GenerationCurrent(int generation)
+    {
+        lock (_previewProxy1200BuildSync)
+        {
+            return generation == _previewProxy1200BuildGeneration;
+        }
     }
 
     private void LoadAppConfig()
@@ -2670,6 +2818,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             .ApplySort(_appConfig.PhotoListSortMode)
             .ToArray();
 
+        ResetPreviewProxy1200BuildQueue();
         Photos.Clear();
         SelectedPhoto = null;
         SelectedPreviewPhotos.Clear();
@@ -2690,6 +2839,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        ResetPreviewProxy1200BuildQueue();
         string[] photoPaths = Photos.Select(photo => photo.Path).ToArray();
         HashSet<string> selectedPaths = SelectedPreviewPhotos
             .Select(photo => photo.Path)
@@ -2729,6 +2879,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
         CancelToneCurvePreviewRender();
+        ResetPreviewProxy1200BuildQueue();
         StopWorkAreaWatcher();
     }
 
@@ -2750,6 +2901,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         watcher.Created += WorkAreaWatcher_FileCreatedOrRenamed;
         watcher.Renamed += WorkAreaWatcher_FileCreatedOrRenamed;
+        watcher.Deleted += WorkAreaWatcher_FileDeleted;
         watcher.EnableRaisingEvents = true;
         _workAreaWatcher = watcher;
     }
@@ -2770,13 +2922,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _workAreaWatcher.EnableRaisingEvents = false;
         _workAreaWatcher.Created -= WorkAreaWatcher_FileCreatedOrRenamed;
         _workAreaWatcher.Renamed -= WorkAreaWatcher_FileCreatedOrRenamed;
+        _workAreaWatcher.Deleted -= WorkAreaWatcher_FileDeleted;
         _workAreaWatcher.Dispose();
         _workAreaWatcher = null;
     }
 
     private void WorkAreaWatcher_FileCreatedOrRenamed(object sender, FileSystemEventArgs e)
     {
+        if (e is RenamedEventArgs renamedEventArgs)
+        {
+            QueueWorkAreaFileRemoval(renamedEventArgs.OldFullPath);
+        }
+
         QueueWorkAreaFileImport(e.FullPath);
+    }
+
+    private void WorkAreaWatcher_FileDeleted(object sender, FileSystemEventArgs e)
+    {
+        QueueWorkAreaFileRemoval(e.FullPath);
     }
 
     private void QueueWorkAreaFileImport(string path)
@@ -2809,6 +2972,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _ = HandlePendingWorkAreaFileImportAsync(path);
+    }
+
+    private void QueueWorkAreaFileRemoval(string path)
+    {
+        if (!IsSupportedImagePath(path))
+        {
+            return;
+        }
+
+        lock (_workAreaWatcherSync)
+        {
+            _pendingWorkAreaImports.Remove(path);
+        }
+
+        _ = Dispatcher.InvokeAsync(() => RemoveWorkAreaPhoto(path));
     }
 
     private async Task HandlePendingWorkAreaFileImportAsync(string path)
@@ -2896,6 +3074,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             PhotoItem photo = PhotoItem.Load(path);
             Photos.Insert(GetWorkAreaPhotoInsertIndex(path), photo);
+            QueuePreviewProxy1200Build(photo);
             if (ShouldFocusImportedWorkAreaPhoto())
             {
                 SelectOnly(photo);
@@ -2906,6 +3085,56 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
         {
         }
+    }
+
+    private void RemoveWorkAreaPhoto(string path)
+    {
+        int removedIndex = -1;
+        PhotoItem? removedPhoto = null;
+        for (int i = 0; i < Photos.Count; i++)
+        {
+            if (string.Equals(Photos[i].Path, path, StringComparison.OrdinalIgnoreCase))
+            {
+                removedIndex = i;
+                removedPhoto = Photos[i];
+                break;
+            }
+        }
+
+        if (removedPhoto is null)
+        {
+            return;
+        }
+
+        bool removedWasSelected = removedPhoto.IsSelected || ReferenceEquals(SelectedPhoto, removedPhoto);
+        Photos.RemoveAt(removedIndex);
+        if (ReferenceEquals(_selectionAnchor, removedPhoto))
+        {
+            _selectionAnchor = null;
+        }
+
+        RefreshSelectedPreviewPhotos();
+        if (removedWasSelected && SelectedPreviewPhotos.Count == 0 && Photos.Count > 0)
+        {
+            SelectOnly(Photos[Math.Min(removedIndex, Photos.Count - 1)]);
+            return;
+        }
+
+        SelectedPhoto = SelectedPreviewPhotos.Count == 1
+            ? SelectedPreviewPhotos[0]
+            : null;
+
+        if (removedWasSelected)
+        {
+            LocalWorkbenchVisibility = Visibility.Collapsed;
+            _localWorkbenchState = null;
+            ClearLocalWorkbenchImages();
+            ClearLocalWorkbenchGuide();
+            CollapseAllRetouchTabs();
+            UpdatePreviewLayout();
+        }
+
+        OnPropertyChanged(nameof(PhotoSelectionText));
     }
 
     private bool ShouldFocusImportedWorkAreaPhoto()
@@ -2996,6 +3225,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (Photos.Count > 1)
         {
             string[] currentFiles = Photos.Select(photo => photo.Path).ApplySort(sortMode).ToArray();
+            ResetPreviewProxy1200BuildQueue();
             Photos.Clear();
             SelectedPhoto = null;
             SelectedPreviewPhotos.Clear();
@@ -5279,6 +5509,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private sealed record PreviewProxy1200BuildItem(PhotoItem Photo, int Generation);
+
+    private sealed record PreviewProxy1200BuildSource(
+        PhotoItem Photo,
+        int Generation,
+        ImageSource ImageIdentity,
+        BitmapSource Source);
 }
 
 public sealed class PreviewTextItem : INotifyPropertyChanged
