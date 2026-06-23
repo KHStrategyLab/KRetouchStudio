@@ -171,7 +171,8 @@ public partial class MainWindow
 
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
         double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
-        string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength, boundaryCleanStrength);
+        double softAlphaStrength = BackgroundRetouchTab?.SoftAlphaStrength ?? 0;
+        string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength, boundaryCleanStrength, softAlphaStrength);
         if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
         {
             MediaPipeStatusText = "Background: white already applied";
@@ -196,7 +197,7 @@ public partial class MainWindow
 
             bool replaceCurrentWhiteBackground = IsCurrentHistoryWhiteBackground();
             BitmapSource source = GetWhiteBackgroundRenderSource(targetPhoto, replaceCurrentWhiteBackground);
-            BitmapSource preview = BuildWhiteBackgroundPreview(source, alphaPath, boundaryProbeStrength, boundaryCleanStrength);
+            BitmapSource preview = BuildWhiteBackgroundPreview(source, alphaPath, boundaryProbeStrength, boundaryCleanStrength, softAlphaStrength);
             targetPhoto.SetAdjustedImage(preview);
             if (replaceCurrentWhiteBackground)
             {
@@ -417,7 +418,12 @@ public partial class MainWindow
         return false;
     }
 
-    private BitmapSource BuildWhiteBackgroundPreview(BitmapSource source, string alphaPath, double boundaryProbeStrength, double boundaryCleanStrength)
+    private BitmapSource BuildWhiteBackgroundPreview(
+        BitmapSource source,
+        string alphaPath,
+        double boundaryProbeStrength,
+        double boundaryCleanStrength,
+        double softAlphaStrength)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
 
@@ -463,7 +469,7 @@ public partial class MainWindow
             {
                 int sourceIndex = sourceRow + (x * 4);
                 int alpha = alphaPixels[alphaRow + x];
-                int outputAlpha = ShapeWhiteBackgroundAlpha(alpha);
+                int outputAlpha = ShapeWhiteBackgroundAlpha(alpha, softAlphaStrength);
                 int inverseAlpha = 255 - outputAlpha;
                 ProbeSample localBackground = GetLocalOutsideBackgroundSampleOrDefault(
                     sourcePixels,
@@ -529,26 +535,37 @@ public partial class MainWindow
         StoreCurrentEditorHistorySession(photo, persistToDisk: false);
     }
 
-    private static string CreateWhiteBackgroundHistoryDetail(double boundaryProbeStrength, double boundaryCleanStrength)
+    private static string CreateWhiteBackgroundHistoryDetail(
+        double boundaryProbeStrength,
+        double boundaryCleanStrength,
+        double softAlphaStrength)
     {
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0}";
+        double soft = Math.Clamp(Math.Round(softAlphaStrength), 0, 100);
+        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Soft {soft:0}";
     }
 
-    private static int ShapeWhiteBackgroundAlpha(int alpha)
+    private static int ShapeWhiteBackgroundAlpha(int alpha, double softAlphaStrength)
     {
         if (alpha <= 1)
         {
             return 0;
         }
 
+        double normalizedSoftAlpha = Math.Clamp(softAlphaStrength / 100.0, 0.0, 1.0);
+        int shapedAlpha = alpha;
         if (alpha >= WhiteBackgroundAlphaHighCutoff)
         {
-            return 255;
+            shapedAlpha = 255;
         }
 
-        return alpha;
+        if (normalizedSoftAlpha <= 0.001)
+        {
+            return shapedAlpha;
+        }
+
+        return (int)Math.Clamp(Math.Round(shapedAlpha + ((alpha - shapedAlpha) * normalizedSoftAlpha)), 0, 255);
     }
 
     private static byte[] ApplyBoundaryProbePreserve(

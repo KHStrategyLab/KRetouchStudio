@@ -295,6 +295,32 @@
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"/>
             </Grid>
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="34"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="Soft"
+                           Foreground="{StaticResource TextSub}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <Slider Grid.Column="1"
+                        x:Name="SoftAlphaStrengthSlider"
+                        Minimum="0"
+                        Maximum="100"
+                        TickFrequency="1"
+                        Value="{Binding ElementName=Root, Path=SoftAlphaStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="Use softer alpha instead of hardening strong mask values"
+                        PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        KeyUp="BoundarySlider_KeyUp"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding ElementName=Root, Path=SoftAlphaStrength, StringFormat={}{0:0}}"
+                           Foreground="{StaticResource TextSub}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
         </StackPanel>
     </Expander>
 </UserControl>
