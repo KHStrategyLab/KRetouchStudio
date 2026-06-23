@@ -151,12 +151,33 @@ public partial class MainWindow
             : Visibility.Collapsed;
     }
 
-    private void StartLiquifyStroke(System.Windows.Point previewPoint)
+    private async void StartLiquifyStroke(System.Windows.Point previewPoint)
     {
         if (!EnsureLiquifyWorkingBitmap() ||
             !TryPreviewPointToImagePixel(previewPoint, out int pixelX, out int pixelY))
         {
             return;
+        }
+
+        PhotoItem? targetPhoto = SelectedPhoto;
+        if (targetPhoto is not null && _liquifyWorkingBitmap is not null)
+        {
+            LiquifyStatusText = "Liquify tension map...";
+            bool hasTensionMap = await EnsureLiquifyTensionMapAsync(
+                targetPhoto,
+                _liquifyWorkingBitmap.PixelWidth,
+                _liquifyWorkingBitmap.PixelHeight);
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                _liquifyWorkingBitmap is null ||
+                Mouse.LeftButton != MouseButtonState.Pressed)
+            {
+                LiquifyStatusText = "Liquify ready";
+                return;
+            }
+
+            LiquifyStatusText = hasTensionMap
+                ? "Liquify ready | tension"
+                : "Liquify ready | no mask";
         }
 
         _isLiquifyDragging = true;
@@ -255,6 +276,7 @@ public partial class MainWindow
         _liquifySessionPhoto = null;
         _liquifySessionBaseImage = null;
         _liquifyWorkingBitmap = null;
+        ClearLiquifyTensionCache();
         LiquifyStatusText = "Ready";
         LiquifyCircleVisibility = Visibility.Collapsed;
     }
@@ -361,8 +383,15 @@ public partial class MainWindow
                     weight = 1.0 - SmoothStep01(edgeT);
                 }
 
-                double sampleX = x - (appliedDx * weight);
-                double sampleY = y - (appliedDy * weight);
+                double tensionWeight = GetLiquifyTensionWeight(left + x, top + y, target.PixelWidth, target.PixelHeight);
+                double finalWeight = weight * tensionWeight;
+                if (finalWeight <= 0.001)
+                {
+                    continue;
+                }
+
+                double sampleX = x - (appliedDx * finalWeight);
+                double sampleY = y - (appliedDy * finalWeight);
                 SampleBilinearBgra32(sourcePixels, roi.Width, roi.Height, stride, sampleX, sampleY, out byte b, out byte g, out byte r, out byte a);
 
                 int offset = (y * stride) + (x * 4);

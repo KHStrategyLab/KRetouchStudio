@@ -106,11 +106,11 @@ Examples:
 - `DoubleChin` may use `DoubleChinWorkMask`.
 - `ToneCorrection` may use full-image target by default.
 
-## Work Mode Rule
+## Edit Mode Rule
 
-Editing operations run only in `Work Mode`.
+Editing operations run only in `Edit Mode`.
 
-`Viewer Mode` and `Compare View` may allow navigation, zoom, pan, sampling, or passive viewing,
+`Viewer Mode` and `Multi Mode` may allow navigation, zoom, pan, sampling, or passive viewing,
 but must not create destructive edit commits.
 
 ## History Rule

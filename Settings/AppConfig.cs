@@ -8,8 +8,6 @@ public sealed class AppConfig
 
     public bool EnableAutoCheckUpdatesAtStartup { get; set; }
 
-    public bool EnableAutoWorkMode { get; set; } = true;
-
     public bool ShowHistoryPanel { get; set; } = true;
 
     public ColorManagementMode ColorManagementMode { get; set; } = ColorManagementMode.Automatic;
@@ -62,6 +60,6 @@ public enum PhotoListSortMode
 public enum RuntimeWorkMode
 {
     Viewer,
-    Work,
-    Compare
+    Edit,
+    Multi
 }

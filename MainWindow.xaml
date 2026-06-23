@@ -404,7 +404,11 @@
                            Margin="0,6,0,10">
                     <!-- 수정전 문의 -->
                     <Button Style="{StaticResource AppActionButtonStyle}" Content="사진 불러오기" Click="LoadPhotosButton_Click" Margin="4"/>
-                    <Button Style="{StaticResource AppActionButtonStyle}" Content="저장" Click="SavePhotoButton_Click" Margin="4"/>
+                    <Button Style="{StaticResource AppActionButtonStyle}"
+                            Content="저장"
+                            Click="SavePhotoButton_Click"
+                            IsEnabled="{Binding CanSaveCurrentPhoto}"
+                            Margin="4"/>
                     <Button Style="{StaticResource AppActionButtonStyle}" Content="코 작업대 열기" Click="OpenNoseWorkbench_Click" Margin="4"/>
                     <Button Style="{StaticResource AppActionButtonStyle}" Content="이중턱 작업대 열기" Click="OpenDoubleChinWorkbench_Click" Margin="4"/>
                     <Button Style="{StaticResource AppActionButtonStyle}"
@@ -456,10 +460,7 @@
                                   IsChecked="{Binding IsColorManagementDisabled, Mode=OneWay}"
                                   Click="ColorManagementDisabledMenuItem_Click"/>
                     </MenuItem>
-                    <MenuItem Header="Work Mode">
-                        <MenuItem Header="Auto Work Mode"
-                                  IsCheckable="True"
-                                  IsChecked="{Binding AutoWorkModeEnabled}"/>
+                    <MenuItem Header="Mode">
                         <MenuItem Header="{Binding RuntimeWorkModeDisplayText}"
                                   IsEnabled="False"/>
                     </MenuItem>
@@ -2044,7 +2045,7 @@
                       MouseLeftButtonUp="PreviewSurface_MouseLeftButtonUp"
                       MouseLeave="PreviewSurface_MouseLeave"
                       MouseWheel="PreviewSurface_MouseWheel">
-                    <Border Background="{StaticResource PreviewSurfaceBg}"/>
+                    <Border Background="{Binding PreviewSurfaceBackgroundBrush}"/>
                     <Grid x:Name="MultiPreviewLayer" Visibility="{Binding MultiPreviewVisibility}">
                         <ItemsControl x:Name="MultiPreviewItemsControl" ItemsSource="{Binding SelectedPreviewPhotos}">
                             <ItemsControl.ItemsPanel>
@@ -2116,6 +2117,74 @@
                                        FontWeight="SemiBold"
                                        Margin="5,3,0,0"/>
                         </Border>
+                        <ItemsControl ItemsSource="{Binding MediaPipeFaceBoxOverlays}"
+                                      Visibility="{Binding MediaPipePreviewOverlayVisibility}"
+                                      IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="{x:Type ContentPresenter}">
+                                    <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Rectangle Width="{Binding Width}"
+                                               Height="{Binding Height}"
+                                               Stroke="{Binding Stroke}"
+                                               StrokeThickness="{Binding StrokeThickness}"
+                                               StrokeDashArray="{Binding StrokeDashArray}"
+                                               Fill="Transparent"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding MediaPipeFeaturePathOverlays}"
+                                      Visibility="{Binding MediaPipePreviewOverlayVisibility}"
+                                      IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Polyline Points="{Binding Points}"
+                                              Stroke="{Binding Stroke}"
+                                              StrokeThickness="{Binding StrokeThickness}"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding MediaPipeFeaturePointOverlays}"
+                                      Visibility="{Binding MediaPipePreviewOverlayVisibility}"
+                                      IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="{x:Type ContentPresenter}">
+                                    <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="{Binding Size}"
+                                             Height="{Binding Size}"
+                                             Stroke="{Binding Stroke}"
+                                             StrokeThickness="{Binding StrokeThickness}"
+                                             Fill="{Binding Fill}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <Rectangle Visibility="{Binding RectangleFrameSelectionVisibility}"
                                    IsHitTestVisible="False"
                                    Canvas.Left="{Binding FrameSelectionLeft}"
@@ -2688,7 +2757,8 @@
                     <ScrollViewer Grid.Row="0"
                                   VerticalScrollBarVisibility="Hidden"
                                   Padding="14">
-                        <StackPanel IsEnabled="{Binding RetouchPanelEditingEnabled}">
+                        <StackPanel x:Name="RetouchPanelStack"
+                                    IsEnabled="{Binding RetouchPanelAvailable}">
                             <tabs:PhotoAdjustTabView x:Name="PhotoAdjustRetouchTab"/>
                             <tabs:SkinTabView x:Name="SkinRetouchTab"/>
                             <tabs:WrinkleTabView x:Name="WrinkleRetouchTab"/>
@@ -2745,11 +2815,12 @@
                                                        Foreground="{StaticResource TextSub}"/>
                                         </StackPanel>
                                     </Grid>
-                                    <ListBox Visibility="{Binding HistoryPanelListVisibility}"
-                                             ItemsSource="{Binding HistoryPanelItems}"
-                                             SelectedItem="{Binding SelectedHistoryPanelItem, Mode=TwoWay}"
-                                             MaxHeight="216"
-                                             Background="Transparent"
+                                     <ListBox Visibility="{Binding HistoryPanelListVisibility}"
+                                              ItemsSource="{Binding HistoryPanelItems}"
+                                              SelectedItem="{Binding SelectedHistoryPanelItem, Mode=TwoWay}"
+                                              MouseDoubleClick="HistoryPanelListBox_MouseDoubleClick"
+                                              MaxHeight="216"
+                                              Background="Transparent"
                                              BorderThickness="0"
                                              Foreground="{StaticResource TextMain}"
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"

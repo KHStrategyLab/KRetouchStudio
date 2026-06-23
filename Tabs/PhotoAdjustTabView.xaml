@@ -45,7 +45,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Expander x:Name="PhotoAdjustExpander" Header="Tone Correction" IsExpanded="True" Expanded="Expander_Expanded">
+    <Expander x:Name="PhotoAdjustExpander" Header="Tone Correction" Expanded="Expander_Expanded">
         <Expander.Tag>
             <Button Content="↶"
                     Width="28"

@@ -28,6 +28,18 @@ FACE_DETECTOR_NAME = "face_detector.tflite"
 IMAGE_SEGMENTER_NAME = "image_segmenter.tflite"
 FACE_LANDMARKER_NAME = "face_landmarker.task"
 
+FACE_OVERLAY_GROUPS: list[tuple[str, list[int], bool]] = [
+    ("left_eye", [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7], True),
+    ("right_eye", [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382], True),
+    ("left_eyebrow", [70, 63, 105, 66, 107, 55, 65, 52, 53, 46], False),
+    ("right_eyebrow", [336, 296, 334, 293, 300, 285, 295, 282, 283, 276], False),
+    ("nose_bridge", [168, 6, 197, 195, 5, 4, 1, 19, 94, 2], False),
+    ("nose_base", [98, 97, 2, 326, 327], False),
+    ("mouth_outer", [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185], True),
+    ("mouth_inner", [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191], True),
+    ("chin_jaw", [234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454], False),
+]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="KRetouch Studio MediaPipe helper")
@@ -179,6 +191,22 @@ def landmark_to_dict(point: Any) -> dict[str, float]:
     }
 
 
+def overlay_group_to_dict(name: str, indices: list[int], closed: bool, landmarks: Any) -> dict[str, Any]:
+    points = [
+        {
+            "index": index,
+            **landmark_to_dict(landmarks[index]),
+        }
+        for index in indices
+        if index < len(landmarks)
+    ]
+    return {
+        "name": name,
+        "closed": closed,
+        "points": points,
+    }
+
+
 def load_mp_image(image_path: Path) -> mp.Image:
     with Image.open(image_path) as image:
         rgb_image = image.convert("RGB")
@@ -218,6 +246,12 @@ def run_face_landmarker(mp_image: mp.Image, models_dir: Path, output_dir: Path) 
                     "nose_tip_1": landmark_to_dict(landmarks[1]) if len(landmarks) > 1 else None,
                     "chin_152": landmark_to_dict(landmarks[152]) if len(landmarks) > 152 else None,
                     "forehead_10": landmark_to_dict(landmarks[10]) if len(landmarks) > 10 else None,
+                },
+                "overlay_landmarks": {
+                    "groups": [
+                        overlay_group_to_dict(name, indices, closed, landmarks)
+                        for name, indices, closed in FACE_OVERLAY_GROUPS
+                    ],
                 },
             }
         )

@@ -60,6 +60,7 @@ Allowed:
 - photo list browsing
 - zoom
 - pan
+- tethered capture auto-import and auto-focus
 - split preview navigation
 - work-area refresh
 - passive information viewing
@@ -77,11 +78,12 @@ UI rule:
 - tool actions are disabled
 - the app behaves as a clean viewer
 
-### 2.2 Work Mode
+### 2.2 Edit Mode
 
 Condition:
 
 - selected photo count = `1`
+- one right retouch tab is expanded
 
 Meaning:
 
@@ -96,11 +98,11 @@ Allowed:
 
 UI rule:
 
-- adjustment panel restores the last user-expanded state
+- adjustment panel opens only in single-photo state
 - tool interactions are enabled
 - layer and history panels are active
 
-### 2.3 Compare View
+### 2.3 Multi Mode
 
 Condition:
 
@@ -109,7 +111,7 @@ Condition:
 Meaning:
 
 - compare-first preview state
-- user-facing name: `Compare View`
+- user-facing name: `Multi Mode`
 
 Allowed:
 
@@ -122,45 +124,36 @@ Blocked or limited:
 
 - single-photo retouch tools
 - single-photo adjustment commits
+- save
 
 UI rule:
 
 - comparison stays active
-- single-photo editing panels may stay visible but should auto-collapse or disable editing
+- single-photo editing panels auto-collapse or remain disabled
 
 ---
 
-## 3. Auto Work Mode
+## 3. Mode Transition Rule
 
-`Auto Work Mode` is the runtime policy switch.
-
-### 3.1 Setting
-
-Location:
-
-- `Prefs -> Work Mode -> Auto Work Mode`
-
-Type:
-
-- `On / Off`
-
-Default:
-
-- `On`
-
-### 3.2 Behavior
-
-If `Auto Work Mode = On`:
+Runtime mode is resolved from selection count and right retouch tab state:
 
 - `0 selected` -> `Viewer Mode`
-- `1 selected` -> `Work Mode`
-- `2+ selected` -> `Compare View`
+- `1 selected` + no expanded right retouch tab -> `Viewer Mode`
+- `1 selected` + expanded right retouch tab -> `Edit Mode`
+- `2+ selected` -> `Multi Mode`
 
-If `Auto Work Mode = Off`:
+Safety rules:
 
-- the app does not auto-switch panel behavior from selection count alone
-- panel visibility remains under user control
-- mode-like restrictions may still exist for unsafe edit cases, but the UI must not auto-collapse purely from selection count
+- `Edit Mode` requires exactly one selected photo.
+- `Multi Mode` cannot enter `Edit Mode`.
+- `Multi Mode` auto-collapses or disables right retouch tabs.
+- `Multi Mode` cannot save.
+- Work-area/tether imports may auto-focus only in `Viewer Mode`.
+- Work-area/tether imports must not steal focus in `Edit Mode` or `Multi Mode`.
+- Edit history is keyed by normalized file path.
+- Restarted sessions may restore history only for the same normalized file path.
+- Persisted edit history is stored under local AppData, not in the repository.
+- Work-area refresh prunes persisted history whose source path is no longer present in the current work folder.
 
 ---
 
@@ -221,8 +214,8 @@ It uses the same section-state rules as all other major panels.
 ### 5.1 Panel-level policy
 
 - `Viewer Mode` -> auto-collapse + disable
-- `Work Mode` -> restore last user-expanded state
-- `Compare View` -> keep visible if user wants it, but disable single-photo commit behavior
+- `Edit Mode` -> keep only one right retouch tab expanded
+- `Multi Mode` -> collapse or disable single-photo commit behavior
 
 ### 5.2 Tab-level policy
 
@@ -563,8 +556,8 @@ Panel header control should handle `Expanded`.
 Implementation should follow this order.
 
 1. document this architecture
-2. add `Auto Work Mode` config field
-3. add mode resolver: `Viewer / Work / Compare View`
+2. add mode resolver: `Viewer / Edit / Multi`
+3. route right-tab expansion through the mode resolver
 4. connect right adjustment panel auto-collapse
 5. connect toolbox enable/disable from mode
 6. add `Layers` and `History` panel shells

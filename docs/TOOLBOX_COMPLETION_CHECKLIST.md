@@ -6,8 +6,8 @@ This checklist keeps toolbox cleanup executable without reopening the whole desi
 
 Toolbox work must keep these rules:
 
-- Editing tools run only in `Work Mode`.
-- `Viewer Mode` and `Compare View` remain viewer-first states.
+- Editing tools run only in `Edit Mode`.
+- `Viewer Mode` and `Multi Mode` remain viewer-first states.
 - Every destructive pixel change must create a history snapshot.
 - Selection tools create reusable masks or regions.
 - Placeholder tools must clearly say what is complete and what is pending.
@@ -16,8 +16,13 @@ Toolbox work must keep these rules:
 ## Current Runtime Gate
 
 - `CurrentRuntimeWorkMode = Viewer` when selected photo count is `0`.
-- `CurrentRuntimeWorkMode = Work` when selected photo count is `1`.
-- `CurrentRuntimeWorkMode = Compare` when selected photo count is `2+`.
+- `CurrentRuntimeWorkMode = Viewer` when selected photo count is `1` and no right retouch tab is expanded.
+- `CurrentRuntimeWorkMode = Edit` when selected photo count is `1` and one right retouch tab is expanded.
+- `CurrentRuntimeWorkMode = Multi` when selected photo count is `2+`.
+- `Multi Mode` blocks right-tab edit entry and save.
+- Work-area/tether imports can auto-focus only in `Viewer Mode`.
+- Edit history follows the normalized file path and is restored from local AppData on restart.
+- Work-area refresh removes persisted history for files no longer present in the current folder.
 - `CanUseSinglePreviewTool()` is the main edit safety gate.
 
 ## Tool Status
@@ -30,7 +35,7 @@ Toolbox work must keep these rules:
 - [x] Healing / Patch / Spot: applies baseline healing and commits history.
 - [x] Blur / Sharpen: writes pixels and commits history.
 - [x] Dodge / Burn: writes pixels and commits history.
-- [x] Liquify: applies baseline warp and commits history.
+- [x] Liquify: applies baseline warp, uses MediaPipe alpha tension when available, and commits history.
 - [x] Fill / Gradient: writes pixels and commits history.
 - [x] Type: creates editable text objects and commits history.
 

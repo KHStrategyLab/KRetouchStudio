@@ -2,6 +2,8 @@
 
 public sealed class HistoryPanelItem
 {
+    public int HistoryIndex { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string Detail { get; set; } = string.Empty;

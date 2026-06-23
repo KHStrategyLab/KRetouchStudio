@@ -7,6 +7,8 @@ using System.IO;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -75,6 +77,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "KRetouchStudio");
     private static readonly string AppConfigPath = Path.Combine(AppConfigDirectory, "config.json");
+    private static readonly string EditorHistoryDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "KRetouchStudio",
+        "EditorHistory");
     private static readonly string LegacyWorkAreaSettingsPath = Path.Combine(AppConfigDirectory, "work-area.txt");
     private bool _isSpacePressed;
     private bool _isSinglePreviewPanDragging;
@@ -292,6 +298,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private const int MaxEditorHistoryEntries = 40;
     private readonly List<EditorHistoryState> _editorUndoHistory = new();
     private readonly List<EditorHistoryState> _editorRedoHistory = new();
+    private readonly Dictionary<string, EditorHistorySession> _editorHistorySessionsByPath = new(StringComparer.OrdinalIgnoreCase);
     private bool _isRestoringEditorHistory;
     private CancellationTokenSource? _toneCurvePreviewRenderCancellation;
     private int _toneCurvePreviewRenderVersion;
@@ -306,6 +313,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private static readonly string[] SupportedImageExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".raw"];
     private readonly object _workAreaWatcherSync = new();
     private readonly HashSet<string> _pendingWorkAreaImports = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _selfSavedOutputPaths = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? _workAreaWatcher;
 
     public MainWindow()
@@ -324,7 +332,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DevelopmentPackageMenuItem.Visibility = Visibility.Collapsed;
 #endif
         DataContext = this;
+        AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
+        BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
         HistoryPanelItems.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HistoryPanelListVisibility));
@@ -362,6 +372,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
+            PhotoItem? previousPhoto = _selectedPhoto;
+            StoreCurrentEditorHistorySession(previousPhoto, persistToDisk: true);
+
             if (_selectedPhoto is not null)
             {
                 _selectedPhoto.PropertyChanged -= SelectedPhoto_PropertyChanged;
@@ -382,11 +395,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearRectangleSelection();
             ClearPathTool();
             ClearTypeTextTool();
-            ResetEditorHistoryForSelectedPhoto();
+            ClearMediaPipePreviewOverlay();
+            ClearBackgroundPreview();
+            LoadEditorHistoryForSelectedPhoto();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
             OnPropertyChanged(nameof(PhotoSelectionText));
             OnPropertyChanged(nameof(SelectedPhotoStatusText));
+            OnPropertyChanged(nameof(CanSaveCurrentPhoto));
             RaiseCropTelemetryPropertyChanged();
         }
     }
@@ -397,8 +413,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private BitmapSource GetSinglePreviewBitmapSource(PhotoItem photo)
     {
-        return IsCropSourcePreviewActive
-            ? GetCropSourceBitmapSource(photo)
+        if (IsCropSourcePreviewActive)
+        {
+            return GetCropSourceBitmapSource(photo);
+        }
+
+        return TryGetBackgroundPreviewBitmapSource(photo, out BitmapSource backgroundPreview)
+            ? backgroundPreview
             : GetCurrentDisplayBitmapSource(photo);
     }
 
@@ -415,6 +436,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrEmpty(e.PropertyName) ||
             string.Equals(e.PropertyName, nameof(PhotoItem.Image), StringComparison.Ordinal))
         {
+            ClearBackgroundPreview();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
         }
     }
@@ -552,34 +574,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    public bool AutoWorkModeEnabled
-    {
-        get => _appConfig.EnableAutoWorkMode;
-        set
-        {
-            if (_appConfig.EnableAutoWorkMode == value)
-            {
-                return;
-            }
-
-            _appConfig.EnableAutoWorkMode = value;
-            SaveAppConfig();
-            OnPropertyChanged();
-            RaiseRuntimeWorkModePropertyChanged();
-        }
-    }
-
     public RuntimeWorkMode CurrentRuntimeWorkMode => ResolveRuntimeWorkMode();
 
     public string RuntimeWorkModeDisplayText => CurrentRuntimeWorkMode switch
     {
         RuntimeWorkMode.Viewer => "Current: Viewer Mode",
-        RuntimeWorkMode.Work => "Current: Work Mode",
-        RuntimeWorkMode.Compare => "Current: Compare View",
+        RuntimeWorkMode.Edit => "Current: Edit Mode",
+        RuntimeWorkMode.Multi => "Current: Multi Mode",
         _ => "Current: Unknown"
     };
 
-    public bool RetouchPanelEditingEnabled => CurrentRuntimeWorkMode == RuntimeWorkMode.Work;
+    public bool RetouchPanelAvailable => SelectedPreviewPhotos.Count == 1;
+
+    public bool RetouchPanelEditingEnabled => CurrentRuntimeWorkMode == RuntimeWorkMode.Edit;
+
+    public bool CanSaveCurrentPhoto => SelectedPreviewPhotos.Count == 1 && SelectedPhoto is not null;
 
     public bool ShowHistoryPanel
     {
@@ -840,26 +849,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SavePhotoButton_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedPhoto?.Image is not BitmapSource image)
+        if (!CanSaveCurrentPhoto ||
+            SelectedPhoto is not PhotoItem photo ||
+            GetCurrentSaveBitmapSource(photo) is not BitmapSource image)
         {
             return;
         }
 
-        string? sourceDirectory = Path.GetDirectoryName(SelectedPhoto.Path);
+        string? sourceDirectory = Path.GetDirectoryName(photo.Path);
         if (string.IsNullOrWhiteSpace(sourceDirectory))
         {
             return;
         }
 
-        string sourceExtension = Path.GetExtension(SelectedPhoto.Path);
+        string sourceExtension = Path.GetExtension(photo.Path);
         string outputExtension = GetSaveOutputExtension(sourceExtension);
         string outputPath = GetNextAvailableSavePath(
             sourceDirectory,
-            Path.GetFileNameWithoutExtension(SelectedPhoto.FileName),
+            Path.GetFileNameWithoutExtension(photo.FileName),
             outputExtension);
 
         try
         {
+            MarkSelfSavedOutputPath(outputPath);
             BitmapEncoder encoder = CreateSaveEncoder(outputExtension);
             encoder.Frames.Add(BitmapFrame.Create(image));
             using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -867,8 +879,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            UnmarkSelfSavedOutputPath(outputPath);
             System.Windows.MessageBox.Show(this, $"저장 실패: {ex.Message}", "저장", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private BitmapSource? GetCurrentSaveBitmapSource(PhotoItem photo)
+    {
+        return TryGetBackgroundPreviewBitmapSource(photo, out BitmapSource backgroundPreview)
+            ? backgroundPreview
+            : photo.Image as BitmapSource;
     }
 
     private static string GetSaveOutputExtension(string sourceExtension)
@@ -977,6 +997,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _isRefreshingWorkArea = true;
             _lastWorkAreaRefreshAt = now;
+            PruneEditorHistoryOutsideWorkArea(_appConfig.WorkAreaFolderPath);
             LoadPhotosFromWorkArea(_appConfig.WorkAreaFolderPath);
         }
         finally
@@ -2574,7 +2595,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(WorkAreaDisplayText));
         RaiseColorManagementPropertyChanged();
         OnPropertyChanged(nameof(AutoCheckUpdatesAtStartup));
-        OnPropertyChanged(nameof(AutoWorkModeEnabled));
         RaiseRuntimeWorkModePropertyChanged();
         OnPropertyChanged(nameof(ShowHistoryPanel));
         OnPropertyChanged(nameof(HistoryPanelVisibility));
@@ -2707,6 +2727,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
+        StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
         CancelToneCurvePreviewRender();
         StopWorkAreaWatcher();
     }
@@ -2738,6 +2759,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         lock (_workAreaWatcherSync)
         {
             _pendingWorkAreaImports.Clear();
+            _selfSavedOutputPaths.Clear();
         }
 
         if (_workAreaWatcher is null)
@@ -2760,6 +2782,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void QueueWorkAreaFileImport(string path)
     {
         if (!IsSupportedImagePath(path))
+        {
+            return;
+        }
+
+        if (IsSelfSavedOutputPath(path))
         {
             return;
         }
@@ -2847,6 +2874,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(workAreaPath) ||
             string.IsNullOrWhiteSpace(directoryPath) ||
             !string.Equals(workAreaPath, directoryPath, StringComparison.OrdinalIgnoreCase) ||
+            IsSelfSavedOutputPath(path) ||
             !File.Exists(path) ||
             !IsSupportedImagePath(path))
         {
@@ -2856,7 +2884,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PhotoItem? existingPhoto = Photos.FirstOrDefault(photo => string.Equals(photo.Path, path, StringComparison.OrdinalIgnoreCase));
         if (existingPhoto is not null)
         {
-            SelectOnly(existingPhoto);
+            if (ShouldFocusImportedWorkAreaPhoto())
+            {
+                SelectOnly(existingPhoto);
+            }
+
             return;
         }
 
@@ -2864,12 +2896,56 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             PhotoItem photo = PhotoItem.Load(path);
             Photos.Insert(GetWorkAreaPhotoInsertIndex(path), photo);
-            SelectOnly(photo);
+            if (ShouldFocusImportedWorkAreaPhoto())
+            {
+                SelectOnly(photo);
+            }
+
             OnPropertyChanged(nameof(PhotoSelectionText));
         }
         catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
         {
         }
+    }
+
+    private bool ShouldFocusImportedWorkAreaPhoto()
+    {
+        return CurrentRuntimeWorkMode == RuntimeWorkMode.Viewer &&
+               SelectedPreviewPhotos.Count <= 1;
+    }
+
+    private void MarkSelfSavedOutputPath(string path)
+    {
+        string normalizedPath = NormalizeFilePath(path);
+        lock (_workAreaWatcherSync)
+        {
+            _selfSavedOutputPaths.Add(normalizedPath);
+        }
+    }
+
+    private void UnmarkSelfSavedOutputPath(string path)
+    {
+        string normalizedPath = NormalizeFilePath(path);
+        lock (_workAreaWatcherSync)
+        {
+            _selfSavedOutputPaths.Remove(normalizedPath);
+        }
+    }
+
+    private bool IsSelfSavedOutputPath(string path)
+    {
+        string normalizedPath = NormalizeFilePath(path);
+        lock (_workAreaWatcherSync)
+        {
+            return _selfSavedOutputPaths.Contains(normalizedPath);
+        }
+    }
+
+    private static string NormalizeFilePath(string path)
+    {
+        return string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : Path.GetFullPath(path);
     }
 
     private int GetWorkAreaPhotoInsertIndex(string path)
@@ -3048,6 +3124,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PhotoAdjustRetouchTab?.Collapse();
         EyesRetouchTab?.Collapse();
         NoseRetouchTab?.Collapse();
+        RaiseRuntimeWorkModePropertyChanged();
     }
 
     private void CollapseRetouchTabsExcept(object? expandedTab)
@@ -3116,14 +3193,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void NotifyRetouchTabExpanded(object expandedTab)
     {
-        if (_appConfig.EnableAutoWorkMode &&
-            CurrentRuntimeWorkMode != RuntimeWorkMode.Work)
+        if (SelectedPreviewPhotos.Count != 1)
         {
             CollapseAllRetouchTabs();
             return;
         }
 
         CollapseRetouchTabsExcept(expandedTab);
+        RaiseRuntimeWorkModePropertyChanged();
+    }
+
+    private void RetouchExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
+        if (IsRetouchPanelEventSource(e.OriginalSource))
+        {
+            RaiseRuntimeWorkModePropertyChanged();
+        }
     }
 
     private void RefreshSelectedPreviewPhotos()
@@ -3140,6 +3225,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(SinglePreviewVisibility));
         OnPropertyChanged(nameof(MultiPreviewVisibility));
         OnPropertyChanged(nameof(PreviewGridColumns));
+        OnPropertyChanged(nameof(CanSaveCurrentPhoto));
         RaiseRuntimeWorkModePropertyChanged();
 
         if (SelectedPreviewPhotos.Count == 1)
@@ -3150,6 +3236,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else
         {
             SelectedPhoto = null;
+            CollapseAllRetouchTabs();
         }
     }
 
@@ -3814,7 +3901,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool CanUseSinglePreviewTool()
     {
         return SelectedPhoto is not null &&
-               CurrentRuntimeWorkMode == RuntimeWorkMode.Work;
+               CurrentRuntimeWorkMode == RuntimeWorkMode.Edit;
     }
 
     private RuntimeWorkMode ResolveRuntimeWorkMode()
@@ -3822,8 +3909,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return SelectedPreviewPhotos.Count switch
         {
             <= 0 => RuntimeWorkMode.Viewer,
-            1 => RuntimeWorkMode.Work,
-            _ => RuntimeWorkMode.Compare
+            1 => HasExpandedRetouchTab() ? RuntimeWorkMode.Edit : RuntimeWorkMode.Viewer,
+            _ => RuntimeWorkMode.Multi
         };
     }
 
@@ -3831,7 +3918,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(CurrentRuntimeWorkMode));
         OnPropertyChanged(nameof(RuntimeWorkModeDisplayText));
+        OnPropertyChanged(nameof(RetouchPanelAvailable));
         OnPropertyChanged(nameof(RetouchPanelEditingEnabled));
+        OnPropertyChanged(nameof(CanSaveCurrentPhoto));
+    }
+
+    private bool HasExpandedRetouchTab()
+    {
+        if (RetouchPanelStack is null)
+        {
+            return false;
+        }
+
+        return FindVisualDescendants<Expander>(RetouchPanelStack)
+            .Any(expander => expander.IsExpanded);
+    }
+
+    private bool IsRetouchPanelEventSource(object? source)
+    {
+        return source is DependencyObject sourceObject &&
+               RetouchPanelStack is not null &&
+               IsVisualDescendantOf(sourceObject, RetouchPanelStack);
+    }
+
+    private static bool IsVisualDescendantOf(DependencyObject source, DependencyObject ancestor)
+    {
+        DependencyObject? current = source;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        int childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < childCount; i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (T descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private bool IsToolInBucket(string toolId, ToolBucket bucket)
@@ -3962,6 +4104,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         PreviewImageLeft = Math.Clamp(left, minLeft, maxLeft);
         PreviewImageTop = Math.Clamp(top, minTop, maxTop);
+        UpdateMediaPipePreviewOverlay();
     }
 
     private void UpdatePreviewLayout()
@@ -4390,6 +4533,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewImageTop = offsetY;
         PreviewImageWidth = imageWidth * scale;
         PreviewImageHeight = imageHeight * scale;
+        UpdateMediaPipePreviewOverlay();
     }
 
     private void UpdateLocalWorkbenchGuide()
@@ -4450,7 +4594,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return true;
     }
 
-    private void ResetEditorHistoryForSelectedPhoto()
+    private void LoadEditorHistoryForSelectedPhoto()
     {
         _editorUndoHistory.Clear();
         _editorRedoHistory.Clear();
@@ -4462,7 +4606,63 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        string normalizedPath = NormalizeFilePath(photo.Path);
+        if (TryGetEditorHistorySession(normalizedPath, out EditorHistorySession? session) &&
+            session is { UndoHistory.Count: > 0 })
+        {
+            _editorUndoHistory.AddRange(session.UndoHistory);
+            _editorRedoHistory.AddRange(session.RedoHistory);
+            RestoreEditorHistoryState(_editorUndoHistory[^1]);
+            RefreshEditorHistoryPanel();
+            return;
+        }
+
         PushEditorHistorySnapshot("Open Photo", $"Session started for {photo.FileName}");
+    }
+
+    private bool TryGetEditorHistorySession(string normalizedPath, out EditorHistorySession? session)
+    {
+        if (_editorHistorySessionsByPath.TryGetValue(normalizedPath, out session))
+        {
+            return true;
+        }
+
+        if (TryLoadEditorHistorySessionFromDisk(normalizedPath, out session) &&
+            session is not null)
+        {
+            _editorHistorySessionsByPath[normalizedPath] = session;
+            return true;
+        }
+
+        session = null;
+        return false;
+    }
+
+    private void StoreCurrentEditorHistorySession(PhotoItem? photo, bool persistToDisk)
+    {
+        if (photo is null || _editorUndoHistory.Count == 0)
+        {
+            return;
+        }
+
+        string normalizedPath = NormalizeFilePath(photo.Path);
+        EditorHistorySession session = new(
+            _editorUndoHistory.ToList(),
+            _editorRedoHistory.ToList());
+        _editorHistorySessionsByPath[normalizedPath] = session;
+
+        if (!persistToDisk)
+        {
+            return;
+        }
+
+        try
+        {
+            SaveEditorHistorySessionToDisk(normalizedPath, photo.Path, session);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+        }
     }
 
     private void PushEditorHistorySnapshot(string title, string detail)
@@ -4481,6 +4681,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _editorRedoHistory.Clear();
         RefreshEditorHistoryPanel();
+        StoreCurrentEditorHistorySession(photo, persistToDisk: false);
     }
 
     private EditorHistoryState CaptureEditorHistoryState(PhotoItem photo, string title, string detail)
@@ -4524,6 +4725,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _editorRedoHistory.Add(current);
         RestoreEditorHistoryState(_editorUndoHistory[^1]);
         RefreshEditorHistoryPanel();
+        StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
     }
 
     private void TryRedoEditorHistory()
@@ -4538,6 +4740,291 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _editorUndoHistory.Add(snapshot);
         RestoreEditorHistoryState(snapshot);
         RefreshEditorHistoryPanel();
+        StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
+    }
+
+    private void HistoryPanelListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        if (FindHistoryPanelItemFromOriginalSource(e.OriginalSource) is not HistoryPanelItem item)
+        {
+            return;
+        }
+
+        RestoreEditorHistoryAt(item.HistoryIndex);
+        e.Handled = true;
+    }
+
+    private void RestoreEditorHistoryAt(int historyIndex)
+    {
+        if (SelectedPhoto is null ||
+            historyIndex < 0 ||
+            historyIndex >= _editorUndoHistory.Count)
+        {
+            return;
+        }
+
+        int currentIndex = _editorUndoHistory.Count - 1;
+        if (historyIndex == currentIndex)
+        {
+            return;
+        }
+
+        for (int i = currentIndex; i > historyIndex; i--)
+        {
+            _editorRedoHistory.Add(_editorUndoHistory[i]);
+            _editorUndoHistory.RemoveAt(i);
+        }
+
+        RestoreEditorHistoryState(_editorUndoHistory[^1]);
+        RefreshEditorHistoryPanel();
+        StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
+    }
+
+    private static HistoryPanelItem? FindHistoryPanelItemFromOriginalSource(object originalSource)
+    {
+        DependencyObject? current = originalSource as DependencyObject;
+        while (current is not null)
+        {
+            if (current is FrameworkElement { DataContext: HistoryPanelItem item })
+            {
+                return item;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private static void SaveEditorHistorySessionToDisk(
+        string normalizedPath,
+        string photoPath,
+        EditorHistorySession session)
+    {
+        string sessionDirectory = GetEditorHistorySessionDirectory(normalizedPath);
+        if (Directory.Exists(sessionDirectory))
+        {
+            Directory.Delete(sessionDirectory, recursive: true);
+        }
+
+        Directory.CreateDirectory(sessionDirectory);
+
+        PersistedEditorHistoryDocument document = new()
+        {
+            PhotoPath = photoPath,
+            NormalizedPath = normalizedPath,
+            SavedAtUtc = DateTime.UtcNow,
+            UndoHistory = PersistEditorHistoryStates(session.UndoHistory, sessionDirectory, "undo"),
+            RedoHistory = PersistEditorHistoryStates(session.RedoHistory, sessionDirectory, "redo")
+        };
+
+        JsonSerializerOptions options = new() { WriteIndented = true };
+        File.WriteAllText(
+            Path.Combine(sessionDirectory, "history.json"),
+            JsonSerializer.Serialize(document, options),
+            Encoding.UTF8);
+    }
+
+    private static List<PersistedEditorHistoryState> PersistEditorHistoryStates(
+        IReadOnlyList<EditorHistoryState> states,
+        string sessionDirectory,
+        string prefix)
+    {
+        List<PersistedEditorHistoryState> persistedStates = new(states.Count);
+        for (int i = 0; i < states.Count; i++)
+        {
+            EditorHistoryState state = states[i];
+            string? adjustedImageFileName = null;
+            if (state.AdjustedImage is not null)
+            {
+                adjustedImageFileName = $"{prefix}_{i:000}.png";
+                SaveBitmapSourceAsPng(state.AdjustedImage, Path.Combine(sessionDirectory, adjustedImageFileName));
+            }
+
+            persistedStates.Add(new PersistedEditorHistoryState
+            {
+                Title = state.Title,
+                Detail = state.Detail,
+                Timestamp = state.Timestamp,
+                AdjustedImageFile = adjustedImageFileName,
+                TextItems = state.TextItems.Select(PersistPreviewTextItemSnapshot).ToList()
+            });
+        }
+
+        return persistedStates;
+    }
+
+    private static PersistedPreviewTextItemSnapshot PersistPreviewTextItemSnapshot(PreviewTextItemSnapshot snapshot)
+    {
+        return new PersistedPreviewTextItemSnapshot
+        {
+            Id = snapshot.Id,
+            Text = snapshot.Text,
+            OriginalX = snapshot.OriginalX,
+            OriginalY = snapshot.OriginalY,
+            OriginalWidth = snapshot.OriginalWidth,
+            OriginalHeight = snapshot.OriginalHeight,
+            IsPointText = snapshot.IsPointText,
+            FontFamilyName = snapshot.FontFamilyName,
+            FontSize = snapshot.FontSize,
+            FontColor = snapshot.FontColor,
+            OpacityPercent = snapshot.OpacityPercent,
+            IsBold = snapshot.IsBold,
+            IsItalic = snapshot.IsItalic,
+            TextAlignment = snapshot.TextAlignment
+        };
+    }
+
+    private static bool TryLoadEditorHistorySessionFromDisk(string normalizedPath, out EditorHistorySession? session)
+    {
+        session = null;
+        string sessionDirectory = GetEditorHistorySessionDirectory(normalizedPath);
+        string historyPath = Path.Combine(sessionDirectory, "history.json");
+        if (!File.Exists(historyPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            PersistedEditorHistoryDocument? document = JsonSerializer.Deserialize<PersistedEditorHistoryDocument>(
+                File.ReadAllText(historyPath, Encoding.UTF8));
+            if (document is null ||
+                !string.Equals(document.NormalizedPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            session = new EditorHistorySession(
+                LoadEditorHistoryStates(document.PhotoPath, document.UndoHistory, sessionDirectory),
+                LoadEditorHistoryStates(document.PhotoPath, document.RedoHistory, sessionDirectory));
+            return session.UndoHistory.Count > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or ArgumentException)
+        {
+            session = null;
+            return false;
+        }
+    }
+
+    private static List<EditorHistoryState> LoadEditorHistoryStates(
+        string photoPath,
+        IReadOnlyList<PersistedEditorHistoryState> persistedStates,
+        string sessionDirectory)
+    {
+        List<EditorHistoryState> states = new(persistedStates.Count);
+        foreach (PersistedEditorHistoryState persistedState in persistedStates)
+        {
+            BitmapSource? adjustedImage = null;
+            if (!string.IsNullOrWhiteSpace(persistedState.AdjustedImageFile))
+            {
+                string adjustedImagePath = Path.Combine(sessionDirectory, persistedState.AdjustedImageFile);
+                if (File.Exists(adjustedImagePath))
+                {
+                    adjustedImage = LoadBitmapSourceFromFile(adjustedImagePath);
+                }
+            }
+
+            states.Add(new EditorHistoryState(
+                photoPath,
+                adjustedImage,
+                persistedState.TextItems.Select(RestorePreviewTextItemSnapshot).ToList(),
+                persistedState.Title,
+                persistedState.Detail,
+                persistedState.Timestamp));
+        }
+
+        return states;
+    }
+
+    private static PreviewTextItemSnapshot RestorePreviewTextItemSnapshot(PersistedPreviewTextItemSnapshot snapshot)
+    {
+        return new PreviewTextItemSnapshot(
+            snapshot.Id,
+            snapshot.Text,
+            snapshot.OriginalX,
+            snapshot.OriginalY,
+            snapshot.OriginalWidth,
+            snapshot.OriginalHeight,
+            snapshot.IsPointText,
+            snapshot.FontFamilyName,
+            snapshot.FontSize,
+            snapshot.FontColor,
+            snapshot.OpacityPercent,
+            snapshot.IsBold,
+            snapshot.IsItalic,
+            snapshot.TextAlignment);
+    }
+
+    private static void SaveBitmapSourceAsPng(BitmapSource source, string path)
+    {
+        PngBitmapEncoder encoder = new();
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        encoder.Save(stream);
+    }
+
+    private static string GetEditorHistorySessionDirectory(string normalizedPath)
+    {
+        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath)));
+        return Path.Combine(EditorHistoryDirectory, hash);
+    }
+
+    private void PruneEditorHistoryOutsideWorkArea(string workAreaPath)
+    {
+        try
+        {
+            HashSet<string> currentWorkAreaPaths = Directory.EnumerateFiles(workAreaPath)
+                .Where(IsSupportedImagePath)
+                .Select(NormalizeFilePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string cachedPath in _editorHistorySessionsByPath.Keys.ToArray())
+            {
+                if (!currentWorkAreaPaths.Contains(cachedPath))
+                {
+                    _editorHistorySessionsByPath.Remove(cachedPath);
+                }
+            }
+
+            if (!Directory.Exists(EditorHistoryDirectory))
+            {
+                return;
+            }
+
+            foreach (string sessionDirectory in Directory.EnumerateDirectories(EditorHistoryDirectory))
+            {
+                string historyPath = Path.Combine(sessionDirectory, "history.json");
+                if (!TryReadPersistedHistoryPath(historyPath, out string? normalizedPath) ||
+                    normalizedPath is null ||
+                    !currentWorkAreaPaths.Contains(normalizedPath))
+                {
+                    Directory.Delete(sessionDirectory, recursive: true);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or ArgumentException)
+        {
+        }
+    }
+
+    private static bool TryReadPersistedHistoryPath(string historyPath, out string? normalizedPath)
+    {
+        normalizedPath = null;
+        if (!File.Exists(historyPath))
+        {
+            return false;
+        }
+
+        PersistedEditorHistoryDocument? document = JsonSerializer.Deserialize<PersistedEditorHistoryDocument>(
+            File.ReadAllText(historyPath, Encoding.UTF8));
+        normalizedPath = document?.NormalizedPath;
+        return !string.IsNullOrWhiteSpace(normalizedPath);
     }
 
     private void RestoreEditorHistoryState(EditorHistoryState snapshot)
@@ -4608,6 +5095,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             EditorHistoryState snapshot = _editorUndoHistory[i];
             HistoryPanelItem item = new()
             {
+                HistoryIndex = i,
                 Title = snapshot.Title,
                 Detail = snapshot.Detail,
                 TimeLabel = snapshot.Timestamp.ToString("HH:mm:ss"),
@@ -4619,6 +5107,78 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 SelectedHistoryPanelItem = item;
             }
         }
+    }
+
+    private sealed class EditorHistorySession
+    {
+        public EditorHistorySession(
+            List<EditorHistoryState> undoHistory,
+            List<EditorHistoryState> redoHistory)
+        {
+            UndoHistory = undoHistory;
+            RedoHistory = redoHistory;
+        }
+
+        public List<EditorHistoryState> UndoHistory { get; }
+
+        public List<EditorHistoryState> RedoHistory { get; }
+    }
+
+    private sealed class PersistedEditorHistoryDocument
+    {
+        public string PhotoPath { get; set; } = string.Empty;
+
+        public string NormalizedPath { get; set; } = string.Empty;
+
+        public DateTime SavedAtUtc { get; set; }
+
+        public List<PersistedEditorHistoryState> UndoHistory { get; set; } = [];
+
+        public List<PersistedEditorHistoryState> RedoHistory { get; set; } = [];
+    }
+
+    private sealed class PersistedEditorHistoryState
+    {
+        public string Title { get; set; } = string.Empty;
+
+        public string Detail { get; set; } = string.Empty;
+
+        public DateTime Timestamp { get; set; }
+
+        public string? AdjustedImageFile { get; set; }
+
+        public List<PersistedPreviewTextItemSnapshot> TextItems { get; set; } = [];
+    }
+
+    private sealed class PersistedPreviewTextItemSnapshot
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Text { get; set; } = string.Empty;
+
+        public double OriginalX { get; set; }
+
+        public double OriginalY { get; set; }
+
+        public double OriginalWidth { get; set; }
+
+        public double OriginalHeight { get; set; }
+
+        public bool IsPointText { get; set; }
+
+        public string FontFamilyName { get; set; } = "Malgun Gothic";
+
+        public double FontSize { get; set; }
+
+        public string FontColor { get; set; } = "#FFFFFF";
+
+        public double OpacityPercent { get; set; }
+
+        public bool IsBold { get; set; }
+
+        public bool IsItalic { get; set; }
+
+        public TextAlignment TextAlignment { get; set; }
     }
 
     private sealed class EditorHistoryState

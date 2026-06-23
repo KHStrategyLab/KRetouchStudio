@@ -20,6 +20,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private BackgroundMode _activeBackgroundMode = BackgroundMode.White;
     private double _backgroundOpacity = 100;
+    private double _boundaryProbeStrength;
 
     public BackgroundTabView()
     {
@@ -28,6 +29,8 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler? WhiteBackgroundRequested;
 
     public System.Windows.Media.Brush CustomBackgroundBrush { get; }
 
@@ -57,6 +60,22 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         }
     }
 
+    public double BoundaryProbeStrength
+    {
+        get => _boundaryProbeStrength;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(_boundaryProbeStrength - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _boundaryProbeStrength = clamped;
+            OnPropertyChanged();
+        }
+    }
+
     public void Collapse()
     {
         BackgroundExpander.IsExpanded = false;
@@ -73,6 +92,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private void WhiteBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
         SetActiveBackgroundMode(BackgroundMode.White, forceRefresh: true);
+        WhiteBackgroundRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
