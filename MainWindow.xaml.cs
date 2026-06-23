@@ -339,6 +339,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DataContext = this;
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
+        BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
         BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
         BackgroundRetouchTab.WhiteBackgroundAdjustmentCommitted += BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted;
         HistoryPanelItems.CollectionChanged += (_, _) =>

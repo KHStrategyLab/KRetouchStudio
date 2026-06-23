@@ -9,6 +9,7 @@ internal sealed record BiRefNetMattingRunRequest(
     string PythonRuntime,
     string HelperPath,
     string ImagePath,
+    string? PreparedInputPath,
     string OutputDirectory,
     string Model,
     int InferenceSize,
@@ -89,6 +90,45 @@ internal sealed record BiRefNetMattingWarmUpResult(
             }
 
             return $"BiRefNet: warm | {RunMode} | load {LoadSeconds?.ToString("0.###") ?? "?"}s | {Device ?? "device ?"}";
+        }
+    }
+}
+
+internal sealed record BiRefNetInputPrepareRequest(
+    string PythonRuntime,
+    string HelperPath,
+    string ImagePath,
+    string OutputDirectory,
+    int InferenceSize,
+    int InputSharpen);
+
+internal sealed record BiRefNetInputPrepareResult(
+    int ExitCode,
+    string OutputDirectory,
+    string Status,
+    string RunMode,
+    string? InputPath,
+    double? TotalSeconds,
+    string? Error,
+    string StandardOutput,
+    string StandardError)
+{
+    public bool Succeeded =>
+        ExitCode == 0 &&
+        string.Equals(Status, "ok", StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(InputPath) &&
+        File.Exists(InputPath);
+
+    public string SummaryText
+    {
+        get
+        {
+            if (!Succeeded)
+            {
+                return $"BiRefNet: input failed | {Error ?? Status}";
+            }
+
+            return $"BiRefNet: input ready | {RunMode} | {TotalSeconds?.ToString("0.###") ?? "?"}s";
         }
     }
 }
@@ -236,6 +276,107 @@ internal static class BiRefNetMattingService
         }
     }
 
+    public static async Task<BiRefNetInputPrepareResult> PrepareInputAsync(
+        BiRefNetInputPrepareRequest request,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(request.OutputDirectory);
+
+        if (!File.Exists(request.HelperPath))
+        {
+            return CreateInputPrepareFailureResult(request, "Helper not found: " + request.HelperPath);
+        }
+
+        if (!File.Exists(request.ImagePath))
+        {
+            return CreateInputPrepareFailureResult(request, "Image not found: " + request.ImagePath);
+        }
+
+        string workerPath = Path.Combine(Path.GetDirectoryName(request.HelperPath) ?? string.Empty, "birefnet_worker.py");
+        if (!File.Exists(workerPath))
+        {
+            return CreateInputPrepareFailureResult(request, "Worker not found: " + workerPath);
+        }
+
+        await WorkerGate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureWorkerStartedNoLock(request.PythonRuntime, workerPath);
+            if (_workerInput is null || _workerOutput is null)
+            {
+                return CreateInputPrepareFailureResult(request, "Worker stream not ready.");
+            }
+
+            int requestId = Interlocked.Increment(ref _workerRequestId);
+            Dictionary<string, object?> command = new(StringComparer.Ordinal)
+            {
+                ["request_id"] = requestId,
+                ["command"] = "prepare_input",
+                ["image"] = request.ImagePath,
+                ["output"] = request.OutputDirectory,
+                ["size"] = request.InferenceSize,
+                ["input_sharpen"] = request.InputSharpen,
+            };
+
+            string commandJson = JsonSerializer.Serialize(command);
+            await _workerInput.WriteLineAsync(commandJson);
+            await _workerInput.FlushAsync();
+
+            string stdoutPath = Path.Combine(request.OutputDirectory, "birefnet_input_stdout.txt");
+            string stderrPath = Path.Combine(request.OutputDirectory, "birefnet_input_stderr.txt");
+
+            while (true)
+            {
+                string? line = await _workerOutput.ReadLineAsync(cancellationToken);
+                if (line is null)
+                {
+                    ShutdownWorkerProcessNoLock(sendShutdownCommand: false);
+                    return CreateInputPrepareFailureResult(request, "Worker stopped before returning an input result.");
+                }
+
+                await File.AppendAllTextAsync(stdoutPath, line + Environment.NewLine, Encoding.UTF8, cancellationToken);
+
+                JsonDocument document;
+                try
+                {
+                    document = JsonDocument.Parse(line);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+
+                using (document)
+                {
+                    JsonElement root = document.RootElement;
+                    int responseRequestId = root.TryGetProperty("request_id", out JsonElement requestIdElement) &&
+                                            requestIdElement.TryGetInt32(out int parsedRequestId)
+                        ? parsedRequestId
+                        : -1;
+                    if (responseRequestId != requestId)
+                    {
+                        continue;
+                    }
+
+                    string stderrPointer = string.IsNullOrWhiteSpace(_workerStderrPath)
+                        ? "Persistent worker stderr log is not available."
+                        : "Persistent worker stderr log: " + _workerStderrPath;
+                    await File.WriteAllTextAsync(stderrPath, stderrPointer, Encoding.UTF8, cancellationToken);
+                    return ReadInputPrepareResultFromRoot(request, 0, root, line, stderrPointer);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShutdownWorkerProcessNoLock(sendShutdownCommand: false);
+            return CreateInputPrepareFailureResult(request, ex.Message);
+        }
+        finally
+        {
+            WorkerGate.Release();
+        }
+    }
+
     public static void ShutdownWorker()
     {
         if (!WorkerGate.Wait(TimeSpan.FromSeconds(1)))
@@ -285,6 +426,12 @@ internal static class BiRefNetMattingService
                 ["input_sharpen"] = request.InputSharpen,
                 ["device"] = request.Device,
             };
+
+            if (!string.IsNullOrWhiteSpace(request.PreparedInputPath) &&
+                File.Exists(request.PreparedInputPath))
+            {
+                command["prepared_input"] = request.PreparedInputPath;
+            }
 
             string commandJson = JsonSerializer.Serialize(command);
             await _workerInput.WriteLineAsync(commandJson);
@@ -591,6 +738,22 @@ internal static class BiRefNetMattingService
             string.Empty);
     }
 
+    private static BiRefNetInputPrepareResult CreateInputPrepareFailureResult(
+        BiRefNetInputPrepareRequest request,
+        string error)
+    {
+        return new BiRefNetInputPrepareResult(
+            -1,
+            request.OutputDirectory,
+            "error",
+            WorkerRunMode,
+            null,
+            null,
+            error,
+            string.Empty,
+            string.Empty);
+    }
+
     private static BiRefNetMattingRunResult ReadResult(
         BiRefNetMattingRunRequest request,
         int exitCode,
@@ -713,6 +876,44 @@ internal static class BiRefNetMattingService
             model,
             device,
             loadSeconds,
+            totalSeconds,
+            error,
+            stdout,
+            stderr);
+    }
+
+    private static BiRefNetInputPrepareResult ReadInputPrepareResultFromRoot(
+        BiRefNetInputPrepareRequest request,
+        int exitCode,
+        JsonElement root,
+        string stdout,
+        string stderr)
+    {
+        string status = root.TryGetProperty("status", out JsonElement statusElement)
+            ? statusElement.GetString() ?? "unknown"
+            : "unknown";
+
+        string? error = root.TryGetProperty("error", out JsonElement errorElement)
+            ? errorElement.GetString()
+            : null;
+
+        string? inputPath = root.TryGetProperty("input_path", out JsonElement inputPathElement)
+            ? inputPathElement.GetString()
+            : null;
+
+        double? totalSeconds = TryGetDouble(root, "total_seconds");
+
+        if (exitCode != 0 && string.IsNullOrWhiteSpace(error))
+        {
+            error = stderr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        }
+
+        return new BiRefNetInputPrepareResult(
+            exitCode,
+            request.OutputDirectory,
+            status,
+            WorkerRunMode,
+            inputPath,
             totalSeconds,
             error,
             stdout,

@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,6 +42,11 @@ public partial class MainWindow
     private string? _personAlphaPhotoPath;
     private string? _personAlphaEngine;
     private string? _personAlphaRunMode;
+    private string? _biRefNetPreparedInputPath;
+    private string? _biRefNetPreparedInputPhotoPath;
+    private int _biRefNetPreparedInputSize;
+    private int _biRefNetPreparedInputSharpen;
+    private readonly SemaphoreSlim _biRefNetInputPrepareGate = new(1, 1);
     private bool _isBiRefNetWarmupStarted;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
@@ -63,6 +69,17 @@ public partial class MainWindow
     private async void BackgroundRetouchTab_WhiteBackgroundRequested(object? sender, EventArgs e)
     {
         await ApplyWhiteBackgroundPreviewAsync();
+    }
+
+    private async void BackgroundRetouchTab_BackgroundTabOpened(object? sender, EventArgs e)
+    {
+        PhotoItem? targetPhoto = SelectedPhoto;
+        if (targetPhoto is null)
+        {
+            return;
+        }
+
+        await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: true);
     }
 
     private void StartBiRefNetWarmup()
@@ -210,11 +227,16 @@ public partial class MainWindow
             return _personAlphaPath;
         }
 
+        string? preparedInputPath = IsCachedBiRefNetPreparedInputValid(targetPhoto)
+            ? _biRefNetPreparedInputPath
+            : await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: false);
+
         string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
         BiRefNetMattingRunRequest request = new(
             _appConfig.MediaPipe.HelperRuntime,
             Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
             targetPhoto.Path,
+            preparedInputPath,
             outputDirectory,
             "ZhengPeng7/BiRefNet_lite-matting",
             1024,
@@ -235,12 +257,91 @@ public partial class MainWindow
         return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
     }
 
+    private async Task<string?> PrepareBiRefNetInputForPhotoAsync(PhotoItem targetPhoto, bool reportStatus)
+    {
+        if (IsCachedBiRefNetPreparedInputValid(targetPhoto))
+        {
+            return _biRefNetPreparedInputPath;
+        }
+
+        await _biRefNetInputPrepareGate.WaitAsync();
+        try
+        {
+            if (IsCachedBiRefNetPreparedInputValid(targetPhoto))
+            {
+                return _biRefNetPreparedInputPath;
+            }
+
+            string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_input");
+            BiRefNetInputPrepareRequest request = new(
+                _appConfig.MediaPipe.HelperRuntime,
+                Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
+                targetPhoto.Path,
+                outputDirectory,
+                1024,
+                BiRefNetInputSharpenStrength);
+
+            if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+            {
+                MediaPipeStatusText = "BiRefNet: input 1024...";
+            }
+
+            BiRefNetInputPrepareResult result = await BiRefNetMattingService.PrepareInputAsync(
+                request,
+                CancellationToken.None);
+
+            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.InputPath))
+            {
+                if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+                {
+                    MediaPipeStatusText = result.SummaryText;
+                }
+
+                return null;
+            }
+
+            _biRefNetPreparedInputPath = result.InputPath;
+            _biRefNetPreparedInputPhotoPath = targetPhoto.Path;
+            _biRefNetPreparedInputSize = request.InferenceSize;
+            _biRefNetPreparedInputSharpen = request.InputSharpen;
+
+            if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+            {
+                MediaPipeStatusText = result.SummaryText;
+            }
+
+            return _biRefNetPreparedInputPath;
+        }
+        catch (Exception ex)
+        {
+            if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+            {
+                MediaPipeStatusText = "BiRefNet: input failed | " + ex.Message;
+            }
+
+            return null;
+        }
+        finally
+        {
+            _biRefNetInputPrepareGate.Release();
+        }
+    }
+
     private bool IsCachedPersonAlphaValid(PhotoItem targetPhoto, string requiredEngine)
     {
         return !string.IsNullOrWhiteSpace(_personAlphaPath) &&
                File.Exists(_personAlphaPath) &&
                string.Equals(_personAlphaPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(_personAlphaEngine, requiredEngine, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsCachedBiRefNetPreparedInputValid(PhotoItem targetPhoto)
+    {
+        return !string.IsNullOrWhiteSpace(_biRefNetPreparedInputPath) &&
+               File.Exists(_biRefNetPreparedInputPath) &&
+               string.Equals(_biRefNetPreparedInputPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
+               _biRefNetPreparedInputSize == 1024 &&
+               _biRefNetPreparedInputSharpen == BiRefNetInputSharpenStrength;
     }
 
     private void CachePersonAlphaArtifact(string outputDirectory, string photoPath, string engine, string? runMode = null)

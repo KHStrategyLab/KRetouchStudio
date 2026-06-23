@@ -22,8 +22,10 @@ from birefnet_helper import (
     DEFAULT_MODEL,
     DEFAULT_SIZE,
     DEFAULT_INPUT_SHARPEN,
+    create_tensor_transform,
     create_transform,
     extract_prediction,
+    prepare_model_input_image,
     save_debug_outputs,
     select_device,
     write_json,
@@ -101,6 +103,8 @@ class BiRefNetWorker:
         input_sharpen_value = command.get("input_sharpen")
         input_sharpen = DEFAULT_INPUT_SHARPEN if input_sharpen_value is None else int(input_sharpen_value)
         device_request = str(command.get("device") or "auto")
+        prepared_input_value = command.get("prepared_input")
+        prepared_input_path = Path(str(prepared_input_value)) if prepared_input_value else None
 
         output_dir.mkdir(parents=True, exist_ok=True)
         started = time.perf_counter()
@@ -110,7 +114,17 @@ class BiRefNetWorker:
             raise RuntimeError("BiRefNet worker model is not loaded.")
 
         image = Image.open(image_path).convert("RGB")
-        input_tensor = self.transform(image).unsqueeze(0).to(device=self.device, dtype=self.dtype)
+        used_prepared_input_path: Path | None = None
+        if prepared_input_path is not None and prepared_input_path.exists():
+            model_input = Image.open(prepared_input_path).convert("RGB")
+            if model_input.size != (size, size):
+                model_input = prepare_model_input_image(image, size, input_sharpen)
+            else:
+                used_prepared_input_path = prepared_input_path
+
+            input_tensor = create_tensor_transform()(model_input).unsqueeze(0).to(device=self.device, dtype=self.dtype)
+        else:
+            input_tensor = self.transform(image).unsqueeze(0).to(device=self.device, dtype=self.dtype)
 
         infer_started = time.perf_counter()
         with torch.inference_mode(), contextlib.redirect_stdout(sys.stderr):
@@ -135,6 +149,7 @@ class BiRefNetWorker:
             "image_size": {"width": image.width, "height": image.height},
             "inference_size": size,
             "input_sharpen": input_sharpen,
+            "prepared_input_path": str(used_prepared_input_path) if used_prepared_input_path is not None else None,
             "device": str(self.device),
             "dtype": str(self.dtype),
             "load_seconds": round(load_seconds, 3),
@@ -145,6 +160,39 @@ class BiRefNetWorker:
         }
         write_json(output_dir / "person_alpha.json", payload)
         write_json(output_dir / "birefnet_result.json", payload)
+        return payload
+
+    def prepare_input(self, command: dict[str, Any]) -> dict[str, Any]:
+        request_id = command.get("request_id")
+        image_path = Path(str(command.get("image", "")))
+        output_dir = Path(str(command.get("output", "")))
+        size = int(command.get("size") or DEFAULT_SIZE)
+        input_sharpen_value = command.get("input_sharpen")
+        input_sharpen = DEFAULT_INPUT_SHARPEN if input_sharpen_value is None else int(input_sharpen_value)
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        started = time.perf_counter()
+
+        image = Image.open(image_path).convert("RGB")
+        prepared = prepare_model_input_image(image, size, input_sharpen)
+        input_path = output_dir / f"birefnet_input_{size}.png"
+        prepared.save(input_path)
+
+        payload: dict[str, Any] = {
+            "request_id": request_id,
+            "status": "ok",
+            "engine": "BiRefNet",
+            "run_mode": "worker",
+            "command": "prepare_input",
+            "worker_pid": os.getpid(),
+            "image": str(image_path),
+            "image_size": {"width": image.width, "height": image.height},
+            "inference_size": size,
+            "input_sharpen": input_sharpen,
+            "input_path": str(input_path),
+            "total_seconds": round(time.perf_counter() - started, 3),
+        }
+        write_json(output_dir / "birefnet_input.json", payload)
         return payload
 
     def warmup(self, command: dict[str, Any]) -> dict[str, Any]:
@@ -214,6 +262,12 @@ def main() -> int:
                 output_value = command.get("output")
                 output_dir = Path(str(output_value)) if output_value else None
                 write_response(worker.warmup(command))
+                continue
+
+            if command.get("command") == "prepare_input":
+                output_value = command.get("output")
+                output_dir = Path(str(output_value)) if output_value else None
+                write_response(worker.prepare_input(command))
                 continue
 
             if command.get("command") != "run":

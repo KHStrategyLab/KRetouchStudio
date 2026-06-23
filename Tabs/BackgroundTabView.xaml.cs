@@ -36,6 +36,8 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     public event EventHandler? WhiteBackgroundAdjustmentCommitted;
 
+    public event EventHandler? BackgroundTabOpened;
+
     public System.Windows.Media.Brush CustomBackgroundBrush { get; }
 
     public bool IsWhiteBackgroundModeActive => _activeBackgroundMode == BackgroundMode.White;
@@ -107,6 +109,8 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         {
             window.NotifyRetouchTabExpanded(this);
         }
+
+        BackgroundTabOpened?.Invoke(this, EventArgs.Empty);
     }
 
     private void WhiteBackgroundButton_Click(object sender, RoutedEventArgs e)

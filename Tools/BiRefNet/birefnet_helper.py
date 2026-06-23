@@ -57,11 +57,24 @@ def sharpen_for_model_input(image: Image.Image, strength: int) -> Image.Image:
     return image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=strength, threshold=0))
 
 
+def prepare_model_input_image(image: Image.Image, size: int, input_sharpen: int = DEFAULT_INPUT_SHARPEN) -> Image.Image:
+    resized = image.resize((size, size), Image.Resampling.BILINEAR)
+    return sharpen_for_model_input(resized, input_sharpen)
+
+
+def create_tensor_transform() -> transforms.Compose:
+    return transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
+
+
 def create_transform(size: int, input_sharpen: int = DEFAULT_INPUT_SHARPEN) -> transforms.Compose:
     return transforms.Compose(
         [
-            transforms.Resize((size, size)),
-            transforms.Lambda(lambda image: sharpen_for_model_input(image, input_sharpen)),
+            transforms.Lambda(lambda image: prepare_model_input_image(image, size, input_sharpen)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
