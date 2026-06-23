@@ -349,6 +349,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
         LoadAppConfig();
         UpdateToolboxSelection();
+        Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
         if (startupImagePaths.Count > 0)
         {
@@ -3022,6 +3023,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ResetPreviewProxy1200BuildQueue();
         BiRefNetMattingService.ShutdownWorker();
         StopWorkAreaWatcher();
+    }
+
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        StartBiRefNetWarmup();
     }
 
     private void StartWorkAreaWatcher(string folderPath)

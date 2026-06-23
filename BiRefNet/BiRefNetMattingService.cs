@@ -53,6 +53,46 @@ internal sealed record BiRefNetMattingRunResult(
     }
 }
 
+internal sealed record BiRefNetMattingWarmUpRequest(
+    string PythonRuntime,
+    string HelperPath,
+    string OutputDirectory,
+    string Model,
+    int InferenceSize,
+    int InputSharpen,
+    string Device);
+
+internal sealed record BiRefNetMattingWarmUpResult(
+    int ExitCode,
+    string OutputDirectory,
+    string Status,
+    string RunMode,
+    string? Model,
+    string? Device,
+    double? LoadSeconds,
+    double? TotalSeconds,
+    string? Error,
+    string StandardOutput,
+    string StandardError)
+{
+    public bool Succeeded =>
+        ExitCode == 0 &&
+        string.Equals(Status, "ok", StringComparison.OrdinalIgnoreCase);
+
+    public string SummaryText
+    {
+        get
+        {
+            if (!Succeeded)
+            {
+                return $"BiRefNet: warmup failed | {Error ?? Status}";
+            }
+
+            return $"BiRefNet: warm | {RunMode} | load {LoadSeconds?.ToString("0.###") ?? "?"}s | {Device ?? "device ?"}";
+        }
+    }
+}
+
 internal static class BiRefNetMattingService
 {
     private const string WorkerRunMode = "worker";
@@ -99,6 +139,103 @@ internal static class BiRefNetMattingService
         return oneShotResult.Succeeded ? oneShotResult : workerResult;
     }
 
+    public static async Task<BiRefNetMattingWarmUpResult> WarmUpAsync(
+        BiRefNetMattingWarmUpRequest request,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(request.OutputDirectory);
+
+        if (!File.Exists(request.HelperPath))
+        {
+            return CreateWarmUpFailureResult(request, "Helper not found: " + request.HelperPath);
+        }
+
+        string workerPath = Path.Combine(Path.GetDirectoryName(request.HelperPath) ?? string.Empty, "birefnet_worker.py");
+        if (!File.Exists(workerPath))
+        {
+            return CreateWarmUpFailureResult(request, "Worker not found: " + workerPath);
+        }
+
+        await WorkerGate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureWorkerStartedNoLock(request.PythonRuntime, workerPath);
+            if (_workerInput is null || _workerOutput is null)
+            {
+                return CreateWarmUpFailureResult(request, "Worker stream not ready.");
+            }
+
+            int requestId = Interlocked.Increment(ref _workerRequestId);
+            Dictionary<string, object?> command = new(StringComparer.Ordinal)
+            {
+                ["request_id"] = requestId,
+                ["command"] = "warmup",
+                ["output"] = request.OutputDirectory,
+                ["model"] = request.Model,
+                ["size"] = request.InferenceSize,
+                ["input_sharpen"] = request.InputSharpen,
+                ["device"] = request.Device,
+            };
+
+            string commandJson = JsonSerializer.Serialize(command);
+            await _workerInput.WriteLineAsync(commandJson);
+            await _workerInput.FlushAsync();
+
+            string stdoutPath = Path.Combine(request.OutputDirectory, "birefnet_warmup_stdout.txt");
+            string stderrPath = Path.Combine(request.OutputDirectory, "birefnet_warmup_stderr.txt");
+
+            while (true)
+            {
+                string? line = await _workerOutput.ReadLineAsync(cancellationToken);
+                if (line is null)
+                {
+                    ShutdownWorkerProcessNoLock(sendShutdownCommand: false);
+                    return CreateWarmUpFailureResult(request, "Worker stopped before returning a warmup result.");
+                }
+
+                await File.AppendAllTextAsync(stdoutPath, line + Environment.NewLine, Encoding.UTF8, cancellationToken);
+
+                JsonDocument document;
+                try
+                {
+                    document = JsonDocument.Parse(line);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+
+                using (document)
+                {
+                    JsonElement root = document.RootElement;
+                    int responseRequestId = root.TryGetProperty("request_id", out JsonElement requestIdElement) &&
+                                            requestIdElement.TryGetInt32(out int parsedRequestId)
+                        ? parsedRequestId
+                        : -1;
+                    if (responseRequestId != requestId)
+                    {
+                        continue;
+                    }
+
+                    string stderrPointer = string.IsNullOrWhiteSpace(_workerStderrPath)
+                        ? "Persistent worker stderr log is not available."
+                        : "Persistent worker stderr log: " + _workerStderrPath;
+                    await File.WriteAllTextAsync(stderrPath, stderrPointer, Encoding.UTF8, cancellationToken);
+                    return ReadWarmUpResultFromRoot(request, 0, root, line, stderrPointer);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShutdownWorkerProcessNoLock(sendShutdownCommand: false);
+            return CreateWarmUpFailureResult(request, ex.Message);
+        }
+        finally
+        {
+            WorkerGate.Release();
+        }
+    }
+
     public static void ShutdownWorker()
     {
         if (!WorkerGate.Wait(TimeSpan.FromSeconds(1)))
@@ -130,7 +267,7 @@ internal static class BiRefNetMattingService
         await WorkerGate.WaitAsync(cancellationToken);
         try
         {
-            EnsureWorkerStartedNoLock(request, workerPath);
+            EnsureWorkerStartedNoLock(request.PythonRuntime, workerPath);
             if (_workerInput is null || _workerOutput is null)
             {
                 return CreateFailureResult(request, WorkerRunMode, "Worker stream not ready.");
@@ -208,9 +345,9 @@ internal static class BiRefNetMattingService
         }
     }
 
-    private static void EnsureWorkerStartedNoLock(BiRefNetMattingRunRequest request, string workerPath)
+    private static void EnsureWorkerStartedNoLock(string requestedPythonRuntime, string workerPath)
     {
-        string pythonRuntime = string.IsNullOrWhiteSpace(request.PythonRuntime) ? "python" : request.PythonRuntime;
+        string pythonRuntime = string.IsNullOrWhiteSpace(requestedPythonRuntime) ? "python" : requestedPythonRuntime;
         if (_workerProcess is not null &&
             !_workerProcess.HasExited &&
             _workerInput is not null &&
@@ -436,6 +573,24 @@ internal static class BiRefNetMattingService
             string.Empty);
     }
 
+    private static BiRefNetMattingWarmUpResult CreateWarmUpFailureResult(
+        BiRefNetMattingWarmUpRequest request,
+        string error)
+    {
+        return new BiRefNetMattingWarmUpResult(
+            -1,
+            request.OutputDirectory,
+            "error",
+            WorkerRunMode,
+            request.Model,
+            request.Device,
+            null,
+            null,
+            error,
+            string.Empty,
+            string.Empty);
+    }
+
     private static BiRefNetMattingRunResult ReadResult(
         BiRefNetMattingRunRequest request,
         int exitCode,
@@ -513,6 +668,51 @@ internal static class BiRefNetMattingService
             device,
             loadSeconds,
             inferSeconds,
+            totalSeconds,
+            error,
+            stdout,
+            stderr);
+    }
+
+    private static BiRefNetMattingWarmUpResult ReadWarmUpResultFromRoot(
+        BiRefNetMattingWarmUpRequest request,
+        int exitCode,
+        JsonElement root,
+        string stdout,
+        string stderr)
+    {
+        string status = root.TryGetProperty("status", out JsonElement statusElement)
+            ? statusElement.GetString() ?? "unknown"
+            : "unknown";
+
+        string? error = root.TryGetProperty("error", out JsonElement errorElement)
+            ? errorElement.GetString()
+            : null;
+
+        string? model = root.TryGetProperty("model", out JsonElement modelElement)
+            ? modelElement.GetString()
+            : request.Model;
+
+        string? device = root.TryGetProperty("device", out JsonElement deviceElement)
+            ? deviceElement.GetString()
+            : request.Device;
+
+        double? loadSeconds = TryGetDouble(root, "load_seconds");
+        double? totalSeconds = TryGetDouble(root, "total_seconds");
+
+        if (exitCode != 0 && string.IsNullOrWhiteSpace(error))
+        {
+            error = stderr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        }
+
+        return new BiRefNetMattingWarmUpResult(
+            exitCode,
+            request.OutputDirectory,
+            status,
+            WorkerRunMode,
+            model,
+            device,
+            loadSeconds,
             totalSeconds,
             error,
             stdout,

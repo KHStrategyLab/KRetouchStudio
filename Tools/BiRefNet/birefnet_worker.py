@@ -147,6 +147,42 @@ class BiRefNetWorker:
         write_json(output_dir / "birefnet_result.json", payload)
         return payload
 
+    def warmup(self, command: dict[str, Any]) -> dict[str, Any]:
+        request_id = command.get("request_id")
+        output_value = command.get("output")
+        output_dir = Path(str(output_value)) if output_value else None
+        model_id = str(command.get("model") or DEFAULT_MODEL)
+        size = int(command.get("size") or DEFAULT_SIZE)
+        input_sharpen_value = command.get("input_sharpen")
+        input_sharpen = DEFAULT_INPUT_SHARPEN if input_sharpen_value is None else int(input_sharpen_value)
+        device_request = str(command.get("device") or "auto")
+
+        started = time.perf_counter()
+        load_seconds = self.ensure_loaded(model_id, size, input_sharpen, device_request)
+        if self.model is None or self.device is None or self.dtype is None:
+            raise RuntimeError("BiRefNet worker model is not loaded.")
+
+        payload: dict[str, Any] = {
+            "request_id": request_id,
+            "status": "ok",
+            "engine": "BiRefNet",
+            "run_mode": "worker",
+            "command": "warmup",
+            "worker_pid": os.getpid(),
+            "model": model_id,
+            "inference_size": size,
+            "input_sharpen": input_sharpen,
+            "device": str(self.device),
+            "dtype": str(self.dtype),
+            "load_seconds": round(load_seconds, 3),
+            "total_seconds": round(time.perf_counter() - started, 3),
+        }
+        if output_dir is not None:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_json(output_dir / "birefnet_warmup_result.json", payload)
+
+        return payload
+
 
 def write_response(payload: dict[str, Any]) -> None:
     sys.stdout.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
@@ -173,6 +209,12 @@ def main() -> int:
             if command.get("command") == "shutdown":
                 write_response({"request_id": request_id, "status": "ok", "run_mode": "worker", "message": "shutdown"})
                 break
+
+            if command.get("command") == "warmup":
+                output_value = command.get("output")
+                output_dir = Path(str(output_value)) if output_value else None
+                write_response(worker.warmup(command))
+                continue
 
             if command.get("command") != "run":
                 raise RuntimeError("Unsupported command: " + str(command.get("command")))

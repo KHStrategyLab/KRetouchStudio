@@ -41,6 +41,7 @@ public partial class MainWindow
     private string? _personAlphaPhotoPath;
     private string? _personAlphaEngine;
     private string? _personAlphaRunMode;
+    private bool _isBiRefNetWarmupStarted;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
 
@@ -62,6 +63,50 @@ public partial class MainWindow
     private async void BackgroundRetouchTab_WhiteBackgroundRequested(object? sender, EventArgs e)
     {
         await ApplyWhiteBackgroundPreviewAsync();
+    }
+
+    private void StartBiRefNetWarmup()
+    {
+        if (_isBiRefNetWarmupStarted)
+        {
+            return;
+        }
+
+        _isBiRefNetWarmupStarted = true;
+        _ = WarmUpBiRefNetAsync();
+    }
+
+    private async Task WarmUpBiRefNetAsync()
+    {
+        string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_warmup");
+        BiRefNetMattingWarmUpRequest request = new(
+            _appConfig.MediaPipe.HelperRuntime,
+            Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
+            outputDirectory,
+            "ZhengPeng7/BiRefNet_lite-matting",
+            1024,
+            BiRefNetInputSharpenStrength,
+            "auto");
+
+        try
+        {
+            MediaPipeStatusText = "BiRefNet: warming...";
+            BiRefNetMattingWarmUpResult result = await BiRefNetMattingService.WarmUpAsync(
+                request,
+                CancellationToken.None);
+
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                MediaPipeStatusText = result.SummaryText;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                MediaPipeStatusText = "BiRefNet: warmup failed | " + ex.Message;
+            }
+        }
     }
 
     private async void BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted(object? sender, EventArgs e)
