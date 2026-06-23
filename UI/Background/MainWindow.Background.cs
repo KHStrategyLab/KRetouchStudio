@@ -26,8 +26,9 @@ public partial class MainWindow
     private const byte WhiteBackgroundProbeForegroundThreshold = 64;
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
+    private const int WhiteBackgroundEdgeBlurRadius = 1;
     private const int BiRefNetInputSharpenStrength = 100;
-    private const double WhiteBackgroundAlphaGammaMinimum = 0.50;
+    private const double WhiteBackgroundAlphaGammaMinimum = 0.40;
 
     private static readonly string BiRefNetOutputRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -72,6 +73,7 @@ public partial class MainWindow
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
         BackgroundRetouchTab.BoundaryProbeStrength = ClampBackgroundSliderSetting(settings.BoundaryProbeStrength);
         BackgroundRetouchTab.BoundaryCleanStrength = ClampBackgroundSliderSetting(settings.BoundaryCleanStrength);
+        BackgroundRetouchTab.EdgeBlurStrength = ClampBackgroundSliderSetting(settings.EdgeBlurStrength);
         BackgroundRetouchTab.SoftAlphaStrength = ClampBackgroundSliderSetting(settings.SoftAlphaStrength);
         BackgroundRetouchTab.AlphaGammaStrength = ClampBackgroundSliderSetting(settings.AlphaGammaStrength);
     }
@@ -81,6 +83,7 @@ public partial class MainWindow
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
         settings.BoundaryProbeStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryProbeStrength);
         settings.BoundaryCleanStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryCleanStrength);
+        settings.EdgeBlurStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.EdgeBlurStrength);
         settings.SoftAlphaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.SoftAlphaStrength);
         settings.AlphaGammaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaGammaStrength);
         SaveAppConfig();
@@ -196,11 +199,13 @@ public partial class MainWindow
 
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
         double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
+        double edgeBlurStrength = BackgroundRetouchTab?.EdgeBlurStrength ?? 0;
         double softAlphaStrength = BackgroundRetouchTab?.SoftAlphaStrength ?? 0;
         double alphaGammaStrength = BackgroundRetouchTab?.AlphaGammaStrength ?? 0;
         string historyDetail = CreateWhiteBackgroundHistoryDetail(
             boundaryProbeStrength,
             boundaryCleanStrength,
+            edgeBlurStrength,
             softAlphaStrength,
             alphaGammaStrength);
         if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
@@ -232,6 +237,7 @@ public partial class MainWindow
                 alphaPath,
                 boundaryProbeStrength,
                 boundaryCleanStrength,
+                edgeBlurStrength,
                 softAlphaStrength,
                 alphaGammaStrength);
             targetPhoto.SetAdjustedImage(preview);
@@ -459,6 +465,7 @@ public partial class MainWindow
         string alphaPath,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
+        double edgeBlurStrength,
         double softAlphaStrength,
         double alphaGammaStrength)
     {
@@ -497,6 +504,11 @@ public partial class MainWindow
             backgroundB,
             backgroundG,
             backgroundR);
+        alphaPixels = ApplyWhiteBackgroundEdgeBlur(
+            alphaPixels,
+            width,
+            height,
+            edgeBlurStrength);
 
         for (int y = 0; y < height; y++)
         {
@@ -576,14 +588,16 @@ public partial class MainWindow
     private static string CreateWhiteBackgroundHistoryDetail(
         double boundaryProbeStrength,
         double boundaryCleanStrength,
+        double edgeBlurStrength,
         double softAlphaStrength,
         double alphaGammaStrength)
     {
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
+        double blur = Math.Clamp(Math.Round(edgeBlurStrength), 0, 100);
         double soft = Math.Clamp(Math.Round(softAlphaStrength), 0, 100);
         double gamma = Math.Clamp(Math.Round(alphaGammaStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Soft {soft:0} | Gamma {gamma:0}";
+        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Blur {blur:0} | Soft {soft:0} | Gamma {gamma:0}";
     }
 
     private static int ApplyAlphaGamma(int alpha, double alphaGammaStrength)
@@ -624,6 +638,42 @@ public partial class MainWindow
         }
 
         return (int)Math.Clamp(Math.Round(shapedAlpha + ((alpha - shapedAlpha) * normalizedSoftAlpha)), 0, 255);
+    }
+
+    private static byte[] ApplyWhiteBackgroundEdgeBlur(
+        byte[] alphaPixels,
+        int width,
+        int height,
+        double edgeBlurStrength)
+    {
+        double normalizedStrength = Math.Clamp(edgeBlurStrength / 100.0, 0.0, 1.0);
+        if (normalizedStrength <= 0.001 ||
+            alphaPixels.Length == 0 ||
+            width <= 0 ||
+            height <= 0)
+        {
+            return alphaPixels;
+        }
+
+        bool[] supportMask = BuildBinaryMask(alphaPixels, WhiteBackgroundAlphaLowCutoff);
+        bool[] dilatedMask = DilateBinaryMask(supportMask, width, height, WhiteBackgroundEdgeBlurRadius);
+        bool[] erodedMask = ErodeBinaryMask(supportMask, width, height, WhiteBackgroundEdgeBlurRadius);
+        byte[] blurredAlpha = BoxBlurGray8(alphaPixels, width, height, WhiteBackgroundEdgeBlurRadius);
+        byte[] result = (byte[])alphaPixels.Clone();
+
+        for (int i = 0; i < result.Length; i++)
+        {
+            if (dilatedMask[i] == erodedMask[i])
+            {
+                continue;
+            }
+
+            int original = alphaPixels[i];
+            int blurred = blurredAlpha[i];
+            result[i] = (byte)Math.Clamp((int)Math.Round(original + ((blurred - original) * normalizedStrength)), 0, 255);
+        }
+
+        return result;
     }
 
     private static byte[] ApplyBoundaryProbePreserve(

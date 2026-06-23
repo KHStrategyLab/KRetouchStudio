@@ -339,6 +339,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DataContext = this;
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
+        FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
+        FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
         BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
         BackgroundRetouchTab.WhiteBackgroundAdjustmentCommitted += BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted;
@@ -400,6 +402,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearMagicSelection();
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
+            ClearFaceShapeSymmetrySession();
             ClearRectangleSelection();
             ClearPathTool();
             ClearTypeTextTool();
@@ -5448,6 +5451,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
+            ClearFaceShapeSymmetrySession();
 
             if (snapshot.AdjustedImage is null)
             {

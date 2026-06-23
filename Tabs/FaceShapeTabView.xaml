@@ -79,9 +79,15 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="FaceShapeSectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,5"/>
+        </Style>
     </UserControl.Resources>
 
-    <Expander x:Name="FaceShapeExpander" Header="Face Shape" Expanded="Expander_Expanded">
+    <Expander x:Name="FaceShapeExpander" Header="Facial Reshape" Expanded="Expander_Expanded">
         <Expander.Tag>
             <Button Content="↶"
                     Width="28"
@@ -91,16 +97,40 @@
                     IsEnabled="False"
                     ToolTipService.ShowOnDisabled="True"
                     Style="{StaticResource DummyFaceShapeSlotStyle}"
-                    ToolTip="Face Shape 전체 되돌림 준비 중"/>
+                    ToolTip="Facial Reshape 전체 되돌림 준비 중"/>
         </Expander.Tag>
         <StackPanel>
-            <UniformGrid Columns="5" Margin="0,0,0,12">
-                <ToggleButton Content="Sym"
+            <TextBlock Text="Head Pose" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
+            <UniformGrid Columns="3" Margin="0,0,0,6">
+                <ToggleButton Content="Up/Dn"
                               Style="{StaticResource FaceShapeModeToggleStyle}"
                               Margin="0,0,6,0"
-                              ToolTip="Sym"
-                              IsChecked="{Binding ElementName=Root, Path=IsSymFaceShapeModeActive, Mode=OneWay}"
-                              Click="SymFaceShapeButton_Click"/>
+                              ToolTip="Up / Down"
+                              IsChecked="{Binding ElementName=Root, Path=IsHeadTiltFaceShapeModeActive, Mode=OneWay}"
+                              Click="HeadTiltFaceShapeButton_Click"/>
+                <ToggleButton Content="Turn"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Face Turn"
+                              IsChecked="{Binding ElementName=Root, Path=IsFaceTurnFaceShapeModeActive, Mode=OneWay}"
+                              Click="FaceTurnFaceShapeButton_Click"/>
+                <ToggleButton Content="Tilt"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Face Tilt"
+                              IsChecked="{Binding ElementName=Root, Path=IsFaceTiltFaceShapeModeActive, Mode=OneWay}"
+                              Click="FaceTiltFaceShapeButton_Click"/>
+            </UniformGrid>
+            <Slider Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    Margin="0,0,0,8"
+                    Value="{Binding ElementName=Root, Path=ActiveHeadPoseStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PreviewMouseLeftButtonUp="HeadPoseStrengthSlider_PreviewMouseLeftButtonUp"
+                    KeyUp="HeadPoseStrengthSlider_KeyUp"/>
+
+            <TextBlock Text="Face Shape" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
+            <UniformGrid Columns="4" Margin="0,0,0,8">
                 <ToggleButton Content="Cheek"
                               Style="{StaticResource FaceShapeModeToggleStyle}"
                               Margin="0,0,6,0"
@@ -113,10 +143,10 @@
                               ToolTip="Bone"
                               IsChecked="{Binding ElementName=Root, Path=IsBoneFaceShapeModeActive, Mode=OneWay}"
                               Click="BoneFaceShapeButton_Click"/>
-                <ToggleButton Content="Jaw"
+                <ToggleButton Content="V-Line"
                               Style="{StaticResource FaceShapeModeToggleStyle}"
                               Margin="0,0,6,0"
-                              ToolTip="Jaw"
+                              ToolTip="V-Line"
                               IsChecked="{Binding ElementName=Root, Path=IsJawFaceShapeModeActive, Mode=OneWay}"
                               Click="JawFaceShapeButton_Click"/>
                 <ToggleButton Content="Chin"
@@ -126,10 +156,28 @@
                               IsChecked="{Binding ElementName=Root, Path=IsChinFaceShapeModeActive, Mode=OneWay}"
                               Click="ChinFaceShapeButton_Click"/>
             </UniformGrid>
+
+            <TextBlock Text="Symmetrize" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
+            <UniformGrid Columns="2" Margin="0,0,0,12">
+                <ToggleButton Content="Face"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Facial Symmetry"
+                              IsChecked="{Binding ElementName=Root, Path=IsSymFaceShapeModeActive, Mode=OneWay}"
+                              Click="SymFaceShapeButton_Click"/>
+                <ToggleButton Content="Upper"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Upper Body Symmetry"
+                              IsChecked="{Binding ElementName=Root, Path=IsAlignFaceShapeModeActive, Mode=OneWay}"
+                              Click="AlignFaceShapeButton_Click"/>
+            </UniformGrid>
             <Slider Minimum="0"
                     Maximum="100"
                     TickFrequency="1"
-                    Value="{Binding ElementName=Root, Path=ActiveFaceShapeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    Value="{Binding ElementName=Root, Path=ActiveFaceShapeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PreviewMouseLeftButtonUp="FaceShapeStrengthSlider_PreviewMouseLeftButtonUp"
+                    KeyUp="FaceShapeStrengthSlider_KeyUp"/>
         </StackPanel>
     </Expander>
 </UserControl>

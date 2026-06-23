@@ -29,6 +29,8 @@ public sealed class BackgroundSettings
 
     public double BoundaryCleanStrength { get; set; }
 
+    public double EdgeBlurStrength { get; set; }
+
     public double SoftAlphaStrength { get; set; }
 
     public double AlphaGammaStrength { get; set; }

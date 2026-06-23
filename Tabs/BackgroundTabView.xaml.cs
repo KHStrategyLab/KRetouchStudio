@@ -23,6 +23,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private double _backgroundOpacity = 100;
     private double _boundaryProbeStrength;
     private double _boundaryCleanStrength;
+    private double _edgeBlurStrength;
     private double _softAlphaStrength;
     private double _alphaGammaStrength;
 
@@ -96,6 +97,22 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             }
 
             _boundaryCleanStrength = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public double EdgeBlurStrength
+    {
+        get => _edgeBlurStrength;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(_edgeBlurStrength - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _edgeBlurStrength = clamped;
             OnPropertyChanged();
         }
     }

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Input;
 
 namespace KRetouchStudio.Tabs;
 
@@ -12,15 +13,25 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         Cheek,
         Bone,
         Jaw,
-        Chin
+        Chin,
+        FaceTilt,
+        FaceTurn,
+        HeadTilt,
+        Align
     }
 
     private FaceShapeMode _activeFaceShapeMode = FaceShapeMode.Sym;
+    private FaceShapeMode _activeHeadPoseMode = FaceShapeMode.FaceTilt;
+    private FaceShapeMode _activeDetailMode = FaceShapeMode.Sym;
     private double _symStrength;
     private double _cheekStrength;
     private double _boneStrength;
     private double _jawStrength;
     private double _chinStrength;
+    private double _faceTiltStrength = 50;
+    private double _faceTurnStrength = 50;
+    private double _headTiltStrength = 50;
+    private double _alignStrength;
 
     public FaceShapeTabView()
     {
@@ -28,6 +39,28 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler? FaceShapeAdjustmentCommitted;
+
+    public event EventHandler? HeadPoseAdjustmentCommitted;
+
+    public bool IsSymFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Sym;
+
+    public bool IsCheekFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Cheek;
+
+    public bool IsBoneFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Bone;
+
+    public bool IsJawFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Jaw;
+
+    public bool IsChinFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Chin;
+
+    public bool IsFaceTiltFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.FaceTilt;
+
+    public bool IsFaceTurnFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.FaceTurn;
+
+    public bool IsHeadTiltFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.HeadTilt;
+
+    public bool IsAlignFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Align;
 
     public bool IsSymFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.Sym;
 
@@ -39,12 +72,20 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     public bool IsChinFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.Chin;
 
+    public bool IsFaceTiltFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.FaceTilt;
+
+    public bool IsFaceTurnFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.FaceTurn;
+
+    public bool IsHeadTiltFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.HeadTilt;
+
+    public bool IsAlignFaceShapeModeActive => _activeFaceShapeMode == FaceShapeMode.Align;
+
     public double ActiveFaceShapeStrength
     {
-        get => GetFaceShapeStrength(_activeFaceShapeMode);
+        get => GetFaceShapeStrength(_activeDetailMode);
         set
         {
-            if (!SetFaceShapeStrength(_activeFaceShapeMode, value))
+            if (!SetFaceShapeStrength(_activeDetailMode, value))
             {
                 return;
             }
@@ -52,6 +93,38 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
             OnPropertyChanged();
         }
     }
+
+    public double ActiveHeadPoseStrength
+    {
+        get => GetFaceShapeStrength(_activeHeadPoseMode);
+        set
+        {
+            if (!SetFaceShapeStrength(_activeHeadPoseMode, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    public double SymFaceShapeStrength => _symStrength;
+
+    public double CheekFaceShapeStrength => _cheekStrength;
+
+    public double BoneFaceShapeStrength => _boneStrength;
+
+    public double JawFaceShapeStrength => _jawStrength;
+
+    public double ChinFaceShapeStrength => _chinStrength;
+
+    public double FaceTiltFaceShapeStrength => _faceTiltStrength;
+
+    public double FaceTurnFaceShapeStrength => _faceTurnStrength;
+
+    public double HeadTiltFaceShapeStrength => _headTiltStrength;
+
+    public double AlignFaceShapeStrength => _alignStrength;
 
     public void Collapse()
     {
@@ -68,32 +141,122 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void SymFaceShapeButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveFaceShapeMode(FaceShapeMode.Sym, forceRefresh: true);
+        SetActiveDetailMode(FaceShapeMode.Sym, forceRefresh: true);
         e.Handled = true;
     }
 
     private void CheekFaceShapeButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveFaceShapeMode(FaceShapeMode.Cheek, forceRefresh: true);
+        SetActiveDetailMode(FaceShapeMode.Cheek, forceRefresh: true);
         e.Handled = true;
     }
 
     private void BoneFaceShapeButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveFaceShapeMode(FaceShapeMode.Bone, forceRefresh: true);
+        SetActiveDetailMode(FaceShapeMode.Bone, forceRefresh: true);
         e.Handled = true;
     }
 
     private void JawFaceShapeButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveFaceShapeMode(FaceShapeMode.Jaw, forceRefresh: true);
+        SetActiveDetailMode(FaceShapeMode.Jaw, forceRefresh: true);
         e.Handled = true;
     }
 
     private void ChinFaceShapeButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveFaceShapeMode(FaceShapeMode.Chin, forceRefresh: true);
+        SetActiveDetailMode(FaceShapeMode.Chin, forceRefresh: true);
         e.Handled = true;
+    }
+
+    private void FaceTiltFaceShapeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveHeadPoseMode(FaceShapeMode.FaceTilt, forceRefresh: true);
+        e.Handled = true;
+    }
+
+    private void FaceTurnFaceShapeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveHeadPoseMode(FaceShapeMode.FaceTurn, forceRefresh: true);
+        e.Handled = true;
+    }
+
+    private void HeadTiltFaceShapeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveHeadPoseMode(FaceShapeMode.HeadTilt, forceRefresh: true);
+        e.Handled = true;
+    }
+
+    private void AlignFaceShapeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveDetailMode(FaceShapeMode.Align, forceRefresh: true);
+        e.Handled = true;
+    }
+
+    private void HeadPoseStrengthSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        CommitHeadPoseAdjustment();
+    }
+
+    private void HeadPoseStrengthSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is Key.Left or
+            Key.Right or
+            Key.Up or
+            Key.Down or
+            Key.PageUp or
+            Key.PageDown or
+            Key.Home or
+            Key.End)
+        {
+            CommitHeadPoseAdjustment();
+        }
+    }
+
+    private void FaceShapeStrengthSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        CommitFaceShapeAdjustment();
+    }
+
+    private void FaceShapeStrengthSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is Key.Left or
+            Key.Right or
+            Key.Up or
+            Key.Down or
+            Key.PageUp or
+            Key.PageDown or
+            Key.Home or
+            Key.End)
+        {
+            CommitFaceShapeAdjustment();
+        }
+    }
+
+    private void CommitFaceShapeAdjustment()
+    {
+        SetActiveFaceShapeMode(_activeDetailMode);
+        FaceShapeAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void CommitHeadPoseAdjustment()
+    {
+        SetActiveFaceShapeMode(_activeHeadPoseMode);
+        HeadPoseAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void SetActiveHeadPoseMode(FaceShapeMode mode, bool forceRefresh = false)
+    {
+        _activeHeadPoseMode = mode;
+        SetActiveFaceShapeMode(mode, forceRefresh);
+        OnPropertyChanged(nameof(ActiveHeadPoseStrength));
+    }
+
+    private void SetActiveDetailMode(FaceShapeMode mode, bool forceRefresh = false)
+    {
+        _activeDetailMode = mode;
+        SetActiveFaceShapeMode(mode, forceRefresh);
+        OnPropertyChanged(nameof(ActiveFaceShapeStrength));
     }
 
     private void SetActiveFaceShapeMode(FaceShapeMode mode, bool forceRefresh = false)
@@ -110,7 +273,6 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
         _activeFaceShapeMode = mode;
         NotifyFaceShapeModeProperties();
-        OnPropertyChanged(nameof(ActiveFaceShapeStrength));
     }
 
     private void NotifyFaceShapeModeProperties()
@@ -120,6 +282,10 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         OnPropertyChanged(nameof(IsBoneFaceShapeModeActive));
         OnPropertyChanged(nameof(IsJawFaceShapeModeActive));
         OnPropertyChanged(nameof(IsChinFaceShapeModeActive));
+        OnPropertyChanged(nameof(IsFaceTiltFaceShapeModeActive));
+        OnPropertyChanged(nameof(IsFaceTurnFaceShapeModeActive));
+        OnPropertyChanged(nameof(IsHeadTiltFaceShapeModeActive));
+        OnPropertyChanged(nameof(IsAlignFaceShapeModeActive));
     }
 
     private double GetFaceShapeStrength(FaceShapeMode mode)
@@ -130,6 +296,10 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
             FaceShapeMode.Bone => _boneStrength,
             FaceShapeMode.Jaw => _jawStrength,
             FaceShapeMode.Chin => _chinStrength,
+            FaceShapeMode.FaceTilt => _faceTiltStrength,
+            FaceShapeMode.FaceTurn => _faceTurnStrength,
+            FaceShapeMode.HeadTilt => _headTiltStrength,
+            FaceShapeMode.Align => _alignStrength,
             _ => _symStrength
         };
     }
@@ -159,6 +329,14 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
                 return ref _jawStrength;
             case FaceShapeMode.Chin:
                 return ref _chinStrength;
+            case FaceShapeMode.FaceTilt:
+                return ref _faceTiltStrength;
+            case FaceShapeMode.FaceTurn:
+                return ref _faceTurnStrength;
+            case FaceShapeMode.HeadTilt:
+                return ref _headTiltStrength;
+            case FaceShapeMode.Align:
+                return ref _alignStrength;
             default:
                 return ref _symStrength;
         }
