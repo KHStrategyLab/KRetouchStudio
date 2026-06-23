@@ -18,7 +18,7 @@ public enum PreviewProxy1200State
 public sealed class PhotoItem : INotifyPropertyChanged
 {
     public const int PreviewProxyLongSide = 1200;
-    public const double PreviewProxySharpness = 35;
+    public const double PreviewProxySharpness = 55;
 
     private ImageSource _image;
     private ImageSource _thumbnail;
