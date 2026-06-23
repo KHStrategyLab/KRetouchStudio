@@ -20,6 +20,8 @@ public partial class MainWindow
     private const int WhiteBackgroundProbeCandidateRadius = 4;
     private const int WhiteBackgroundProbeInnerRadius = 2;
     private const byte WhiteBackgroundProbeForegroundThreshold = 64;
+    private const int WhiteBackgroundInnerFillRadius = 2;
+    private const byte WhiteBackgroundInnerFillAlphaMin = 245;
 
     private static readonly MediaBrush PreviewSurfaceDefaultBrush = CreateFrozenBrush(MediaColor.FromRgb(17, 19, 21), 1.0);
     private static readonly MediaBrush PreviewSurfaceWhiteBrush = CreateFrozenBrush(MediaColors.White, 1.0);
@@ -66,7 +68,8 @@ public partial class MainWindow
         }
 
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
-        string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength);
+        double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
+        string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength, boundaryCleanStrength);
         if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
         {
             PreviewSurfaceBackgroundBrush = PreviewSurfaceWhiteBrush;
@@ -94,7 +97,7 @@ public partial class MainWindow
 
             bool replaceCurrentWhiteBackground = IsCurrentHistoryWhiteBackground();
             BitmapSource source = GetWhiteBackgroundRenderSource(targetPhoto, replaceCurrentWhiteBackground);
-            BitmapSource preview = BuildWhiteBackgroundPreview(source, alphaPath, boundaryProbeStrength);
+            BitmapSource preview = BuildWhiteBackgroundPreview(source, alphaPath, boundaryProbeStrength, boundaryCleanStrength);
             targetPhoto.SetAdjustedImage(preview);
             if (replaceCurrentWhiteBackground)
             {
@@ -219,7 +222,7 @@ public partial class MainWindow
         return false;
     }
 
-    private BitmapSource BuildWhiteBackgroundPreview(BitmapSource source, string alphaPath, double boundaryProbeStrength)
+    private BitmapSource BuildWhiteBackgroundPreview(BitmapSource source, string alphaPath, double boundaryProbeStrength, double boundaryCleanStrength)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
 
@@ -247,6 +250,15 @@ public partial class MainWindow
             backgroundB,
             backgroundG,
             backgroundR);
+        alphaPixels = ApplyInnerDarkEdgeFill(
+            sourcePixels,
+            sourceStride,
+            alphaPixels,
+            width,
+            height,
+            backgroundB,
+            backgroundG,
+            backgroundR);
 
         for (int y = 0; y < height; y++)
         {
@@ -258,10 +270,21 @@ public partial class MainWindow
                 int alpha = alphaPixels[alphaRow + x];
                 int outputAlpha = ShapeWhiteBackgroundAlpha(alpha);
                 int inverseAlpha = 255 - outputAlpha;
+                ProbeSample localBackground = GetLocalOutsideBackgroundSampleOrDefault(
+                    sourcePixels,
+                    sourceStride,
+                    alphaPixels,
+                    width,
+                    height,
+                    x,
+                    y,
+                    backgroundB,
+                    backgroundG,
+                    backgroundR);
 
-                resultPixels[sourceIndex] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex], backgroundB, alpha, outputAlpha, inverseAlpha);
-                resultPixels[sourceIndex + 1] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], backgroundG, alpha, outputAlpha, inverseAlpha);
-                resultPixels[sourceIndex + 2] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], backgroundR, alpha, outputAlpha, inverseAlpha);
+                resultPixels[sourceIndex] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex], localBackground.B, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                resultPixels[sourceIndex + 1] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], localBackground.G, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                resultPixels[sourceIndex + 2] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], localBackground.R, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
                 resultPixels[sourceIndex + 3] = 255;
             }
         }
@@ -319,10 +342,11 @@ public partial class MainWindow
         StoreCurrentEditorHistorySession(photo, persistToDisk: false);
     }
 
-    private static string CreateWhiteBackgroundHistoryDetail(double boundaryProbeStrength)
+    private static string CreateWhiteBackgroundHistoryDetail(double boundaryProbeStrength, double boundaryCleanStrength)
     {
-        double clamped = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Edge {clamped:0}";
+        double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
+        double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
+        return $"{WhiteBackgroundHistoryDetail} | Edge {edge:0} | Clean {clean:0}";
     }
 
     private static int ShapeWhiteBackgroundAlpha(int alpha)
@@ -451,6 +475,82 @@ public partial class MainWindow
         return Math.Clamp(score, 0.0, 1.0);
     }
 
+    private static byte[] ApplyInnerDarkEdgeFill(
+        byte[] sourcePixels,
+        int stride,
+        byte[] alphaPixels,
+        int width,
+        int height,
+        byte backgroundB,
+        byte backgroundG,
+        byte backgroundR)
+    {
+        bool[] supportMask = BuildBinaryMask(alphaPixels, WhiteBackgroundProbeForegroundThreshold);
+        bool[] innerMask = ErodeBinaryMask(supportMask, width, height, WhiteBackgroundInnerFillRadius);
+        bool[] fillBand = DilateBinaryMask(innerMask, width, height, WhiteBackgroundInnerFillRadius + 1);
+        byte[] result = (byte[])alphaPixels.Clone();
+
+        for (int y = 1; y < height - 1; y++)
+        {
+            int rowOffset = y * width;
+            for (int x = 1; x < width - 1; x++)
+            {
+                int index = rowOffset + x;
+                if (!fillBand[index] ||
+                    alphaPixels[index] >= WhiteBackgroundInnerFillAlphaMin ||
+                    !HasNearbyInnerSupport(innerMask, width, height, x, y))
+                {
+                    continue;
+                }
+
+                int sourceIndex = (y * stride) + (x * 4);
+                byte b = sourcePixels[sourceIndex];
+                byte g = sourcePixels[sourceIndex + 1];
+                byte r = sourcePixels[sourceIndex + 2];
+                if (!IsLikelyDarkSubjectPixel(b, g, r, backgroundB, backgroundG, backgroundR))
+                {
+                    continue;
+                }
+
+                result[index] = WhiteBackgroundInnerFillAlphaMin;
+            }
+        }
+
+        return result;
+    }
+
+    private static bool HasNearbyInnerSupport(bool[] innerMask, int width, int height, int x, int y)
+    {
+        for (int dy = -WhiteBackgroundInnerFillRadius; dy <= WhiteBackgroundInnerFillRadius; dy++)
+        {
+            int sampleY = y + dy;
+            if (sampleY < 0 || sampleY >= height)
+            {
+                continue;
+            }
+
+            int rowOffset = sampleY * width;
+            for (int dx = -WhiteBackgroundInnerFillRadius; dx <= WhiteBackgroundInnerFillRadius; dx++)
+            {
+                int sampleX = x + dx;
+                if (sampleX >= 0 && sampleX < width && innerMask[rowOffset + sampleX])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsLikelyDarkSubjectPixel(byte b, byte g, byte r, byte backgroundB, byte backgroundG, byte backgroundR)
+    {
+        double backgroundLuminance = Luminance(backgroundB, backgroundG, backgroundR);
+        double currentLuminance = Luminance(b, g, r);
+        double backgroundDistance = ColorDistance(b, g, r, backgroundB, backgroundG, backgroundR);
+        return backgroundLuminance - currentLuminance > 28.0 || backgroundDistance > 58.0;
+    }
+
     private static bool TrySampleProbeAverage(
         byte[] sourcePixels,
         int stride,
@@ -496,6 +596,101 @@ public partial class MainWindow
         return true;
     }
 
+    private static ProbeSample GetLocalOutsideBackgroundSampleOrDefault(
+        byte[] sourcePixels,
+        int stride,
+        byte[] alphaPixels,
+        int width,
+        int height,
+        int x,
+        int y,
+        byte fallbackB,
+        byte fallbackG,
+        byte fallbackR)
+    {
+        if (x <= 0 || y <= 0 || x >= width - 1 || y >= height - 1)
+        {
+            return new ProbeSample(fallbackB, fallbackG, fallbackR);
+        }
+
+        int index = (y * width) + x;
+        int gradientX = alphaPixels[index + 1] - alphaPixels[index - 1];
+        int gradientY = alphaPixels[index + width] - alphaPixels[index - width];
+        double gradientLength = Math.Sqrt((gradientX * gradientX) + (gradientY * gradientY));
+        if (gradientLength < 1.0)
+        {
+            return new ProbeSample(fallbackB, fallbackG, fallbackR);
+        }
+
+        double outsideX = -gradientX / gradientLength;
+        double outsideY = -gradientY / gradientLength;
+        return TrySampleOutsideBackgroundAverage(
+            sourcePixels,
+            stride,
+            alphaPixels,
+            width,
+            height,
+            x,
+            y,
+            outsideX,
+            outsideY,
+            out ProbeSample localBackground)
+            ? localBackground
+            : new ProbeSample(fallbackB, fallbackG, fallbackR);
+    }
+
+    private static bool TrySampleOutsideBackgroundAverage(
+        byte[] sourcePixels,
+        int stride,
+        byte[] alphaPixels,
+        int width,
+        int height,
+        int x,
+        int y,
+        double normalX,
+        double normalY,
+        out ProbeSample sample)
+    {
+        long sumB = 0;
+        long sumG = 0;
+        long sumR = 0;
+        int count = 0;
+
+        for (int distance = 3; distance <= WhiteBackgroundProbeHalfLength; distance += 2)
+        {
+            int sampleX = (int)Math.Round(x + (normalX * distance));
+            int sampleY = (int)Math.Round(y + (normalY * distance));
+            if (sampleX < 0 || sampleX >= width || sampleY < 0 || sampleY >= height)
+            {
+                continue;
+            }
+
+            int alpha = alphaPixels[(sampleY * width) + sampleX];
+            if (alpha > WhiteBackgroundSampleAlphaMax)
+            {
+                continue;
+            }
+
+            int sourceIndex = (sampleY * stride) + (sampleX * 4);
+            sumB += sourcePixels[sourceIndex];
+            sumG += sourcePixels[sourceIndex + 1];
+            sumR += sourcePixels[sourceIndex + 2];
+            count++;
+        }
+
+        if (count < 2)
+        {
+            sample = default;
+            return false;
+        }
+
+        sample = new ProbeSample(
+            (byte)Math.Clamp((int)Math.Round(sumB / (double)count), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(sumG / (double)count), 0, 255),
+            (byte)Math.Clamp((int)Math.Round(sumR / (double)count), 0, 255));
+        return true;
+    }
+
     private static double ColorDistance(byte b1, byte g1, byte r1, byte b2, byte g2, byte r2)
     {
         double db = b1 - b2;
@@ -509,7 +704,7 @@ public partial class MainWindow
         return (0.0722 * b) + (0.7152 * g) + (0.2126 * r);
     }
 
-    private static byte BlendWhiteWithAlphaKeyCleanup(byte channel, byte backgroundChannel, int sourceAlpha, int outputAlpha, int inverseOutputAlpha)
+    private static byte BlendWhiteWithAlphaKeyCleanup(byte channel, byte backgroundChannel, int sourceAlpha, int outputAlpha, int inverseOutputAlpha, double cleanStrength)
     {
         if (outputAlpha <= 0)
         {
@@ -521,13 +716,13 @@ public partial class MainWindow
             return channel;
         }
 
-        byte cleanedChannel = RemoveBackgroundContamination(channel, backgroundChannel, sourceAlpha);
+        byte cleanedChannel = RemoveBackgroundContamination(channel, backgroundChannel, sourceAlpha, cleanStrength);
         return BlendOverWhite(cleanedChannel, outputAlpha, inverseOutputAlpha);
     }
 
     private readonly record struct ProbeSample(byte B, byte G, byte R);
 
-    private static byte RemoveBackgroundContamination(byte channel, byte backgroundChannel, int alpha)
+    private static byte RemoveBackgroundContamination(byte channel, byte backgroundChannel, int alpha, double cleanStrength)
     {
         if (alpha >= WhiteBackgroundAlphaHighCutoff)
         {
@@ -538,7 +733,9 @@ public partial class MainWindow
         double foreground = (channel - (backgroundChannel * (1.0 - normalizedAlpha))) / normalizedAlpha;
         foreground = Math.Clamp(foreground, 0.0, 255.0);
 
-        double cleanupStrength = Math.Clamp((WhiteBackgroundAlphaHighCutoff - alpha) / 160.0, 0.0, 1.0);
+        double baseCleanupStrength = Math.Clamp((WhiteBackgroundAlphaHighCutoff - alpha) / 160.0, 0.0, 1.0);
+        double userCleanupStrength = Math.Clamp(cleanStrength / 100.0, 0.0, 1.0);
+        double cleanupStrength = Math.Clamp(baseCleanupStrength * (0.55 + (userCleanupStrength * 1.45)), 0.0, 1.0);
         double cleaned = channel + ((foreground - channel) * cleanupStrength);
         return (byte)Math.Clamp((int)Math.Round(cleaned), 0, 255);
     }

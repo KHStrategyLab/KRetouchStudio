@@ -266,6 +266,29 @@
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"/>
             </Grid>
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="34"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="Clean"
+                           Foreground="{StaticResource TextSub}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <Slider Grid.Column="1"
+                        Minimum="0"
+                        Maximum="100"
+                        TickFrequency="1"
+                        Value="{Binding ElementName=Root, Path=BoundaryCleanStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="Local background color cleanup strength"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding ElementName=Root, Path=BoundaryCleanStrength, StringFormat={}{0:0}}"
+                           Foreground="{StaticResource TextSub}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
         </StackPanel>
     </Expander>
 </UserControl>

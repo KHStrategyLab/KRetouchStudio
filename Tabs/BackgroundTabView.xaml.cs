@@ -21,6 +21,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private BackgroundMode _activeBackgroundMode = BackgroundMode.White;
     private double _backgroundOpacity = 100;
     private double _boundaryProbeStrength;
+    private double _boundaryCleanStrength;
 
     public BackgroundTabView()
     {
@@ -72,6 +73,22 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             }
 
             _boundaryProbeStrength = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public double BoundaryCleanStrength
+    {
+        get => _boundaryCleanStrength;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(_boundaryCleanStrength - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _boundaryCleanStrength = clamped;
             OnPropertyChanged();
         }
     }
