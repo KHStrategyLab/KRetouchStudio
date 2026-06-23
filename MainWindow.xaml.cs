@@ -619,6 +619,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    public bool EnableEditorHistoryPersistence
+    {
+        get => _appConfig.EnableEditorHistoryPersistence;
+        set
+        {
+            if (_appConfig.EnableEditorHistoryPersistence == value)
+            {
+                return;
+            }
+
+            _appConfig.EnableEditorHistoryPersistence = value;
+            SaveAppConfig();
+            OnPropertyChanged();
+        }
+    }
+
     public Visibility HistoryPanelVisibility => ShowHistoryPanel
         ? Visibility.Visible
         : Visibility.Collapsed;
@@ -1496,6 +1512,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (sender is System.Windows.Controls.MenuItem menuItem)
         {
             ShowHistoryPanel = menuItem.IsChecked;
+        }
+    }
+
+    private void EditorHistoryPersistenceMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem menuItem)
+        {
+            EnableEditorHistoryPersistence = menuItem.IsChecked;
         }
     }
 
@@ -2889,6 +2913,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(AutoCheckUpdatesAtStartup));
         RaiseRuntimeWorkModePropertyChanged();
         OnPropertyChanged(nameof(ShowHistoryPanel));
+        OnPropertyChanged(nameof(EnableEditorHistoryPersistence));
         OnPropertyChanged(nameof(HistoryPanelVisibility));
         RaiseCropPresetPropertyChanged();
     }
@@ -4987,7 +5012,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         string normalizedPath = NormalizeFilePath(photo.Path);
-        if (TryGetEditorHistorySession(normalizedPath, out EditorHistorySession? session) &&
+        if (EnableEditorHistoryPersistence &&
+            TryGetEditorHistorySession(normalizedPath, out EditorHistorySession? session) &&
             session is { UndoHistory.Count: > 0 })
         {
             _editorUndoHistory.AddRange(session.UndoHistory);
@@ -5020,7 +5046,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void StoreCurrentEditorHistorySession(PhotoItem? photo, bool persistToDisk)
     {
-        if (photo is null || _editorUndoHistory.Count == 0)
+        if (!EnableEditorHistoryPersistence ||
+            photo is null ||
+            _editorUndoHistory.Count == 0)
         {
             return;
         }

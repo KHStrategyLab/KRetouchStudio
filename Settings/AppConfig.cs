@@ -10,6 +10,8 @@ public sealed class AppConfig
 
     public bool ShowHistoryPanel { get; set; } = true;
 
+    public bool EnableEditorHistoryPersistence { get; set; } = true;
+
     public ColorManagementMode ColorManagementMode { get; set; } = ColorManagementMode.Automatic;
 
     public string? ManualDisplayColorProfilePath { get; set; }

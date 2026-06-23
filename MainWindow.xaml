@@ -468,6 +468,10 @@
                         <MenuItem Header="{Binding RuntimeWorkModeDisplayText}"
                                   IsEnabled="False"/>
                     </MenuItem>
+                    <MenuItem Header="Remember Photo History"
+                              IsCheckable="True"
+                              IsChecked="{Binding EnableEditorHistoryPersistence}"
+                              Click="EditorHistoryPersistenceMenuItem_Click"/>
                     <Separator x:Name="DevelopmentPackageSeparator"
                                Visibility="Collapsed"/>
                     <MenuItem x:Name="DevelopmentPackageMenuItem"
