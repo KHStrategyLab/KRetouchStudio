@@ -27,6 +27,7 @@ public partial class MainWindow
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
     private const int BiRefNetInputSharpenStrength = 100;
+    private const double WhiteBackgroundAlphaGammaMinimum = 0.70;
 
     private static readonly string BiRefNetOutputRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -172,7 +173,12 @@ public partial class MainWindow
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
         double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
         double softAlphaStrength = BackgroundRetouchTab?.SoftAlphaStrength ?? 0;
-        string historyDetail = CreateWhiteBackgroundHistoryDetail(boundaryProbeStrength, boundaryCleanStrength, softAlphaStrength);
+        double alphaGammaStrength = BackgroundRetouchTab?.AlphaGammaStrength ?? 0;
+        string historyDetail = CreateWhiteBackgroundHistoryDetail(
+            boundaryProbeStrength,
+            boundaryCleanStrength,
+            softAlphaStrength,
+            alphaGammaStrength);
         if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
         {
             MediaPipeStatusText = "Background: white already applied";
@@ -197,7 +203,13 @@ public partial class MainWindow
 
             bool replaceCurrentWhiteBackground = IsCurrentHistoryWhiteBackground();
             BitmapSource source = GetWhiteBackgroundRenderSource(targetPhoto, replaceCurrentWhiteBackground);
-            BitmapSource preview = BuildWhiteBackgroundPreview(source, alphaPath, boundaryProbeStrength, boundaryCleanStrength, softAlphaStrength);
+            BitmapSource preview = BuildWhiteBackgroundPreview(
+                source,
+                alphaPath,
+                boundaryProbeStrength,
+                boundaryCleanStrength,
+                softAlphaStrength,
+                alphaGammaStrength);
             targetPhoto.SetAdjustedImage(preview);
             if (replaceCurrentWhiteBackground)
             {
@@ -423,7 +435,8 @@ public partial class MainWindow
         string alphaPath,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
-        double softAlphaStrength)
+        double softAlphaStrength,
+        double alphaGammaStrength)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
 
@@ -469,7 +482,8 @@ public partial class MainWindow
             {
                 int sourceIndex = sourceRow + (x * 4);
                 int alpha = alphaPixels[alphaRow + x];
-                int outputAlpha = ShapeWhiteBackgroundAlpha(alpha, softAlphaStrength);
+                int gammaAlpha = ApplyAlphaGamma(alpha, alphaGammaStrength);
+                int outputAlpha = ShapeWhiteBackgroundAlpha(gammaAlpha, softAlphaStrength);
                 int inverseAlpha = 255 - outputAlpha;
                 ProbeSample localBackground = GetLocalOutsideBackgroundSampleOrDefault(
                     sourcePixels,
@@ -538,12 +552,32 @@ public partial class MainWindow
     private static string CreateWhiteBackgroundHistoryDetail(
         double boundaryProbeStrength,
         double boundaryCleanStrength,
-        double softAlphaStrength)
+        double softAlphaStrength,
+        double alphaGammaStrength)
     {
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
         double soft = Math.Clamp(Math.Round(softAlphaStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Soft {soft:0}";
+        double gamma = Math.Clamp(Math.Round(alphaGammaStrength), 0, 100);
+        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Soft {soft:0} | Gamma {gamma:0}";
+    }
+
+    private static int ApplyAlphaGamma(int alpha, double alphaGammaStrength)
+    {
+        if (alpha <= 0 || alpha >= 255)
+        {
+            return alpha;
+        }
+
+        double normalizedStrength = Math.Clamp(alphaGammaStrength / 100.0, 0.0, 1.0);
+        if (normalizedStrength <= 0.001)
+        {
+            return alpha;
+        }
+
+        double gamma = 1.0 - ((1.0 - WhiteBackgroundAlphaGammaMinimum) * normalizedStrength);
+        double normalizedAlpha = Math.Clamp(alpha / 255.0, 0.0, 1.0);
+        return (int)Math.Clamp(Math.Round(Math.Pow(normalizedAlpha, gamma) * 255.0), 0, 255);
     }
 
     private static int ShapeWhiteBackgroundAlpha(int alpha, double softAlphaStrength)

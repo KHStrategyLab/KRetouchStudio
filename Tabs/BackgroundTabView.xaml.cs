@@ -24,6 +24,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private double _boundaryProbeStrength;
     private double _boundaryCleanStrength;
     private double _softAlphaStrength;
+    private double _alphaGammaStrength;
 
     public BackgroundTabView()
     {
@@ -111,6 +112,22 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             }
 
             _softAlphaStrength = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public double AlphaGammaStrength
+    {
+        get => _alphaGammaStrength;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(_alphaGammaStrength - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _alphaGammaStrength = clamped;
             OnPropertyChanged();
         }
     }
