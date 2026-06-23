@@ -57,6 +57,7 @@ internal static class BiRefNetMattingService
     private const string WorkerRunMode = "worker";
     private const string OneShotRunMode = "oneshot";
 
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private static readonly SemaphoreSlim WorkerGate = new(1, 1);
     private static readonly string WorkerLogDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -230,9 +231,9 @@ internal static class BiRefNetMattingService
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            StandardInputEncoding = Encoding.UTF8,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
+            StandardInputEncoding = Utf8NoBom,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom,
             CreateNoWindow = true,
         };
         startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
@@ -378,8 +379,8 @@ internal static class BiRefNetMattingService
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom,
             CreateNoWindow = true,
         };
         startInfo.Environment["PYTHONIOENCODING"] = "utf-8";

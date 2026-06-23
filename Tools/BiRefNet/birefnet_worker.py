@@ -155,7 +155,7 @@ def main() -> int:
 
     worker = BiRefNetWorker()
     for line in sys.stdin:
-        line = line.strip()
+        line = line.strip().lstrip("\ufeff")
         if not line:
             continue
 
