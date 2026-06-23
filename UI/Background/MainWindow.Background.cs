@@ -12,6 +12,8 @@ public partial class MainWindow
 {
     private const string WhiteBackgroundHistoryTitle = "Background";
     private const string WhiteBackgroundHistoryDetail = "White background";
+    private const string PersonAlphaEngineMediaPipe = "MediaPipe";
+    private const string PersonAlphaEngineBiRefNet = "BiRefNet";
     private const byte WhiteBackgroundAlphaLowCutoff = 24;
     private const byte WhiteBackgroundAlphaHighCutoff = 248;
     private const byte WhiteBackgroundSampleAlphaMax = 32;
@@ -24,13 +26,19 @@ public partial class MainWindow
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
 
+    private static readonly string BiRefNetOutputRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "KRetouchStudio",
+        "BiRefNetOutput");
+
     private static readonly MediaBrush PreviewSurfaceDefaultBrush = CreateFrozenBrush(MediaColor.FromRgb(17, 19, 21), 1.0);
 
     private MediaBrush _previewSurfaceBackgroundBrush = PreviewSurfaceDefaultBrush;
     private BitmapSource? _backgroundPreviewImageSource;
     private string? _backgroundPreviewPhotoPath;
-    private string? _mediaPipePersonAlphaPath;
-    private string? _mediaPipePersonAlphaPhotoPath;
+    private string? _personAlphaPath;
+    private string? _personAlphaPhotoPath;
+    private string? _personAlphaEngine;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
 
@@ -136,7 +144,7 @@ public partial class MainWindow
             }
 
             UpdatePreviewImageFrame();
-            MediaPipeStatusText = "Background: white preview";
+            MediaPipeStatusText = "Background: white preview | BiRefNet";
         }
         catch (Exception ex)
         {
@@ -147,20 +155,22 @@ public partial class MainWindow
 
     private async Task<string?> GetOrCreatePersonAlphaPathAsync(PhotoItem targetPhoto)
     {
-        if (IsCachedPersonAlphaValid(targetPhoto))
+        if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
         {
-            return _mediaPipePersonAlphaPath;
+            return _personAlphaPath;
         }
 
-        string outputDirectory = Path.Combine(MediaPipeOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
-        MediaPipeConnectionRunRequest request = new(
+        string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
+        BiRefNetMattingRunRequest request = new(
             _appConfig.MediaPipe.HelperRuntime,
-            Path.Combine(AppContext.BaseDirectory, "Tools", "MediaPipe", "mediapipe_helper.py"),
-            Path.Combine(AppContext.BaseDirectory, "Assets", "AiModels", "MediaPipe"),
+            Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
             targetPhoto.Path,
-            outputDirectory);
+            outputDirectory,
+            "ZhengPeng7/BiRefNet_lite-matting",
+            1024,
+            "auto");
 
-        MediaPipeConnectionRunResult result = await MediaPipeConnectionService.RunAsync(
+        BiRefNetMattingRunResult result = await BiRefNetMattingService.RunAsync(
             request,
             CancellationToken.None);
 
@@ -170,18 +180,19 @@ public partial class MainWindow
             return null;
         }
 
-        CacheMediaPipePersonAlphaArtifact(outputDirectory, targetPhoto.Path);
-        return IsCachedPersonAlphaValid(targetPhoto) ? _mediaPipePersonAlphaPath : null;
+        CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet);
+        return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
     }
 
-    private bool IsCachedPersonAlphaValid(PhotoItem targetPhoto)
+    private bool IsCachedPersonAlphaValid(PhotoItem targetPhoto, string requiredEngine)
     {
-        return !string.IsNullOrWhiteSpace(_mediaPipePersonAlphaPath) &&
-               File.Exists(_mediaPipePersonAlphaPath) &&
-               string.Equals(_mediaPipePersonAlphaPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(_personAlphaPath) &&
+               File.Exists(_personAlphaPath) &&
+               string.Equals(_personAlphaPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(_personAlphaEngine, requiredEngine, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void CacheMediaPipePersonAlphaArtifact(string outputDirectory, string photoPath)
+    private void CachePersonAlphaArtifact(string outputDirectory, string photoPath, string engine)
     {
         string alphaJsonPath = Path.Combine(outputDirectory, "person_alpha.json");
         string? alphaPath = null;
@@ -197,15 +208,22 @@ public partial class MainWindow
         alphaPath ??= Path.Combine(outputDirectory, "person_alpha.png");
         if (!File.Exists(alphaPath))
         {
-            _mediaPipePersonAlphaPath = null;
-            _mediaPipePersonAlphaPhotoPath = null;
-            ClearRefinedPersonAlphaCache();
-            ClearLiquifyTensionCache();
+            ClearPersonAlphaCache();
             return;
         }
 
-        _mediaPipePersonAlphaPath = alphaPath;
-        _mediaPipePersonAlphaPhotoPath = photoPath;
+        _personAlphaPath = alphaPath;
+        _personAlphaPhotoPath = photoPath;
+        _personAlphaEngine = engine;
+        ClearRefinedPersonAlphaCache();
+        ClearLiquifyTensionCache();
+    }
+
+    private void ClearPersonAlphaCache()
+    {
+        _personAlphaPath = null;
+        _personAlphaPhotoPath = null;
+        _personAlphaEngine = null;
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
     }

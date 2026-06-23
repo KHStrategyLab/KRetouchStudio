@@ -22,7 +22,9 @@ public partial class MainWindow
         }
 
         byte[] rawAlpha = LoadPersonAlphaGray8Pixels(alphaPath, width, height);
-        byte[] refinedAlpha = RefinePersonAlphaMask(rawAlpha, width, height);
+        byte[] refinedAlpha = string.Equals(_personAlphaEngine, PersonAlphaEngineBiRefNet, StringComparison.OrdinalIgnoreCase)
+            ? (byte[])rawAlpha.Clone()
+            : RefinePersonAlphaMask(rawAlpha, width, height);
         _refinedPersonAlphaMask = new RefinedPersonAlphaMask(alphaPath, width, height, refinedAlpha);
         return refinedAlpha;
     }

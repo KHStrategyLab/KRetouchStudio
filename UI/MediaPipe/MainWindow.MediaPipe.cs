@@ -159,7 +159,7 @@ public partial class MainWindow
     private void LoadMediaPipePreviewOverlay(string outputDirectory, string photoPath)
     {
         _mediaPipeOverlayPhotoPath = photoPath;
-        CacheMediaPipePersonAlphaArtifact(outputDirectory, photoPath);
+        CachePersonAlphaArtifact(outputDirectory, photoPath, PersonAlphaEngineMediaPipe);
         _mediaPipeFaceBoxes = ReadMediaPipeFaceBoxes(Path.Combine(outputDirectory, "face_box.json"));
         _mediaPipeFeaturePaths = ReadMediaPipeFeaturePaths(Path.Combine(outputDirectory, "face_pose.json"));
         _mediaPipeAllLandmarkPoints = ReadMediaPipeAllLandmarkPoints(Path.Combine(outputDirectory, "face_pose.json"));
