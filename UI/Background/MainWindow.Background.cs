@@ -18,6 +18,8 @@ public partial class MainWindow
     private const int WhiteBackgroundProbeHalfLength = 15;
     private const int WhiteBackgroundProbeCandidateRadius = 4;
     private const int WhiteBackgroundProbeInnerRadius = 2;
+    private const int WhiteBackgroundProbeBoxSize = 150;
+    private const int WhiteBackgroundProbeBoxStride = 50;
     private const byte WhiteBackgroundProbeForegroundThreshold = 64;
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
@@ -405,6 +407,24 @@ public partial class MainWindow
         bool[] supportMask = BuildBinaryMask(alphaPixels, WhiteBackgroundProbeForegroundThreshold);
         bool[] candidateMask = DilateBinaryMask(supportMask, width, height, WhiteBackgroundProbeCandidateRadius);
         bool[] innerMask = ErodeBinaryMask(supportMask, width, height, WhiteBackgroundProbeInnerRadius);
+        float[] localScores = BuildBoundaryProbeLocalScores(
+            sourcePixels,
+            stride,
+            alphaPixels,
+            candidateMask,
+            innerMask,
+            width,
+            height,
+            backgroundB,
+            backgroundG,
+            backgroundR);
+        float[] boxScores = BuildBoundaryProbeBoxScores(
+            alphaPixels,
+            candidateMask,
+            innerMask,
+            localScores,
+            width,
+            height);
         byte[] result = (byte[])alphaPixels.Clone();
 
         for (int y = 1; y < height - 1; y++)
@@ -415,6 +435,51 @@ public partial class MainWindow
                 int index = rowOffset + x;
                 int alpha = alphaPixels[index];
                 if (!candidateMask[index] || innerMask[index] || alpha >= 250)
+                {
+                    continue;
+                }
+
+                double localScore = localScores[index];
+                double boxScore = boxScores[index];
+                double score = localScore * (0.35 + (boxScore * 0.65));
+                if (boxScore >= 0.45 && localScore >= 0.20)
+                {
+                    score = Math.Max(score, localScore * 0.85);
+                }
+
+                if (score <= 0.001)
+                {
+                    continue;
+                }
+
+                int boost = (int)Math.Round((255 - alpha) * normalizedStrength * score);
+                result[index] = (byte)Math.Clamp(alpha + boost, alpha, 255);
+            }
+        }
+
+        return result;
+    }
+
+    private static float[] BuildBoundaryProbeLocalScores(
+        byte[] sourcePixels,
+        int stride,
+        byte[] alphaPixels,
+        bool[] candidateMask,
+        bool[] innerMask,
+        int width,
+        int height,
+        byte backgroundB,
+        byte backgroundG,
+        byte backgroundR)
+    {
+        float[] localScores = new float[alphaPixels.Length];
+        for (int y = 1; y < height - 1; y++)
+        {
+            int rowOffset = y * width;
+            for (int x = 1; x < width - 1; x++)
+            {
+                int index = rowOffset + x;
+                if (!candidateMask[index] || innerMask[index] || alphaPixels[index] >= 250)
                 {
                     continue;
                 }
@@ -430,17 +495,267 @@ public partial class MainWindow
                     backgroundB,
                     backgroundG,
                     backgroundR);
-                if (score <= 0.001)
+                localScores[index] = (float)score;
+            }
+        }
+
+        return localScores;
+    }
+
+    private static float[] BuildBoundaryProbeBoxScores(
+        byte[] alphaPixels,
+        bool[] candidateMask,
+        bool[] innerMask,
+        float[] localScores,
+        int width,
+        int height)
+    {
+        float[] scoreSums = new float[alphaPixels.Length];
+        float[] weightSums = new float[alphaPixels.Length];
+        int boxHalf = Math.Max(1, WhiteBackgroundProbeBoxSize / 2);
+        int bucketColumns = Math.Max(1, ((width - 1) / WhiteBackgroundProbeBoxStride) + 1);
+        int bucketRows = Math.Max(1, ((height - 1) / WhiteBackgroundProbeBoxStride) + 1);
+        bool[] queuedBuckets = new bool[bucketColumns * bucketRows];
+
+        for (int y = 1; y < height - 1; y++)
+        {
+            int rowOffset = y * width;
+            for (int x = 1; x < width - 1; x++)
+            {
+                int index = rowOffset + x;
+                if (!candidateMask[index] || innerMask[index] || alphaPixels[index] >= 250)
                 {
                     continue;
                 }
 
-                int boost = (int)Math.Round((255 - alpha) * normalizedStrength * score);
-                result[index] = (byte)Math.Clamp(alpha + boost, alpha, 255);
+                int bucketX = Math.Clamp((x + (WhiteBackgroundProbeBoxStride / 2)) / WhiteBackgroundProbeBoxStride, 0, bucketColumns - 1);
+                int bucketY = Math.Clamp((y + (WhiteBackgroundProbeBoxStride / 2)) / WhiteBackgroundProbeBoxStride, 0, bucketRows - 1);
+                queuedBuckets[(bucketY * bucketColumns) + bucketX] = true;
             }
         }
 
-        return result;
+        for (int bucketY = 0; bucketY < bucketRows; bucketY++)
+        {
+            for (int bucketX = 0; bucketX < bucketColumns; bucketX++)
+            {
+                if (!queuedBuckets[(bucketY * bucketColumns) + bucketX])
+                {
+                    continue;
+                }
+
+                int centerX = Math.Clamp(bucketX * WhiteBackgroundProbeBoxStride, 0, width - 1);
+                int centerY = Math.Clamp(bucketY * WhiteBackgroundProbeBoxStride, 0, height - 1);
+                int left = Math.Max(1, centerX - boxHalf);
+                int right = Math.Min(width - 2, centerX + boxHalf);
+                int top = Math.Max(1, centerY - boxHalf);
+                int bottom = Math.Min(height - 2, centerY + boxHalf);
+                double boxScore = CalculateBoundaryProbeBoxScore(
+                    candidateMask,
+                    innerMask,
+                    localScores,
+                    width,
+                    left,
+                    top,
+                    right,
+                    bottom);
+                if (boxScore <= 0.001)
+                {
+                    continue;
+                }
+
+                AccumulateBoundaryProbeBoxScore(
+                    alphaPixels,
+                    candidateMask,
+                    innerMask,
+                    width,
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    centerX,
+                    centerY,
+                    boxHalf,
+                    (float)boxScore,
+                    scoreSums,
+                    weightSums);
+            }
+        }
+
+        float[] boxScores = new float[alphaPixels.Length];
+        for (int i = 0; i < boxScores.Length; i++)
+        {
+            if (weightSums[i] > 0.0001f)
+            {
+                boxScores[i] = Math.Clamp(scoreSums[i] / weightSums[i], 0.0f, 1.0f);
+            }
+        }
+
+        return boxScores;
+    }
+
+    private static double CalculateBoundaryProbeBoxScore(
+        bool[] candidateMask,
+        bool[] innerMask,
+        float[] localScores,
+        int width,
+        int left,
+        int top,
+        int right,
+        int bottom)
+    {
+        int candidateCount = 0;
+        int subjectCount = 0;
+        int strongCount = 0;
+        int connectedCount = 0;
+        int minX = right;
+        int maxX = left;
+        int minY = bottom;
+        int maxY = top;
+        double scoreSum = 0.0;
+
+        for (int y = top; y <= bottom; y++)
+        {
+            int rowOffset = y * width;
+            for (int x = left; x <= right; x++)
+            {
+                int index = rowOffset + x;
+                if (!candidateMask[index] || innerMask[index])
+                {
+                    continue;
+                }
+
+                candidateCount++;
+                double localScore = localScores[index];
+                if (localScore < 0.15)
+                {
+                    continue;
+                }
+
+                subjectCount++;
+                scoreSum += localScore;
+                if (localScore >= 0.55)
+                {
+                    strongCount++;
+                }
+
+                if (HasNearbyBoundarySubjectScore(localScores, width, x, y, left, top, right, bottom))
+                {
+                    connectedCount++;
+                }
+
+                minX = Math.Min(minX, x);
+                maxX = Math.Max(maxX, x);
+                minY = Math.Min(minY, y);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        if (candidateCount == 0 || subjectCount < 6)
+        {
+            return 0.0;
+        }
+
+        int span = Math.Max(maxX - minX, maxY - minY);
+        if (subjectCount < 10 && span < 18)
+        {
+            return 0.0;
+        }
+
+        double averageSubjectScore = scoreSum / subjectCount;
+        double subjectRatio = subjectCount / (double)candidateCount;
+        double densityScore = Math.Clamp(subjectCount / 90.0, 0.0, 1.0);
+        double ratioScore = Math.Clamp((subjectRatio - 0.06) / 0.24, 0.0, 1.0);
+        double continuityScore = connectedCount / (double)subjectCount;
+        double spanScore = Math.Clamp((span - 18.0) / 92.0, 0.0, 1.0);
+        double strongScore = Math.Clamp(strongCount / 24.0, 0.0, 1.0);
+        double structureScore = Math.Clamp(
+            (continuityScore * 0.34) +
+            (spanScore * 0.28) +
+            (Math.Max(densityScore, ratioScore) * 0.24) +
+            (strongScore * 0.14),
+            0.0,
+            1.0);
+
+        return Math.Clamp(averageSubjectScore * (0.45 + (structureScore * 0.75)), 0.0, 1.0);
+    }
+
+    private static bool HasNearbyBoundarySubjectScore(
+        float[] localScores,
+        int width,
+        int x,
+        int y,
+        int left,
+        int top,
+        int right,
+        int bottom)
+    {
+        const float NeighborScoreThreshold = 0.15f;
+        for (int dy = -2; dy <= 2; dy++)
+        {
+            int sampleY = y + dy;
+            if (sampleY < top || sampleY > bottom)
+            {
+                continue;
+            }
+
+            int rowOffset = sampleY * width;
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                int sampleX = x + dx;
+                if (sampleX < left || sampleX > right)
+                {
+                    continue;
+                }
+
+                if (localScores[rowOffset + sampleX] >= NeighborScoreThreshold)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static void AccumulateBoundaryProbeBoxScore(
+        byte[] alphaPixels,
+        bool[] candidateMask,
+        bool[] innerMask,
+        int width,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        int centerX,
+        int centerY,
+        int boxHalf,
+        float boxScore,
+        float[] scoreSums,
+        float[] weightSums)
+    {
+        double inverseBoxHalf = 1.0 / Math.Max(1, boxHalf);
+        for (int y = top; y <= bottom; y++)
+        {
+            int rowOffset = y * width;
+            for (int x = left; x <= right; x++)
+            {
+                int index = rowOffset + x;
+                if (!candidateMask[index] || innerMask[index] || alphaPixels[index] >= 250)
+                {
+                    continue;
+                }
+
+                double normalizedDistance = Math.Max(Math.Abs(x - centerX), Math.Abs(y - centerY)) * inverseBoxHalf;
+                double weight = Math.Clamp(1.0 - normalizedDistance, 0.05, 1.0);
+                scoreSums[index] += (float)(boxScore * weight);
+                weightSums[index] += (float)weight;
+            }
+        }
     }
 
     private static double CalculateBoundaryProbePreserveScore(
