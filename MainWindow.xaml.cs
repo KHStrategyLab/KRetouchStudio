@@ -888,6 +888,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension));
             using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
             encoder.Save(stream);
+            SaveBackgroundSettingsFromCurrentSliders();
         }
         catch (Exception ex)
         {
@@ -2861,6 +2862,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _appConfig = ReadAppConfig();
         SyncColorManagementSettingsFromConfig();
+        LoadBackgroundSettingsFromConfig();
         LoadCropPresetSettingsFromConfig();
         if (string.IsNullOrWhiteSpace(_appConfig.WorkAreaFolderPath) &&
             File.Exists(LegacyWorkAreaSettingsPath))

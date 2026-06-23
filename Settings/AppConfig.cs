@@ -16,7 +16,20 @@ public sealed class AppConfig
 
     public CropPresetSettings CropPreset { get; set; } = new();
 
+    public BackgroundSettings Background { get; set; } = new();
+
     public MediaPipeSettings MediaPipe { get; set; } = new();
+}
+
+public sealed class BackgroundSettings
+{
+    public double BoundaryProbeStrength { get; set; }
+
+    public double BoundaryCleanStrength { get; set; }
+
+    public double SoftAlphaStrength { get; set; }
+
+    public double AlphaGammaStrength { get; set; }
 }
 
 public sealed class CropPresetSettings

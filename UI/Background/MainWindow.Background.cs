@@ -67,6 +67,30 @@ public partial class MainWindow
         }
     }
 
+    private void LoadBackgroundSettingsFromConfig()
+    {
+        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
+        BackgroundRetouchTab.BoundaryProbeStrength = ClampBackgroundSliderSetting(settings.BoundaryProbeStrength);
+        BackgroundRetouchTab.BoundaryCleanStrength = ClampBackgroundSliderSetting(settings.BoundaryCleanStrength);
+        BackgroundRetouchTab.SoftAlphaStrength = ClampBackgroundSliderSetting(settings.SoftAlphaStrength);
+        BackgroundRetouchTab.AlphaGammaStrength = ClampBackgroundSliderSetting(settings.AlphaGammaStrength);
+    }
+
+    private void SaveBackgroundSettingsFromCurrentSliders()
+    {
+        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
+        settings.BoundaryProbeStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryProbeStrength);
+        settings.BoundaryCleanStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryCleanStrength);
+        settings.SoftAlphaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.SoftAlphaStrength);
+        settings.AlphaGammaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaGammaStrength);
+        SaveAppConfig();
+    }
+
+    private static double ClampBackgroundSliderSetting(double value)
+    {
+        return Math.Clamp(Math.Round(value), 0, 100);
+    }
+
     private async void BackgroundRetouchTab_WhiteBackgroundRequested(object? sender, EventArgs e)
     {
         await ApplyWhiteBackgroundPreviewAsync();
