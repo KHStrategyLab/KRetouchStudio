@@ -341,15 +341,7 @@ public partial class MainWindow
 
     private BitmapSource GetWhiteBackgroundRenderSource(PhotoItem photo, bool replaceCurrentWhiteBackground)
     {
-        if (replaceCurrentWhiteBackground && _editorUndoHistory.Count >= 2)
-        {
-            EditorHistoryState previousState = _editorUndoHistory[^2];
-            return previousState.AdjustedImage is null
-                ? photo.BaseImage
-                : CloneBitmapSource(previousState.AdjustedImage);
-        }
-
-        return GetCurrentDisplayBitmapSource(photo);
+        return photo.BaseImage;
     }
 
     private void ReplaceCurrentWhiteBackgroundHistorySnapshot(PhotoItem photo, string historyDetail)
@@ -369,7 +361,7 @@ public partial class MainWindow
     {
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Edge {edge:0} | Clean {clean:0}";
+        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0}";
     }
 
     private static int ShapeWhiteBackgroundAlpha(int alpha)

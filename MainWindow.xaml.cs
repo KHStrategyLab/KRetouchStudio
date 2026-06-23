@@ -883,7 +883,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             MarkSelfSavedOutputPath(outputPath);
             BitmapEncoder encoder = CreateSaveEncoder(outputExtension);
-            encoder.Frames.Add(BitmapFrame.Create(image));
+            encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension));
             using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
             encoder.Save(stream);
         }
@@ -942,6 +942,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         return new PngBitmapEncoder();
+    }
+
+    private static BitmapFrame CreateSrgbSaveFrame(BitmapSource image, string outputExtension)
+    {
+        PixelFormat outputFormat = IsJpegExtension(outputExtension)
+            ? PixelFormats.Rgb24
+            : PixelFormats.Bgra32;
+        BitmapSource outputImage = EnsureBitmapFormat(image, outputFormat);
+        ReadOnlyCollection<ColorContext> colorContexts = new(new[] { new ColorContext(outputFormat) });
+        return BitmapFrame.Create(outputImage, null, null, colorContexts);
+    }
+
+    private static bool IsJpegExtension(string extension)
+    {
+        return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
     }
 
     private void WorkAreaMenuItem_Click(object sender, RoutedEventArgs e)
