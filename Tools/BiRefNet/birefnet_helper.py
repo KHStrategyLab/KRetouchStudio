@@ -18,7 +18,7 @@ from transformers import AutoModelForImageSegmentation
 
 DEFAULT_MODEL = "ZhengPeng7/BiRefNet_lite-matting"
 DEFAULT_SIZE = 1024
-DEFAULT_INPUT_SHARPEN = 45
+DEFAULT_INPUT_SHARPEN = 100
 
 
 def parse_args() -> argparse.Namespace:

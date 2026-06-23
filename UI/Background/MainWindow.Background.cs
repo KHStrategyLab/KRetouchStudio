@@ -25,7 +25,7 @@ public partial class MainWindow
     private const byte WhiteBackgroundProbeForegroundThreshold = 64;
     private const int WhiteBackgroundInnerFillRadius = 2;
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
-    private const int BiRefNetInputSharpenStrength = 45;
+    private const int BiRefNetInputSharpenStrength = 100;
 
     private static readonly string BiRefNetOutputRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
