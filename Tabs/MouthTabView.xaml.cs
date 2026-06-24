@@ -58,6 +58,19 @@ public partial class MouthTabView : System.Windows.Controls.UserControl, INotify
         MouthExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeMouthMode = MouthMode.Smile;
+        _smileStrength = 0;
+        _lipStrength = 0;
+        _sizeStrength = 0;
+        _philStrength = 0;
+        _cornerStrength = 0;
+
+        NotifyMouthModeProperties();
+        OnPropertyChanged(nameof(ActiveMouthStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

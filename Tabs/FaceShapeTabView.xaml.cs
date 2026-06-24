@@ -44,6 +44,8 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     public event EventHandler? HeadPoseAdjustmentCommitted;
 
+    public event EventHandler? HeadPoseAdjustmentPreviewChanged;
+
     public bool IsSymFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Sym;
 
     public bool IsCheekFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Cheek;
@@ -105,6 +107,8 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
             }
 
             OnPropertyChanged();
+            SetActiveFaceShapeMode(_activeHeadPoseMode);
+            HeadPoseAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -129,6 +133,35 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     public void Collapse()
     {
         FaceShapeExpander.IsExpanded = false;
+    }
+
+    public void ResetForPhotoChange()
+    {
+        _activeFaceShapeMode = FaceShapeMode.Sym;
+        _activeHeadPoseMode = FaceShapeMode.FaceTilt;
+        _activeDetailMode = FaceShapeMode.Sym;
+        _symStrength = 0;
+        _cheekStrength = 0;
+        _boneStrength = 0;
+        _jawStrength = 0;
+        _chinStrength = 0;
+        _faceTiltStrength = 50;
+        _faceTurnStrength = 50;
+        _headTiltStrength = 50;
+        _alignStrength = 0;
+
+        NotifyFaceShapeModeProperties();
+        OnPropertyChanged(nameof(ActiveFaceShapeStrength));
+        OnPropertyChanged(nameof(ActiveHeadPoseStrength));
+        OnPropertyChanged(nameof(SymFaceShapeStrength));
+        OnPropertyChanged(nameof(CheekFaceShapeStrength));
+        OnPropertyChanged(nameof(BoneFaceShapeStrength));
+        OnPropertyChanged(nameof(JawFaceShapeStrength));
+        OnPropertyChanged(nameof(ChinFaceShapeStrength));
+        OnPropertyChanged(nameof(FaceTiltFaceShapeStrength));
+        OnPropertyChanged(nameof(FaceTurnFaceShapeStrength));
+        OnPropertyChanged(nameof(HeadTiltFaceShapeStrength));
+        OnPropertyChanged(nameof(AlignFaceShapeStrength));
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -277,6 +310,15 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void NotifyFaceShapeModeProperties()
     {
+        OnPropertyChanged(nameof(IsSymFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsCheekFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsBoneFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsJawFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsChinFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsFaceTiltFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsFaceTurnFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsHeadTiltFaceShapeModeSelected));
+        OnPropertyChanged(nameof(IsAlignFaceShapeModeSelected));
         OnPropertyChanged(nameof(IsSymFaceShapeModeActive));
         OnPropertyChanged(nameof(IsCheekFaceShapeModeActive));
         OnPropertyChanged(nameof(IsBoneFaceShapeModeActive));

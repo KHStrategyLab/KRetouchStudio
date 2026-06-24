@@ -22,14 +22,24 @@ public partial class MainWindow
     private static readonly MediaBrush MediaPipePointFill = CreateFrozenBrush(MediaColor.FromRgb(255, 190, 72), 0.85);
     private static readonly MediaBrush MediaPipeAllPointDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(18, 20, 24), 0.85);
     private static readonly MediaBrush MediaPipeAllPointDebugFill = CreateFrozenBrush(MediaColor.FromRgb(255, 88, 196), 0.82);
+    private static readonly MediaBrush FaceShapeProjectionSourceDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(18, 20, 24), 0.75);
+    private static readonly MediaBrush FaceShapeProjectionSourceDebugFill = CreateFrozenBrush(MediaColor.FromRgb(72, 172, 255), 0.68);
+    private static readonly MediaBrush FaceShapeProjectionMeshDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(70, 225, 255), 0.62);
+    private static readonly MediaBrush FaceShapeProjectionDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(20, 24, 30), 0.92);
+    private static readonly MediaBrush FaceShapeProjectionDebugFill = CreateFrozenBrush(MediaColor.FromRgb(57, 255, 139), 0.9);
 
     private string _mediaPipeStatusText = "MediaPipe: ready";
+    private bool _isMediaPipeWarmupStarted;
     private bool _isMediaPipeConnectionRunning;
     private bool _showMediaPipeAllPointDebugLayer;
     private string? _mediaPipeOverlayPhotoPath;
     private List<MediaPipeFaceBox> _mediaPipeFaceBoxes = [];
     private List<MediaPipeFeaturePath> _mediaPipeFeaturePaths = [];
     private List<MediaPipeLandmarkPoint> _mediaPipeAllLandmarkPoints = [];
+    private string? _faceShapeProjectionDebugPhotoPath;
+    private List<System.Windows.Point> _faceShapeProjectionDebugSourceImagePoints = [];
+    private List<System.Windows.Point> _faceShapeProjectionDebugProjectedImagePoints = [];
+    private List<IReadOnlyList<System.Windows.Point>> _faceShapeProjectionDebugMeshImagePaths = [];
 
     public ObservableCollection<PreviewDebugRectOverlay> MediaPipeFaceBoxOverlays { get; } = new();
 
@@ -38,6 +48,10 @@ public partial class MainWindow
     public ObservableCollection<PreviewDebugPointOverlay> MediaPipeFeaturePointOverlays { get; } = new();
 
     public ObservableCollection<PreviewDebugPointOverlay> MediaPipeAllPointDebugOverlays { get; } = new();
+
+    public ObservableCollection<PreviewDebugPointOverlay> FaceShapeProjectionDebugPointOverlays { get; } = new();
+
+    public ObservableCollection<PreviewDebugPolylineOverlay> FaceShapeProjectionDebugPathOverlays { get; } = new();
 
     public Visibility MediaPipePreviewOverlayVisibility =>
         SelectedPreviewPhotos.Count == 1 &&
@@ -51,6 +65,13 @@ public partial class MainWindow
         SelectedPreviewPhotos.Count == 1 &&
         _showMediaPipeAllPointDebugLayer &&
         MediaPipeAllPointDebugOverlays.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public Visibility FaceShapeProjectionDebugOverlayVisibility =>
+        SelectedPreviewPhotos.Count == 1 &&
+        (FaceShapeProjectionDebugPointOverlays.Count > 0 ||
+         FaceShapeProjectionDebugPathOverlays.Count > 0)
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -75,6 +96,47 @@ public partial class MainWindow
     private async void MediaPipeTestButton_Click(object sender, RoutedEventArgs e)
     {
         await RunMediaPipePreviewAsync();
+    }
+
+    private void StartMediaPipeWarmup()
+    {
+        if (_isMediaPipeWarmupStarted)
+        {
+            return;
+        }
+
+        _isMediaPipeWarmupStarted = true;
+        _ = WarmUpMediaPipeAsync();
+    }
+
+    private async Task WarmUpMediaPipeAsync()
+    {
+        string outputDirectory = Path.Combine(MediaPipeOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_warmup");
+        MediaPipeConnectionWarmUpRequest request = new(
+            _appConfig.MediaPipe.HelperRuntime,
+            Path.Combine(AppContext.BaseDirectory, "Tools", "MediaPipe", "mediapipe_helper.py"),
+            Path.Combine(AppContext.BaseDirectory, "Assets", "AiModels", "MediaPipe"),
+            outputDirectory);
+
+        try
+        {
+            MediaPipeStatusText = "MediaPipe: warming...";
+            MediaPipeConnectionWarmUpResult result = await MediaPipeConnectionService.WarmUpAsync(
+                request,
+                CancellationToken.None);
+
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                MediaPipeStatusText = result.SummaryText;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                MediaPipeStatusText = "MediaPipe: warmup failed | " + ex.Message;
+            }
+        }
     }
 
     private async void MediaPipeAllPointDebugButton_Click(object sender, RoutedEventArgs e)
@@ -173,6 +235,7 @@ public partial class MainWindow
         _mediaPipeFeaturePaths.Clear();
         _mediaPipeAllLandmarkPoints.Clear();
         ClearMediaPipePreviewOverlayItems();
+        ClearFaceShapeProjectionDebugOverlay();
     }
 
     private void ClearMediaPipePreviewOverlayItems()
@@ -183,6 +246,124 @@ public partial class MainWindow
         MediaPipeAllPointDebugOverlays.Clear();
         OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
         OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
+    }
+
+    private void HideMediaPipeFeatureOverlayForFaceShapeDebug()
+    {
+        _mediaPipeFaceBoxes.Clear();
+        _mediaPipeFeaturePaths.Clear();
+        MediaPipeFaceBoxOverlays.Clear();
+        MediaPipeFeaturePathOverlays.Clear();
+        MediaPipeFeaturePointOverlays.Clear();
+        MediaPipeAllPointDebugOverlays.Clear();
+        if (_showMediaPipeAllPointDebugLayer)
+        {
+            _showMediaPipeAllPointDebugLayer = false;
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugButtonText));
+        }
+
+        OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+        OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
+    }
+
+    private void SetFaceShapeProjectionDebugOverlay(
+        string photoPath,
+        IReadOnlyList<System.Windows.Point> sourceImagePoints,
+        IReadOnlyList<System.Windows.Point> projectedImagePoints,
+        IReadOnlyList<IReadOnlyList<System.Windows.Point>> meshImagePaths)
+    {
+        _faceShapeProjectionDebugPhotoPath = photoPath;
+        _faceShapeProjectionDebugSourceImagePoints = sourceImagePoints.ToList();
+        _faceShapeProjectionDebugProjectedImagePoints = projectedImagePoints.ToList();
+        _faceShapeProjectionDebugMeshImagePaths = meshImagePaths.ToList();
+        UpdateFaceShapeProjectionDebugOverlay();
+    }
+
+    private void ClearFaceShapeProjectionDebugOverlay()
+    {
+        _faceShapeProjectionDebugPhotoPath = null;
+        _faceShapeProjectionDebugSourceImagePoints = [];
+        _faceShapeProjectionDebugProjectedImagePoints = [];
+        _faceShapeProjectionDebugMeshImagePaths = [];
+        FaceShapeProjectionDebugPathOverlays.Clear();
+        FaceShapeProjectionDebugPointOverlays.Clear();
+        OnPropertyChanged(nameof(FaceShapeProjectionDebugOverlayVisibility));
+    }
+
+    private void UpdateFaceShapeProjectionDebugOverlay()
+    {
+        FaceShapeProjectionDebugPathOverlays.Clear();
+        FaceShapeProjectionDebugPointOverlays.Clear();
+        if (SelectedPhoto is null ||
+            SelectedPreviewPhotos.Count != 1 ||
+            string.IsNullOrWhiteSpace(_faceShapeProjectionDebugPhotoPath) ||
+            !string.Equals(SelectedPhoto.Path, _faceShapeProjectionDebugPhotoPath, StringComparison.OrdinalIgnoreCase) ||
+            (_faceShapeProjectionDebugSourceImagePoints.Count == 0 &&
+             _faceShapeProjectionDebugProjectedImagePoints.Count == 0 &&
+             _faceShapeProjectionDebugMeshImagePaths.Count == 0))
+        {
+            OnPropertyChanged(nameof(FaceShapeProjectionDebugOverlayVisibility));
+            return;
+        }
+
+        BitmapSource source = GetSinglePreviewBitmapSource(SelectedPhoto);
+        if (source.PixelWidth <= 0 ||
+            source.PixelHeight <= 0 ||
+            PreviewImageWidth <= 0 ||
+            PreviewImageHeight <= 0)
+        {
+            OnPropertyChanged(nameof(FaceShapeProjectionDebugOverlayVisibility));
+            return;
+        }
+
+        double scaleX = PreviewImageWidth / source.PixelWidth;
+        double scaleY = PreviewImageHeight / source.PixelHeight;
+        foreach (IReadOnlyList<System.Windows.Point> path in _faceShapeProjectionDebugMeshImagePaths)
+        {
+            if (path.Count < 2)
+            {
+                continue;
+            }
+
+            PointCollection displayPoints = [];
+            foreach (System.Windows.Point point in path)
+            {
+                displayPoints.Add(new System.Windows.Point(
+                    PreviewImageLeft + point.X * scaleX,
+                    PreviewImageTop + point.Y * scaleY));
+            }
+
+            FaceShapeProjectionDebugPathOverlays.Add(new PreviewDebugPolylineOverlay(
+                displayPoints,
+                FaceShapeProjectionMeshDebugStroke,
+                0.75));
+        }
+
+        const double sourcePointSize = 2.6;
+        foreach (System.Windows.Point point in _faceShapeProjectionDebugSourceImagePoints)
+        {
+            FaceShapeProjectionDebugPointOverlays.Add(new PreviewDebugPointOverlay(
+                PreviewImageLeft + point.X * scaleX - sourcePointSize * 0.5,
+                PreviewImageTop + point.Y * scaleY - sourcePointSize * 0.5,
+                sourcePointSize,
+                FaceShapeProjectionSourceDebugStroke,
+                FaceShapeProjectionSourceDebugFill,
+                0.7));
+        }
+
+        const double projectedPointSize = 3.2;
+        foreach (System.Windows.Point point in _faceShapeProjectionDebugProjectedImagePoints)
+        {
+            FaceShapeProjectionDebugPointOverlays.Add(new PreviewDebugPointOverlay(
+                PreviewImageLeft + point.X * scaleX - projectedPointSize * 0.5,
+                PreviewImageTop + point.Y * scaleY - projectedPointSize * 0.5,
+                projectedPointSize,
+                FaceShapeProjectionDebugStroke,
+                FaceShapeProjectionDebugFill,
+                0.9));
+        }
+
+        OnPropertyChanged(nameof(FaceShapeProjectionDebugOverlayVisibility));
     }
 
     private void UpdateMediaPipePreviewOverlay()

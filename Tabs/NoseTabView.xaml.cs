@@ -58,6 +58,19 @@ public partial class NoseTabView : System.Windows.Controls.UserControl, INotifyP
         NoseExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeNoseMode = NoseMode.Bridge;
+        _bridgeStrength = 0;
+        _tipStrength = 0;
+        _slimStrength = 0;
+        _nostrilStrength = 0;
+        _lengthStrength = 0;
+
+        NotifyNoseModeProperties();
+        OnPropertyChanged(nameof(ActiveNoseStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

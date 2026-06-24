@@ -340,6 +340,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
+        FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
         BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
@@ -399,6 +400,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             CancelToneCurvePreviewRender();
             ClearToneCurveFastPreviewCache();
             PhotoAdjustRetouchTab?.RefreshForPhoto(_selectedPhoto is null ? null : GetCurrentDisplayBitmapSource(_selectedPhoto));
+            ResetNonBackgroundRetouchControlsForPhotoChange();
             ClearMagicSelection();
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
@@ -418,6 +420,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void ResetNonBackgroundRetouchControlsForPhotoChange()
+    {
+        SkinRetouchTab?.ResetForPhotoChange();
+        WrinkleRetouchTab?.ResetForPhotoChange();
+        FaceShapeRetouchTab?.ResetForPhotoChange();
+        MouthRetouchTab?.ResetForPhotoChange();
+        BodyRetouchTab?.ResetForPhotoChange();
+        EyesRetouchTab?.ResetForPhotoChange();
+        NoseRetouchTab?.ResetForPhotoChange();
+        ClearFaceShapeHeadPoseDragPreview();
+        ClearFaceShapeProjectionDebugOverlay();
+    }
+
     public ImageSource? SinglePreviewImageSource => SelectedPhoto is PhotoItem photo
         ? GetSinglePreviewBitmapSource(photo)
         : null;
@@ -427,6 +442,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (IsCropSourcePreviewActive)
         {
             return GetCropSourceBitmapSource(photo);
+        }
+
+        if (TryGetFaceShapeHeadPoseDragPreviewBitmapSource(photo, out BitmapSource faceShapePreview))
+        {
+            return faceShapePreview;
         }
 
         return TryGetBackgroundPreviewBitmapSource(photo, out BitmapSource backgroundPreview)
@@ -447,6 +467,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrEmpty(e.PropertyName) ||
             string.Equals(e.PropertyName, nameof(PhotoItem.Image), StringComparison.Ordinal))
         {
+            ClearFaceShapeHeadPoseDragPreview();
             ClearBackgroundPreview();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
             if (sender is PhotoItem photo)
@@ -2991,6 +3012,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             .ToArray();
 
         ResetPreviewProxy1200BuildQueue();
+        ClearFaceShapeLandmarkCache();
         Photos.Clear();
         SelectedPhoto = null;
         SelectedPreviewPhotos.Clear();
@@ -3012,6 +3034,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         ResetPreviewProxy1200BuildQueue();
+        ClearFaceShapeLandmarkCache();
         string[] photoPaths = Photos.Select(photo => photo.Path).ToArray();
         HashSet<string> selectedPaths = SelectedPreviewPhotos
             .Select(photo => photo.Path)
@@ -3052,12 +3075,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
         CancelToneCurvePreviewRender();
         ResetPreviewProxy1200BuildQueue();
+        MediaPipeConnectionService.ShutdownWorker();
         BiRefNetMattingService.ShutdownWorker();
         StopWorkAreaWatcher();
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        StartMediaPipeWarmup();
         StartBiRefNetWarmup();
     }
 
@@ -4513,6 +4538,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewImageLeft = Math.Clamp(left, minLeft, maxLeft);
         PreviewImageTop = Math.Clamp(top, minTop, maxTop);
         UpdateMediaPipePreviewOverlay();
+        UpdateFaceShapeProjectionDebugOverlay();
     }
 
     private void UpdatePreviewLayout()
@@ -4932,6 +4958,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         BitmapSource source = GetSinglePreviewBitmapSource(SelectedPhoto);
         double imageWidth = source.PixelWidth;
         double imageHeight = source.PixelHeight;
+        if (TryGetFaceShapeHeadPoseDragPreviewFrameSize(SelectedPhoto, out double faceShapeFrameWidth, out double faceShapeFrameHeight))
+        {
+            imageWidth = faceShapeFrameWidth;
+            imageHeight = faceShapeFrameHeight;
+        }
+
         if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
         {
             return;
@@ -4942,6 +4974,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewImageWidth = imageWidth * scale;
         PreviewImageHeight = imageHeight * scale;
         UpdateMediaPipePreviewOverlay();
+        UpdateFaceShapeProjectionDebugOverlay();
     }
 
     private void UpdateLocalWorkbenchGuide()

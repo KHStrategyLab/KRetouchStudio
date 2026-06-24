@@ -58,6 +58,19 @@ public partial class EyesTabView : System.Windows.Controls.UserControl, INotifyP
         EyesExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeEyesMode = EyesMode.Size;
+        _sizeStrength = 0;
+        _shapeStrength = 0;
+        _tiltStrength = 0;
+        _brightStrength = 0;
+        _underStrength = 0;
+
+        NotifyEyesModeProperties();
+        OnPropertyChanged(nameof(ActiveEyesStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

@@ -1,3 +1,4 @@
+﻿using System.Buffers;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -27,13 +28,66 @@ public partial class MainWindow
     private const double FaceShapeChinMaxLiftRatio = 0.028;
     private const string FaceShapeFaceTiltHistoryTitle = "Face F-Tilt";
     private const string FaceShapeFaceTiltHistoryDetail = "F-Tilt";
-    private const double FaceShapeFaceTiltMaxDegrees = 8.0;
+    private const double FaceShapeFaceTiltMaxDegrees = 2.5;
     private const string FaceShapeFaceTurnHistoryTitle = "Face Turn";
     private const string FaceShapeFaceTurnHistoryDetail = "Turn";
     private const double FaceShapeFaceTurnMaxShiftRatio = 0.065;
+    private const double FaceShapeFaceTurnProjectionMaxDegrees = 10.0;
+    private const double FaceShapeFaceTurnProjectionZScale = 0.35;
+    private const double FaceShapeFaceTurnProjectionPivotDepthRatio = 0.10;
+    private const double FaceShapeFaceTurnContourDepthRatio = 0.05;
+    private const double FaceShapeFaceTurnVerticalProjectionRatio = 0.03;
     private const string FaceShapeHeadTiltHistoryTitle = "Face Up/Dn";
     private const string FaceShapeHeadTiltHistoryDetail = "Up/Dn";
     private const double FaceShapeHeadTiltMaxShiftRatio = 0.060;
+    private const double FaceShapeHeadTiltProjectionMaxDegrees = 10.0;
+    private const double FaceShapeHeadTiltProjectionZScale = 0.35;
+    private const double FaceShapeHeadTiltProjectionPivotDepthRatio = 0.10;
+    private const double FaceShapeHeadTiltReliefFeatherPx = 15.0;
+    private const double FaceShapeHeadTiltReliefSigmaRatio = 0.095;
+    private const int FaceShapeHeadPoseDragPreviewLongSide = PhotoItem.PreviewProxyLongSide;
+    private const double FaceShapeHeadPoseDragPreviewUnsharpAmount = 1.0;
+
+    private static readonly int[] FaceShapeHeadTiltLeftEyeOuterCornerIndices = [33];
+    private static readonly int[] FaceShapeHeadTiltRightEyeOuterCornerIndices = [263];
+    private static readonly int[] FaceShapeHeadTiltNoseTipIndices = [4];
+    private static readonly int[] FaceShapeHeadTiltChinTipIndices = [152];
+    private static readonly int[] FaceShapeHeadTiltLeftMouthCornerIndices = [61];
+    private static readonly int[] FaceShapeHeadTiltRightMouthCornerIndices = [291];
+
+    private static readonly (int[] Indices, bool Closed)[] FaceShapeHeadTiltFeaturePaths =
+    [
+        ([70, 63, 105, 66, 107, 55, 65, 52, 53, 46], false),
+        ([336, 296, 334, 293, 300, 276, 283, 282, 295, 285], false),
+        ([33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7], true),
+        ([362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382], true),
+        ([61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185], true),
+        ([78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191], true)
+    ];
+
+    private static readonly int[] FaceShapeHeadTiltFaceOvalIndices =
+    [
+        10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
+        400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21,
+        54, 103, 67, 109
+    ];
+
+    private static readonly int[] FaceShapeFaceTurnCentralIndices =
+    [
+        1, 2, 4, 5, 6, 19, 94, 168, 195, 197
+    ];
+
+    private static readonly int[] FaceShapeFaceTurnFeatureEdgeIndices =
+    [
+        33, 46, 61, 70, 78, 107, 133, 152, 172, 234,
+        263, 276, 291, 300, 308, 336, 362, 397, 454
+    ];
+
+    private static readonly int[] FaceShapeFaceTurnFeatherBoostIndices =
+    [
+        58, 93, 132, 136, 148, 149, 150, 172, 176, 234,
+        288, 323, 361, 365, 377, 378, 379, 397, 400, 454
+    ];
 
     private static readonly int[] FaceShapeSymmetryMidlineIndices =
     [
@@ -181,13 +235,61 @@ public partial class MainWindow
     private BitmapSource? _faceShapeFaceTurnSessionBaseImage;
     private PhotoItem? _faceShapeHeadTiltSessionPhoto;
     private BitmapSource? _faceShapeHeadTiltSessionBaseImage;
+    private readonly SemaphoreSlim _faceShapeLandmarkCacheGate = new(1, 1);
+    private PhotoItem? _faceShapeLandmarkCachePhoto;
+    private string? _faceShapeLandmarkCachePath;
+    private List<MediaPipeLandmarkPoint> _faceShapeLandmarkCache = [];
+    private PhotoItem? _faceShapePointMapCachePhoto;
+    private string? _faceShapePointMapCachePath;
+    private int _faceShapePointMapCacheWidth;
+    private int _faceShapePointMapCacheHeight;
+    private Dictionary<int, Point> _faceShapePointMapCache = [];
+    private PhotoItem? _faceShapePointArrayCachePhoto;
+    private string? _faceShapePointArrayCachePath;
+    private int _faceShapePointArrayCacheWidth;
+    private int _faceShapePointArrayCacheHeight;
+    private FaceShapePointArray _faceShapePointArrayCache = FaceShapePointArray.Empty;
+    private PhotoItem? _faceShapeHeadPoseDragPreviewPhoto;
+    private string? _faceShapeHeadPoseDragPreviewPath;
+    private BitmapSource? _faceShapeHeadPoseDragPreviewImageSource;
+    private double _faceShapeHeadPoseDragPreviewFrameWidth;
+    private double _faceShapeHeadPoseDragPreviewFrameHeight;
+    private PhotoItem? _faceShapeHeadPoseDragProxyPhoto;
+    private string? _faceShapeHeadPoseDragProxyPath;
+    private BitmapSource? _faceShapeHeadPoseDragProxyBaseSource;
+    private BitmapSource? _faceShapeHeadPoseDragProxySource;
     private int _faceShapeSymmetryRenderVersion;
+
+    private readonly struct FaceShapePointArray(Point[] points, double[] zValues, bool[] hasPoint, int count)
+    {
+        public static FaceShapePointArray Empty { get; } = new([], [], [], 0);
+
+        public Point[] Points { get; } = points;
+
+        public double[] ZValues { get; } = zValues;
+
+        public bool[] HasPoint { get; } = hasPoint;
+
+        public int Count { get; } = count;
+    }
+
+    private async void FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged(object? sender, EventArgs e)
+    {
+        await ApplyFaceShapeHeadPoseDragPreviewAsync();
+    }
 
     private async void FaceShapeRetouchTab_FaceShapeAdjustmentCommitted(object? sender, EventArgs e)
     {
         if (FaceShapeRetouchTab is null)
         {
             return;
+        }
+
+        ClearFaceShapeHeadPoseDragPreview();
+
+        if (!FaceShapeRetouchTab.IsHeadTiltFaceShapeModeSelected)
+        {
+            ClearFaceShapeProjectionDebugOverlay();
         }
 
         if (FaceShapeRetouchTab.IsSymFaceShapeModeSelected)
@@ -267,7 +369,7 @@ public partial class MainWindow
 
         if (strength <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             PushOrReplaceFaceShapeSymmetryHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Sym: reset";
@@ -287,12 +389,21 @@ public partial class MainWindow
             return;
         }
 
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
         BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Sym: rendering {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeSymmetryPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeSymmetryPreview(
+                safeBase,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -326,7 +437,7 @@ public partial class MainWindow
 
         if (strength <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             PushOrReplaceFaceShapeCheekHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Cheek: reset";
@@ -346,12 +457,21 @@ public partial class MainWindow
             return;
         }
 
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
         BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Cheek: rendering {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeCheekPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeCheekPreview(
+                safeBase,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -385,7 +505,7 @@ public partial class MainWindow
 
         if (strength <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             PushOrReplaceFaceShapeBoneHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Bone: reset";
@@ -405,12 +525,21 @@ public partial class MainWindow
             return;
         }
 
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
         BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Bone: rendering {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeBonePreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeBonePreview(
+                safeBase,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -444,7 +573,7 @@ public partial class MainWindow
 
         if (strength <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             PushOrReplaceFaceShapeJawHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Jaw: reset";
@@ -464,12 +593,21 @@ public partial class MainWindow
             return;
         }
 
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
         BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Jaw: rendering {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeJawPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeJawPreview(
+                safeBase,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -503,7 +641,7 @@ public partial class MainWindow
 
         if (strength <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             PushOrReplaceFaceShapeChinHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Chin: reset";
@@ -523,12 +661,21 @@ public partial class MainWindow
             return;
         }
 
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
         BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Chin: rendering {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeChinPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeChinPreview(
+                safeBase,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -562,7 +709,8 @@ public partial class MainWindow
 
         if (Math.Abs(strength - 50) <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
+            ClearFaceShapeProjectionDebugOverlay();
             PushOrReplaceFaceShapeFaceTiltHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face F-Tilt: reset";
@@ -582,12 +730,37 @@ public partial class MainWindow
             return;
         }
 
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
-        double renderStrength = strength;
-        MediaPipeStatusText = $"Face F-Tilt: rendering {strength:0}...";
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
+        HideMediaPipeFeatureOverlayForFaceShapeDebug();
+        if (!TryBuildFaceShapeFaceTiltReliefPoints(
+                landmarkPoints,
+                baseSource.PixelWidth,
+                baseSource.PixelHeight,
+                strength,
+                out List<Point> sourcePoints,
+                out List<Point> projectedPoints,
+                out List<IReadOnlyList<Point>> meshPaths,
+                out List<FaceShapeControlPoint> reliefControls,
+                out List<Point> facePolygon))
+        {
+            ClearFaceShapeProjectionDebugOverlay();
+            MediaPipeStatusText = "Face F-Tilt: face-line points unavailable";
+            return;
+        }
+
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
+        MediaPipeStatusText = $"Face F-Tilt: relief warp {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeFaceTiltPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeHeadTiltReliefPreview(
+                safeBase,
+                reliefControls,
+                facePolygon,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -597,8 +770,9 @@ public partial class MainWindow
 
         targetPhoto.SetAdjustedImage(preview);
         PushOrReplaceFaceShapeFaceTiltHistory(targetPhoto, strength);
+        ClearFaceShapeProjectionDebugOverlay();
         UpdatePreviewLayout();
-        MediaPipeStatusText = $"Face F-Tilt: applied {strength:0}";
+        MediaPipeStatusText = $"Face F-Tilt: relief {projectedPoints.Count:0} pts | lines {meshPaths.Count:0} | {strength:0}";
     }
 
     private async Task ApplyFaceShapeFaceTurnPreviewAsync()
@@ -621,7 +795,8 @@ public partial class MainWindow
 
         if (Math.Abs(strength - 50) <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
+            ClearFaceShapeProjectionDebugOverlay();
             PushOrReplaceFaceShapeFaceTurnHistory(targetPhoto, strength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Turn: reset";
@@ -641,12 +816,32 @@ public partial class MainWindow
             return;
         }
 
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
-        double renderStrength = strength;
-        MediaPipeStatusText = $"Face Turn: rendering {strength:0}...";
+        HideMediaPipeFeatureOverlayForFaceShapeDebug();
+        if (!TryBuildFaceShapeFaceTurnProjectionDebugPoints(
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight,
+            strength,
+            out List<Point> sourcePoints,
+            out List<Point> projectedPoints,
+            out List<IReadOnlyList<Point>> meshPaths,
+            out List<FaceShapeControlPoint> reliefControls,
+            out List<Point> facePolygon))
+        {
+            ClearFaceShapeProjectionDebugOverlay();
+            MediaPipeStatusText = "Face Turn: projection points unavailable";
+            return;
+        }
+
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
+        MediaPipeStatusText = $"Face Turn: relief warp {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeFaceTurnPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeHeadTiltReliefPreview(
+                safeBase,
+                reliefControls,
+                facePolygon,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -656,8 +851,9 @@ public partial class MainWindow
 
         targetPhoto.SetAdjustedImage(preview);
         PushOrReplaceFaceShapeFaceTurnHistory(targetPhoto, strength);
+        ClearFaceShapeProjectionDebugOverlay();
         UpdatePreviewLayout();
-        MediaPipeStatusText = $"Face Turn: applied {strength:0}";
+        MediaPipeStatusText = $"Face Turn: relief {projectedPoints.Count:0} pts | lines {meshPaths.Count:0} | {strength:0}";
     }
 
     private async Task ApplyFaceShapeHeadTiltPreviewAsync()
@@ -668,7 +864,8 @@ public partial class MainWindow
             return;
         }
 
-        double strength = Math.Clamp(Math.Round(FaceShapeRetouchTab.HeadTiltFaceShapeStrength), 0, 100);
+        double sliderStrength = Math.Clamp(Math.Round(FaceShapeRetouchTab.HeadTiltFaceShapeStrength), 0, 100);
+        double strength = 100.0 - sliderStrength;
         int renderVersion = Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
         BitmapSource baseSource = GetFaceShapeHeadTiltRenderSource(targetPhoto);
         if (baseSource.PixelWidth != targetPhoto.BaseImage.PixelWidth ||
@@ -678,10 +875,11 @@ public partial class MainWindow
             return;
         }
 
-        if (Math.Abs(strength - 50) <= 0.001)
+        if (Math.Abs(sliderStrength - 50) <= 0.001)
         {
-            targetPhoto.SetAdjustedImage(CloneBitmapSource(baseSource));
-            PushOrReplaceFaceShapeHeadTiltHistory(targetPhoto, strength);
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
+            ClearFaceShapeProjectionDebugOverlay();
+            PushOrReplaceFaceShapeHeadTiltHistory(targetPhoto, sliderStrength);
             UpdatePreviewLayout();
             MediaPipeStatusText = "Face Up/Dn: reset";
             return;
@@ -700,12 +898,33 @@ public partial class MainWindow
             return;
         }
 
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
-        double renderStrength = strength;
-        MediaPipeStatusText = $"Face Up/Dn: rendering {strength:0}...";
+        HideMediaPipeFeatureOverlayForFaceShapeDebug();
+        if (!TryBuildFaceShapeHeadTiltProjectionDebugPoints(
+                landmarks,
+                baseSource.PixelWidth,
+                baseSource.PixelHeight,
+                strength,
+                out List<Point> sourcePoints,
+                out List<Point> projectedPoints,
+                out List<IReadOnlyList<Point>> meshPaths,
+                out List<FaceShapeControlPoint> reliefControls,
+                out List<Point> facePolygon))
+        {
+            ClearFaceShapeProjectionDebugOverlay();
+            MediaPipeStatusText = "Face Up/Dn: projection points unavailable";
+            return;
+        }
+
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
+        double renderStrength = sliderStrength;
+        MediaPipeStatusText = $"Face Up/Dn: relief warp {sliderStrength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeHeadTiltPreview(safeBase, landmarks, renderStrength));
+            BuildFaceShapeHeadTiltReliefPreview(
+                safeBase,
+                reliefControls,
+                facePolygon,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -714,9 +933,135 @@ public partial class MainWindow
         }
 
         targetPhoto.SetAdjustedImage(preview);
-        PushOrReplaceFaceShapeHeadTiltHistory(targetPhoto, strength);
+        PushOrReplaceFaceShapeHeadTiltHistory(targetPhoto, renderStrength);
+        ClearFaceShapeProjectionDebugOverlay();
         UpdatePreviewLayout();
-        MediaPipeStatusText = $"Face Up/Dn: applied {strength:0}";
+        MediaPipeStatusText = $"Face Up/Dn: relief {projectedPoints.Count:0} pts | lines {meshPaths.Count:0} | {sliderStrength:0}";
+    }
+
+    private async Task ApplyFaceShapeHeadPoseDragPreviewAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto || FaceShapeRetouchTab is null)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            return;
+        }
+
+        bool isFaceTilt = FaceShapeRetouchTab.IsFaceTiltFaceShapeModeSelected;
+        bool isFaceTurn = FaceShapeRetouchTab.IsFaceTurnFaceShapeModeSelected;
+        bool isHeadTilt = FaceShapeRetouchTab.IsHeadTiltFaceShapeModeSelected;
+        if (!isFaceTilt && !isFaceTurn && !isHeadTilt)
+        {
+            return;
+        }
+
+        double sliderStrength = isFaceTilt
+            ? Math.Clamp(Math.Round(FaceShapeRetouchTab.FaceTiltFaceShapeStrength), 0, 100)
+            : isFaceTurn
+                ? Math.Clamp(Math.Round(FaceShapeRetouchTab.FaceTurnFaceShapeStrength), 0, 100)
+                : Math.Clamp(Math.Round(FaceShapeRetouchTab.HeadTiltFaceShapeStrength), 0, 100);
+        if (Math.Abs(sliderStrength - 50) <= 0.001)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            return;
+        }
+
+        int renderVersion = Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+        BitmapSource baseSource = isFaceTilt
+            ? GetFaceShapeFaceTiltRenderSource(targetPhoto)
+            : isFaceTurn
+                ? GetFaceShapeFaceTurnRenderSource(targetPhoto)
+                : GetFaceShapeHeadTiltRenderSource(targetPhoto);
+        BitmapSource proxySource = GetOrCreateFaceShapeHeadPoseDragProxy(targetPhoto, baseSource);
+
+        string statusPrefix = isFaceTilt
+            ? "Face F-Tilt"
+            : isFaceTurn
+                ? "Face Turn"
+                : "Face Up/Dn";
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, statusPrefix);
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        if (landmarks.Count == 0)
+        {
+            MediaPipeStatusText = $"{statusPrefix}: no landmarks";
+            return;
+        }
+
+        HideMediaPipeFeatureOverlayForFaceShapeDebug();
+
+        FaceShapePointArray landmarkPoints = GetOrCreateFaceShapePointArray(
+            targetPhoto,
+            landmarks,
+            proxySource.PixelWidth,
+            proxySource.PixelHeight);
+        bool hasPlan;
+        int projectedPointCount;
+        List<FaceShapeControlPoint> reliefControls;
+        List<Point> facePolygon;
+        if (isFaceTilt)
+        {
+            hasPlan = TryBuildFaceShapeFaceTiltDragPreviewPlan(
+                landmarkPoints,
+                proxySource.PixelWidth,
+                proxySource.PixelHeight,
+                sliderStrength,
+                out projectedPointCount,
+                out reliefControls,
+                out facePolygon);
+        }
+        else if (isFaceTurn)
+        {
+            hasPlan = TryBuildFaceShapeFaceTurnDragPreviewPlan(
+                landmarkPoints,
+                proxySource.PixelWidth,
+                proxySource.PixelHeight,
+                sliderStrength,
+                out projectedPointCount,
+                out reliefControls,
+                out facePolygon);
+        }
+        else
+        {
+            hasPlan = TryBuildFaceShapeHeadTiltDragPreviewPlan(
+                landmarkPoints,
+                proxySource.PixelWidth,
+                proxySource.PixelHeight,
+                100.0 - sliderStrength,
+                out projectedPointCount,
+                out reliefControls,
+                out facePolygon);
+        }
+
+        if (!hasPlan)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            MediaPipeStatusText = $"{statusPrefix}: preview points unavailable";
+            return;
+        }
+
+        BitmapSource safeProxy = CloneBitmapSource(proxySource);
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {sliderStrength:0}...";
+        BitmapSource preview = await Task.Run(() =>
+            BuildFaceShapeHeadTiltReliefPreview(
+                safeProxy,
+                reliefControls,
+                facePolygon,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
+
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        SetFaceShapeHeadPoseDragPreview(targetPhoto, preview, baseSource.PixelWidth, baseSource.PixelHeight);
+        ClearFaceShapeProjectionDebugOverlay();
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {projectedPointCount:0} pts | {sliderStrength:0}";
     }
 
     private void ClearFaceShapeSymmetrySession()
@@ -737,7 +1082,263 @@ public partial class MainWindow
         _faceShapeFaceTurnSessionBaseImage = null;
         _faceShapeHeadTiltSessionPhoto = null;
         _faceShapeHeadTiltSessionBaseImage = null;
+        ClearFaceShapeHeadPoseDragPreview();
+        ClearFaceShapeHeadPoseDragProxy();
         Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+    }
+
+    private BitmapSource GetOrCreateFaceShapeHeadPoseDragProxy(PhotoItem targetPhoto, BitmapSource source)
+    {
+        if (_faceShapeHeadPoseDragProxySource is not null &&
+            ReferenceEquals(_faceShapeHeadPoseDragProxyPhoto, targetPhoto) &&
+            ReferenceEquals(_faceShapeHeadPoseDragProxyBaseSource, source) &&
+            !string.IsNullOrWhiteSpace(_faceShapeHeadPoseDragProxyPath) &&
+            string.Equals(_faceShapeHeadPoseDragProxyPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return _faceShapeHeadPoseDragProxySource;
+        }
+
+        BitmapSource safeSource = source.IsFrozen ? source : CloneBitmapSource(source);
+        int longSide = Math.Max(safeSource.PixelWidth, safeSource.PixelHeight);
+        BitmapSource proxySource;
+        if (longSide <= FaceShapeHeadPoseDragPreviewLongSide)
+        {
+            proxySource = safeSource;
+        }
+        else
+        {
+            double scale = FaceShapeHeadPoseDragPreviewLongSide / (double)longSide;
+            TransformedBitmap transformed = new(safeSource, new ScaleTransform(scale, scale));
+            transformed.Freeze();
+            proxySource = CreateFaceShapeHeadPoseDragPreviewProxy(transformed);
+        }
+
+        _faceShapeHeadPoseDragProxyPhoto = targetPhoto;
+        _faceShapeHeadPoseDragProxyPath = targetPhoto.Path;
+        _faceShapeHeadPoseDragProxyBaseSource = source;
+        _faceShapeHeadPoseDragProxySource = proxySource;
+        return proxySource;
+    }
+
+    private void SetFaceShapeHeadPoseDragPreview(PhotoItem targetPhoto, BitmapSource preview, double frameWidth, double frameHeight)
+    {
+        _faceShapeHeadPoseDragPreviewPhoto = targetPhoto;
+        _faceShapeHeadPoseDragPreviewPath = targetPhoto.Path;
+        _faceShapeHeadPoseDragPreviewImageSource = preview;
+        _faceShapeHeadPoseDragPreviewFrameWidth = frameWidth;
+        _faceShapeHeadPoseDragPreviewFrameHeight = frameHeight;
+        OnPropertyChanged(nameof(SinglePreviewImageSource));
+        UpdatePreviewImageFrame();
+    }
+
+    private void ClearFaceShapeHeadPoseDragPreview()
+    {
+        if (_faceShapeHeadPoseDragPreviewPhoto is null &&
+            _faceShapeHeadPoseDragPreviewPath is null &&
+            _faceShapeHeadPoseDragPreviewImageSource is null)
+        {
+            return;
+        }
+
+        _faceShapeHeadPoseDragPreviewPhoto = null;
+        _faceShapeHeadPoseDragPreviewPath = null;
+        _faceShapeHeadPoseDragPreviewImageSource = null;
+        _faceShapeHeadPoseDragPreviewFrameWidth = 0;
+        _faceShapeHeadPoseDragPreviewFrameHeight = 0;
+        OnPropertyChanged(nameof(SinglePreviewImageSource));
+        UpdatePreviewImageFrame();
+    }
+
+    private void ClearFaceShapeHeadPoseDragProxy()
+    {
+        _faceShapeHeadPoseDragProxyPhoto = null;
+        _faceShapeHeadPoseDragProxyPath = null;
+        _faceShapeHeadPoseDragProxyBaseSource = null;
+        _faceShapeHeadPoseDragProxySource = null;
+    }
+
+    private static BitmapSource CreateFaceShapeHeadPoseDragPreviewProxy(BitmapSource source)
+    {
+        BitmapSource bgraSource = source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        int stride = bgraSource.PixelWidth * 4;
+        byte[] pixels = new byte[stride * bgraSource.PixelHeight];
+        bgraSource.CopyPixels(pixels, stride, 0);
+        ApplyFaceShapeHeadPoseDragPreviewUnsharp(pixels, bgraSource.PixelWidth, bgraSource.PixelHeight, stride);
+
+        WriteableBitmap proxy = new(
+            bgraSource.PixelWidth,
+            bgraSource.PixelHeight,
+            bgraSource.DpiX,
+            bgraSource.DpiY,
+            PixelFormats.Bgra32,
+            null);
+        proxy.WritePixels(new Int32Rect(0, 0, bgraSource.PixelWidth, bgraSource.PixelHeight), pixels, stride, 0);
+        proxy.Freeze();
+        return proxy;
+    }
+
+    private static void ApplyFaceShapeHeadPoseDragPreviewUnsharp(byte[] pixels, int pixelWidth, int pixelHeight, int stride)
+    {
+        if (pixelWidth < 3 || pixelHeight < 3)
+        {
+            return;
+        }
+
+        byte[] sourcePixels = (byte[])pixels.Clone();
+        for (int y = 1; y < pixelHeight - 1; y++)
+        {
+            for (int x = 1; x < pixelWidth - 1; x++)
+            {
+                int index = (y * stride) + (x * 4);
+                for (int channel = 0; channel < 3; channel++)
+                {
+                    int blur =
+                        sourcePixels[((y - 1) * stride) + ((x - 1) * 4) + channel] +
+                        (sourcePixels[((y - 1) * stride) + (x * 4) + channel] * 2) +
+                        sourcePixels[((y - 1) * stride) + ((x + 1) * 4) + channel] +
+                        (sourcePixels[(y * stride) + ((x - 1) * 4) + channel] * 2) +
+                        (sourcePixels[(y * stride) + (x * 4) + channel] * 4) +
+                        (sourcePixels[(y * stride) + ((x + 1) * 4) + channel] * 2) +
+                        sourcePixels[((y + 1) * stride) + ((x - 1) * 4) + channel] +
+                        (sourcePixels[((y + 1) * stride) + (x * 4) + channel] * 2) +
+                        sourcePixels[((y + 1) * stride) + ((x + 1) * 4) + channel];
+
+                    double original = sourcePixels[index + channel];
+                    double blurred = blur / 16.0;
+                    double adjusted = original + ((original - blurred) * FaceShapeHeadPoseDragPreviewUnsharpAmount);
+                    pixels[index + channel] = (byte)Math.Clamp((int)Math.Round(adjusted), 0, 255);
+                }
+            }
+        }
+    }
+
+    private bool TryGetFaceShapeHeadPoseDragPreviewBitmapSource(PhotoItem photo, out BitmapSource preview)
+    {
+        if (_faceShapeHeadPoseDragPreviewImageSource is not null &&
+            ReferenceEquals(_faceShapeHeadPoseDragPreviewPhoto, photo) &&
+            !string.IsNullOrWhiteSpace(_faceShapeHeadPoseDragPreviewPath) &&
+            string.Equals(_faceShapeHeadPoseDragPreviewPath, photo.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            preview = _faceShapeHeadPoseDragPreviewImageSource;
+            return true;
+        }
+
+        preview = null!;
+        return false;
+    }
+
+    private bool TryGetFaceShapeHeadPoseDragPreviewFrameSize(PhotoItem photo, out double width, out double height)
+    {
+        if (_faceShapeHeadPoseDragPreviewImageSource is not null &&
+            ReferenceEquals(_faceShapeHeadPoseDragPreviewPhoto, photo) &&
+            _faceShapeHeadPoseDragPreviewFrameWidth > 0 &&
+            _faceShapeHeadPoseDragPreviewFrameHeight > 0 &&
+            !string.IsNullOrWhiteSpace(_faceShapeHeadPoseDragPreviewPath) &&
+            string.Equals(_faceShapeHeadPoseDragPreviewPath, photo.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            width = _faceShapeHeadPoseDragPreviewFrameWidth;
+            height = _faceShapeHeadPoseDragPreviewFrameHeight;
+            return true;
+        }
+
+        width = 0;
+        height = 0;
+        return false;
+    }
+
+    private void ClearFaceShapeLandmarkCache()
+    {
+        _faceShapeLandmarkCachePhoto = null;
+        _faceShapeLandmarkCachePath = null;
+        _faceShapeLandmarkCache = [];
+        ClearFaceShapePointMapCache();
+    }
+
+    private void ClearFaceShapePointMapCache()
+    {
+        _faceShapePointMapCachePhoto = null;
+        _faceShapePointMapCachePath = null;
+        _faceShapePointMapCacheWidth = 0;
+        _faceShapePointMapCacheHeight = 0;
+        _faceShapePointMapCache = [];
+        _faceShapePointArrayCachePhoto = null;
+        _faceShapePointArrayCachePath = null;
+        _faceShapePointArrayCacheWidth = 0;
+        _faceShapePointArrayCacheHeight = 0;
+        _faceShapePointArrayCache = FaceShapePointArray.Empty;
+    }
+
+    private bool TryGetFaceShapeLandmarkCache(PhotoItem targetPhoto, out List<MediaPipeLandmarkPoint> landmarks)
+    {
+        landmarks = [];
+        if (_faceShapeLandmarkCache.Count == 0 ||
+            !ReferenceEquals(_faceShapeLandmarkCachePhoto, targetPhoto) ||
+            string.IsNullOrWhiteSpace(_faceShapeLandmarkCachePath) ||
+            !string.Equals(_faceShapeLandmarkCachePath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        landmarks = _faceShapeLandmarkCache;
+        return true;
+    }
+
+    private void StoreFaceShapeLandmarkCache(PhotoItem targetPhoto, IReadOnlyList<MediaPipeLandmarkPoint> landmarks)
+    {
+        _faceShapeLandmarkCachePhoto = targetPhoto;
+        _faceShapeLandmarkCachePath = targetPhoto.Path;
+        _faceShapeLandmarkCache = landmarks.ToList();
+        ClearFaceShapePointMapCache();
+    }
+
+    private IReadOnlyDictionary<int, Point> GetOrCreateFaceShapePointMap(
+        PhotoItem targetPhoto,
+        IReadOnlyList<MediaPipeLandmarkPoint> landmarks,
+        int width,
+        int height)
+    {
+        if (_faceShapePointMapCache.Count > 0 &&
+            ReferenceEquals(_faceShapePointMapCachePhoto, targetPhoto) &&
+            !string.IsNullOrWhiteSpace(_faceShapePointMapCachePath) &&
+            string.Equals(_faceShapePointMapCachePath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
+            _faceShapePointMapCacheWidth == width &&
+            _faceShapePointMapCacheHeight == height)
+        {
+            return _faceShapePointMapCache;
+        }
+
+        _faceShapePointMapCachePhoto = targetPhoto;
+        _faceShapePointMapCachePath = targetPhoto.Path;
+        _faceShapePointMapCacheWidth = width;
+        _faceShapePointMapCacheHeight = height;
+        _faceShapePointMapCache = BuildFaceShapePointMap(landmarks, width, height);
+        return _faceShapePointMapCache;
+    }
+
+    private FaceShapePointArray GetOrCreateFaceShapePointArray(
+        PhotoItem targetPhoto,
+        IReadOnlyList<MediaPipeLandmarkPoint> landmarks,
+        int width,
+        int height)
+    {
+        if (_faceShapePointArrayCache.Count > 0 &&
+            ReferenceEquals(_faceShapePointArrayCachePhoto, targetPhoto) &&
+            !string.IsNullOrWhiteSpace(_faceShapePointArrayCachePath) &&
+            string.Equals(_faceShapePointArrayCachePath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
+            _faceShapePointArrayCacheWidth == width &&
+            _faceShapePointArrayCacheHeight == height)
+        {
+            return _faceShapePointArrayCache;
+        }
+
+        _faceShapePointArrayCachePhoto = targetPhoto;
+        _faceShapePointArrayCachePath = targetPhoto.Path;
+        _faceShapePointArrayCacheWidth = width;
+        _faceShapePointArrayCacheHeight = height;
+        _faceShapePointArrayCache = BuildFaceShapePointArray(landmarks, width, height);
+        return _faceShapePointArrayCache;
     }
 
     private BitmapSource GetFaceShapeSymmetryRenderSource(PhotoItem photo)
@@ -760,7 +1361,7 @@ public partial class MainWindow
         }
 
         _faceShapeSymmetrySessionPhoto = photo;
-        _faceShapeSymmetrySessionBaseImage = CloneBitmapSource(source);
+        _faceShapeSymmetrySessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeSymmetrySessionBaseImage;
     }
 
@@ -805,7 +1406,7 @@ public partial class MainWindow
         }
 
         _faceShapeCheekSessionPhoto = photo;
-        _faceShapeCheekSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeCheekSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeCheekSessionBaseImage;
     }
 
@@ -850,7 +1451,7 @@ public partial class MainWindow
         }
 
         _faceShapeBoneSessionPhoto = photo;
-        _faceShapeBoneSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeBoneSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeBoneSessionBaseImage;
     }
 
@@ -895,7 +1496,7 @@ public partial class MainWindow
         }
 
         _faceShapeJawSessionPhoto = photo;
-        _faceShapeJawSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeJawSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeJawSessionBaseImage;
     }
 
@@ -940,7 +1541,7 @@ public partial class MainWindow
         }
 
         _faceShapeChinSessionPhoto = photo;
-        _faceShapeChinSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeChinSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeChinSessionBaseImage;
     }
 
@@ -985,7 +1586,7 @@ public partial class MainWindow
         }
 
         _faceShapeFaceTiltSessionPhoto = photo;
-        _faceShapeFaceTiltSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeFaceTiltSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeFaceTiltSessionBaseImage;
     }
 
@@ -1030,7 +1631,7 @@ public partial class MainWindow
         }
 
         _faceShapeFaceTurnSessionPhoto = photo;
-        _faceShapeFaceTurnSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeFaceTurnSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeFaceTurnSessionBaseImage;
     }
 
@@ -1075,7 +1676,7 @@ public partial class MainWindow
         }
 
         _faceShapeHeadTiltSessionPhoto = photo;
-        _faceShapeHeadTiltSessionBaseImage = CloneBitmapSource(source);
+        _faceShapeHeadTiltSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
         return _faceShapeHeadTiltSessionBaseImage;
     }
 
@@ -1104,67 +1705,1518 @@ public partial class MainWindow
         PhotoItem targetPhoto,
         string statusPrefix)
     {
-        if (_mediaPipeAllLandmarkPoints.Count > 0 &&
-            !string.IsNullOrWhiteSpace(_mediaPipeOverlayPhotoPath) &&
-            string.Equals(_mediaPipeOverlayPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase))
+        if (TryGetFaceShapeLandmarkCache(targetPhoto, out List<MediaPipeLandmarkPoint> cachedLandmarks))
         {
-            return _mediaPipeAllLandmarkPoints.ToList();
+            return cachedLandmarks;
         }
 
-        if (_isMediaPipeConnectionRunning)
-        {
-            MediaPipeStatusText = $"{statusPrefix}: MediaPipe busy";
-            return [];
-        }
-
-        _isMediaPipeConnectionRunning = true;
-        MediaPipeStatusText = $"{statusPrefix}: landmarks...";
-
-        string outputDirectory = Path.Combine(
-            MediaPipeOutputRoot,
-            DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_faceshape");
+        await _faceShapeLandmarkCacheGate.WaitAsync();
         try
         {
-            MediaPipeConnectionRunRequest request = new(
-                _appConfig.MediaPipe.HelperRuntime,
-                Path.Combine(AppContext.BaseDirectory, "Tools", "MediaPipe", "mediapipe_helper.py"),
-                Path.Combine(AppContext.BaseDirectory, "Assets", "AiModels", "MediaPipe"),
-                targetPhoto.Path,
-                outputDirectory);
-
-            MediaPipeConnectionRunResult result = await MediaPipeConnectionService.RunAsync(
-                request,
-                CancellationToken.None);
-
-            if (!ReferenceEquals(SelectedPhoto, targetPhoto))
+            if (TryGetFaceShapeLandmarkCache(targetPhoto, out cachedLandmarks))
             {
+                return cachedLandmarks;
+            }
+
+            if (_mediaPipeAllLandmarkPoints.Count > 0 &&
+                !string.IsNullOrWhiteSpace(_mediaPipeOverlayPhotoPath) &&
+                string.Equals(_mediaPipeOverlayPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                StoreFaceShapeLandmarkCache(targetPhoto, _mediaPipeAllLandmarkPoints);
+                return _faceShapeLandmarkCache;
+            }
+
+            if (_isMediaPipeConnectionRunning)
+            {
+                MediaPipeStatusText = $"{statusPrefix}: MediaPipe busy";
                 return [];
             }
 
-            if (!result.Succeeded)
+            _isMediaPipeConnectionRunning = true;
+            MediaPipeStatusText = $"{statusPrefix}: landmarks...";
+
+            string outputDirectory = Path.Combine(
+                MediaPipeOutputRoot,
+                DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_faceshape");
+            try
             {
-                MediaPipeStatusText = result.SummaryText;
+                MediaPipeConnectionRunRequest request = new(
+                    _appConfig.MediaPipe.HelperRuntime,
+                    Path.Combine(AppContext.BaseDirectory, "Tools", "MediaPipe", "mediapipe_helper.py"),
+                    Path.Combine(AppContext.BaseDirectory, "Assets", "AiModels", "MediaPipe"),
+                    targetPhoto.Path,
+                    outputDirectory);
+
+                MediaPipeConnectionRunResult result = await MediaPipeConnectionService.RunAsync(
+                    request,
+                    CancellationToken.None);
+
+                if (!ReferenceEquals(SelectedPhoto, targetPhoto))
+                {
+                    return [];
+                }
+
+                if (!result.Succeeded)
+                {
+                    MediaPipeStatusText = result.SummaryText;
+                    return [];
+                }
+
+                LoadMediaPipePreviewOverlay(outputDirectory, targetPhoto.Path);
+                StoreFaceShapeLandmarkCache(targetPhoto, _mediaPipeAllLandmarkPoints);
+                return _faceShapeLandmarkCache;
+            }
+            catch (Exception ex)
+            {
+                MediaPipeStatusText = $"{statusPrefix}: failed | " + ex.Message;
                 return [];
             }
-
-            LoadMediaPipePreviewOverlay(outputDirectory, targetPhoto.Path);
-            return _mediaPipeAllLandmarkPoints.ToList();
-        }
-        catch (Exception ex)
-        {
-            MediaPipeStatusText = $"{statusPrefix}: failed | " + ex.Message;
-            return [];
+            finally
+            {
+                _isMediaPipeConnectionRunning = false;
+            }
         }
         finally
         {
-            _isMediaPipeConnectionRunning = false;
+            _faceShapeLandmarkCacheGate.Release();
         }
+    }
+
+    private static bool TryBuildFaceShapeHeadTiltProjectionDebugPoints(
+        IReadOnlyList<MediaPipeLandmarkPoint> landmarks,
+        int width,
+        int height,
+        double strength,
+        out List<Point> sourcePoints,
+        out List<Point> projectedPoints,
+        out List<IReadOnlyList<Point>> meshPaths,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        sourcePoints = [];
+        projectedPoints = [];
+        meshPaths = [];
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count == 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample leftEyeOuter))
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightEyeOuterCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample rightEyeOuter))
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltNoseTipIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample nose) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltChinTipIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample chin) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftMouthCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample leftMouth) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightMouthCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample rightMouth))
+        {
+            return false;
+        }
+
+        List<Point> allPoints = new(landmarks.Count);
+        foreach (MediaPipeLandmarkPoint landmark in landmarks)
+        {
+            allPoints.Add(new Point(landmark.X * width, landmark.Y * height));
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(allPoints, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double faceWidth = Math.Max(1.0, bounds.Width);
+        double faceHeight = Math.Max(1.0, bounds.Height);
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double pitchRadians = normalized * FaceShapeHeadTiltProjectionMaxDegrees * Math.PI / 180.0;
+        double focalLength = Math.Max(faceWidth, faceHeight) * 2.8;
+        double cameraDistance = Math.Max(faceWidth, faceHeight) * 3.4;
+        double pivotX = nose.X;
+        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
+        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
+        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
+        double pivotZ = faceWidth * FaceShapeHeadTiltProjectionPivotDepthRatio;
+        Dictionary<int, Point> sourcePointMap = new(landmarks.Count);
+        Dictionary<int, Point> projectedPointMap = new(landmarks.Count);
+
+        foreach (MediaPipeLandmarkPoint landmark in landmarks)
+        {
+            FaceShapeProjectionSample sample = new(
+                landmark.X * width,
+                landmark.Y * height,
+                landmark.Z);
+            Point sourcePoint = new(sample.X, sample.Y);
+            sourcePoints.Add(sourcePoint);
+            double correctedZ = Math.Clamp(
+                (sample.Z - nose.Z) * faceWidth * FaceShapeHeadTiltProjectionZScale,
+                -faceWidth * 0.045,
+                faceWidth * 0.11);
+            projectedPoints.Add(ProjectFaceShapeHeadTiltPoint(
+                sample.X,
+                sample.Y,
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                pitchRadians,
+                focalLength,
+                cameraDistance));
+            sourcePointMap[landmark.Index] = sourcePoint;
+            projectedPointMap[landmark.Index] = projectedPoints[^1];
+        }
+
+        meshPaths = BuildFaceShapeHeadTiltProjectedGuidePaths(projectedPointMap);
+        reliefControls = BuildFaceShapeFaceTurnReliefControls(sourcePointMap, projectedPointMap, width, height);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
+        return sourcePoints.Count > 0 &&
+               projectedPoints.Count == sourcePoints.Count &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static bool TryBuildFaceShapeFaceTurnProjectionDebugPoints(
+        IReadOnlyList<MediaPipeLandmarkPoint> landmarks,
+        int width,
+        int height,
+        double strength,
+        out List<Point> sourcePoints,
+        out List<Point> projectedPoints,
+        out List<IReadOnlyList<Point>> meshPaths,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        sourcePoints = [];
+        projectedPoints = [];
+        meshPaths = [];
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count == 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample leftEyeOuter))
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightEyeOuterCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample rightEyeOuter))
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltNoseTipIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample nose) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltChinTipIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample chin) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftMouthCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample leftMouth) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightMouthCornerIndices,
+                width,
+                height,
+                out FaceShapeProjectionSample rightMouth))
+        {
+            return false;
+        }
+
+        List<Point> allPoints = new(landmarks.Count);
+        foreach (MediaPipeLandmarkPoint landmark in landmarks)
+        {
+            allPoints.Add(new Point(landmark.X * width, landmark.Y * height));
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(allPoints, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double faceWidth = Math.Max(1.0, bounds.Width);
+        double faceHeight = Math.Max(1.0, bounds.Height);
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double yawRadians = -normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
+        double focalLength = Math.Max(faceWidth, faceHeight) * 2.8;
+        double cameraDistance = Math.Max(faceWidth, faceHeight) * 3.4;
+        double pivotX = nose.X;
+        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
+        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
+        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
+        double pivotZ = faceWidth * FaceShapeFaceTurnProjectionPivotDepthRatio;
+        HashSet<int> contourDepthIndices = new(FaceShapeHeadTiltFaceOvalIndices);
+        Dictionary<int, Point> sourcePointMap = new(landmarks.Count);
+        Dictionary<int, Point> projectedPointMap = new(landmarks.Count);
+
+        foreach (MediaPipeLandmarkPoint landmark in landmarks)
+        {
+            FaceShapeProjectionSample sample = new(
+                landmark.X * width,
+                landmark.Y * height,
+                landmark.Z);
+            Point sourcePoint = new(sample.X, sample.Y);
+            sourcePoints.Add(sourcePoint);
+            double correctedZ = Math.Clamp(
+                (sample.Z - nose.Z) * faceWidth * FaceShapeFaceTurnProjectionZScale,
+                -faceWidth * 0.045,
+                faceWidth * 0.11);
+            if (contourDepthIndices.Contains(landmark.Index))
+            {
+                correctedZ = faceWidth * FaceShapeFaceTurnContourDepthRatio;
+            }
+
+            projectedPoints.Add(ProjectFaceShapeFaceTurnPoint(
+                sample.X,
+                sample.Y,
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                yawRadians,
+                focalLength,
+                cameraDistance));
+            sourcePointMap[landmark.Index] = sourcePoint;
+            projectedPointMap[landmark.Index] = projectedPoints[^1];
+        }
+
+        meshPaths = BuildFaceShapeHeadTiltProjectedGuidePaths(projectedPointMap);
+        reliefControls = BuildFaceShapeHeadTiltReliefControls(sourcePointMap, projectedPointMap);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
+        return sourcePoints.Count > 0 &&
+               projectedPoints.Count == sourcePoints.Count &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static bool TryBuildFaceShapeFaceTiltReliefPoints(
+        IReadOnlyDictionary<int, Point> landmarks,
+        int width,
+        int height,
+        double strength,
+        out List<Point> sourcePoints,
+        out List<Point> projectedPoints,
+        out List<IReadOnlyList<Point>> meshPaths,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        sourcePoints = [];
+        projectedPoints = [];
+        meshPaths = [];
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count < 32 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(landmarks.Values, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double centerX = bounds.Left + (bounds.Width * 0.5);
+        double centerY = bounds.Top + (bounds.Height * 0.46);
+        if (TryGetFaceShapeAveragePoint(landmarks, FaceShapeFaceTiltPivotIndices, out Point pivot))
+        {
+            centerX = pivot.X;
+            centerY = pivot.Y;
+        }
+
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double angle = normalized * FaceShapeFaceTiltMaxDegrees * Math.PI / 180.0;
+        double sin = Math.Sin(angle);
+        double cos = Math.Cos(angle);
+        Dictionary<int, Point> sourcePointMap = new(landmarks.Count);
+        Dictionary<int, Point> projectedPointMap = new(landmarks.Count);
+
+        foreach ((int index, Point sourcePoint) in landmarks)
+        {
+            double dx = sourcePoint.X - centerX;
+            double dy = sourcePoint.Y - centerY;
+            Point projectedPoint = new(
+                centerX + (dx * cos) - (dy * sin),
+                centerY + (dx * sin) + (dy * cos));
+            sourcePoints.Add(sourcePoint);
+            projectedPoints.Add(projectedPoint);
+            sourcePointMap[index] = sourcePoint;
+            projectedPointMap[index] = projectedPoint;
+        }
+
+        meshPaths = BuildFaceShapeHeadTiltProjectedGuidePaths(projectedPointMap);
+        reliefControls = BuildFaceShapeFaceTiltReliefControls(sourcePointMap, projectedPointMap);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
+        return sourcePoints.Count > 0 &&
+               projectedPoints.Count == sourcePoints.Count &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static bool TryBuildFaceShapeHeadTiltDragPreviewPlan(
+        FaceShapePointArray landmarks,
+        int width,
+        int height,
+        double strength,
+        out int projectedPointCount,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        projectedPointCount = 0;
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count == 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
+                out FaceShapeProjectionSample leftEyeOuter) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightEyeOuterCornerIndices,
+                out FaceShapeProjectionSample rightEyeOuter) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltNoseTipIndices,
+                out FaceShapeProjectionSample nose) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltChinTipIndices,
+                out FaceShapeProjectionSample chin) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftMouthCornerIndices,
+                out FaceShapeProjectionSample leftMouth) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightMouthCornerIndices,
+                out FaceShapeProjectionSample rightMouth))
+        {
+            return false;
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(landmarks, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double faceWidth = Math.Max(1.0, bounds.Width);
+        double faceHeight = Math.Max(1.0, bounds.Height);
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double pitchRadians = normalized * FaceShapeHeadTiltProjectionMaxDegrees * Math.PI / 180.0;
+        double focalLength = Math.Max(faceWidth, faceHeight) * 2.8;
+        double cameraDistance = Math.Max(faceWidth, faceHeight) * 3.4;
+        double pivotX = nose.X;
+        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
+        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
+        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
+        double pivotZ = faceWidth * FaceShapeHeadTiltProjectionPivotDepthRatio;
+        Point[] projectedPoints = new Point[landmarks.Points.Length];
+
+        for (int index = 0; index < landmarks.Points.Length; index++)
+        {
+            if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
+            {
+                continue;
+            }
+
+            Point sourcePoint = landmarks.Points[index];
+            double correctedZ = Math.Clamp(
+                (landmarks.ZValues[index] - nose.Z) * faceWidth * FaceShapeHeadTiltProjectionZScale,
+                -faceWidth * 0.045,
+                faceWidth * 0.11);
+            projectedPoints[index] = ProjectFaceShapeHeadTiltPoint(
+                sourcePoint.X,
+                sourcePoint.Y,
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                pitchRadians,
+                focalLength,
+                cameraDistance);
+            projectedPointCount++;
+        }
+
+        reliefControls = BuildFaceShapeFaceTurnReliefControls(landmarks, projectedPoints, width, height);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(landmarks);
+        return projectedPointCount > 0 &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static bool TryBuildFaceShapeFaceTurnDragPreviewPlan(
+        FaceShapePointArray landmarks,
+        int width,
+        int height,
+        double strength,
+        out int projectedPointCount,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        projectedPointCount = 0;
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count == 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
+                out FaceShapeProjectionSample leftEyeOuter) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightEyeOuterCornerIndices,
+                out FaceShapeProjectionSample rightEyeOuter) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltNoseTipIndices,
+                out FaceShapeProjectionSample nose) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltChinTipIndices,
+                out FaceShapeProjectionSample chin) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltLeftMouthCornerIndices,
+                out FaceShapeProjectionSample leftMouth) ||
+            !TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltRightMouthCornerIndices,
+                out FaceShapeProjectionSample rightMouth))
+        {
+            return false;
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(landmarks, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double faceWidth = Math.Max(1.0, bounds.Width);
+        double faceHeight = Math.Max(1.0, bounds.Height);
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double yawRadians = -normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
+        double focalLength = Math.Max(faceWidth, faceHeight) * 2.8;
+        double cameraDistance = Math.Max(faceWidth, faceHeight) * 3.4;
+        double pivotX = nose.X;
+        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
+        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
+        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
+        double pivotZ = faceWidth * FaceShapeFaceTurnProjectionPivotDepthRatio;
+        Point[] projectedPoints = new Point[landmarks.Points.Length];
+
+        for (int index = 0; index < landmarks.Points.Length; index++)
+        {
+            if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
+            {
+                continue;
+            }
+
+            Point sourcePoint = landmarks.Points[index];
+            double correctedZ = Math.Clamp(
+                (landmarks.ZValues[index] - nose.Z) * faceWidth * FaceShapeFaceTurnProjectionZScale,
+                -faceWidth * 0.045,
+                faceWidth * 0.11);
+            if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, index))
+            {
+                correctedZ = faceWidth * FaceShapeFaceTurnContourDepthRatio;
+            }
+
+            projectedPoints[index] = ProjectFaceShapeFaceTurnPoint(
+                sourcePoint.X,
+                sourcePoint.Y,
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                yawRadians,
+                focalLength,
+                cameraDistance);
+            projectedPointCount++;
+        }
+
+        reliefControls = BuildFaceShapeHeadTiltReliefControls(landmarks, projectedPoints);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(landmarks);
+        return projectedPointCount > 0 &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static bool TryBuildFaceShapeFaceTiltDragPreviewPlan(
+        FaceShapePointArray landmarks,
+        int width,
+        int height,
+        double strength,
+        out int projectedPointCount,
+        out List<FaceShapeControlPoint> reliefControls,
+        out List<Point> facePolygon)
+    {
+        projectedPointCount = 0;
+        reliefControls = [];
+        facePolygon = [];
+        if (landmarks.Count < 32 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(landmarks, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        double centerX = bounds.Left + (bounds.Width * 0.5);
+        double centerY = bounds.Top + (bounds.Height * 0.46);
+        if (TryGetFaceShapeAveragePoint(landmarks, FaceShapeFaceTiltPivotIndices, out Point pivot))
+        {
+            centerX = pivot.X;
+            centerY = pivot.Y;
+        }
+
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double angle = normalized * FaceShapeFaceTiltMaxDegrees * Math.PI / 180.0;
+        double sin = Math.Sin(angle);
+        double cos = Math.Cos(angle);
+        Point[] projectedPoints = new Point[landmarks.Points.Length];
+
+        for (int index = 0; index < landmarks.Points.Length; index++)
+        {
+            if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
+            {
+                continue;
+            }
+
+            Point sourcePoint = landmarks.Points[index];
+            double dx = sourcePoint.X - centerX;
+            double dy = sourcePoint.Y - centerY;
+            projectedPoints[index] = new Point(
+                centerX + (dx * cos) - (dy * sin),
+                centerY + (dx * sin) + (dy * cos));
+            projectedPointCount++;
+        }
+
+        reliefControls = BuildFaceShapeFaceTiltReliefControls(landmarks, projectedPoints);
+        facePolygon = BuildFaceShapeHeadTiltFacePolygon(landmarks);
+        return projectedPointCount > 0 &&
+               reliefControls.Count >= 8 &&
+               facePolygon.Count >= 12;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeHeadTiltReliefControls(
+        IReadOnlyDictionary<int, Point> sourcePointMap,
+        IReadOnlyDictionary<int, Point> projectedPointMap)
+    {
+        HashSet<int> addedIndices = [];
+        List<FaceShapeControlPoint> controls = [];
+
+        void AddControl(int index, double strength)
+        {
+            if (!addedIndices.Add(index) ||
+                !sourcePointMap.TryGetValue(index, out Point source) ||
+                !projectedPointMap.TryGetValue(index, out Point projected))
+            {
+                return;
+            }
+
+            double dx = (projected.X - source.X) * strength;
+            double dy = (projected.Y - source.Y) * strength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            AddControl(index, 0.35);
+        }
+
+        return controls;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeFaceTiltReliefControls(
+        IReadOnlyDictionary<int, Point> sourcePointMap,
+        IReadOnlyDictionary<int, Point> projectedPointMap)
+    {
+        HashSet<int> addedIndices = [];
+        List<FaceShapeControlPoint> controls = [];
+
+        void AddControl(int index, double strength)
+        {
+            if (!addedIndices.Add(index) ||
+                !sourcePointMap.TryGetValue(index, out Point source) ||
+                !projectedPointMap.TryGetValue(index, out Point projected))
+            {
+                return;
+            }
+
+            double dx = (projected.X - source.X) * strength;
+            double dy = (projected.Y - source.Y) * strength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeFaceTiltAnchorIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        return controls;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeFaceTurnReliefControls(
+        IReadOnlyDictionary<int, Point> sourcePointMap,
+        IReadOnlyDictionary<int, Point> projectedPointMap,
+        int width,
+        int height)
+    {
+        HashSet<int> addedIndices = [];
+        HashSet<int> centralIndices =
+        [
+            1, 2, 4, 5, 6, 19, 94, 168, 195, 197
+        ];
+        HashSet<int> featureEdgeIndices =
+        [
+            33, 46, 61, 70, 78, 107, 133, 152, 172, 234,
+            263, 276, 291, 300, 308, 336, 362, 397, 454
+        ];
+        HashSet<int> featherBoostIndices =
+        [
+            58, 93, 132, 136, 148, 149, 150, 172, 176, 234,
+            288, 323, 361, 365, 377, 378, 379, 397, 400, 454
+        ];
+        List<FaceShapeControlPoint> controls = [];
+        Rect bounds = BuildFaceShapeLandmarkBounds(sourcePointMap.Values, width, height);
+        double centerX = bounds.IsEmpty ? width * 0.5 : bounds.Left + (bounds.Width * 0.5);
+        double halfWidth = Math.Max(1.0, bounds.IsEmpty ? width * 0.25 : bounds.Width * 0.5);
+
+        void AddControl(int index, double strength, bool protectOpeningEdge)
+        {
+            if (!addedIndices.Add(index) ||
+                !sourcePointMap.TryGetValue(index, out Point source) ||
+                !projectedPointMap.TryGetValue(index, out Point projected))
+            {
+                return;
+            }
+
+            double rawDx = projected.X - source.X;
+            double rawDy = projected.Y - source.Y;
+            double finalStrength = strength;
+            if (protectOpeningEdge)
+            {
+                double side = Math.Clamp((source.X - centerX) / halfWidth, -1.0, 1.0);
+                bool opensOuterEdge = (side < -0.42 && rawDx > 0) ||
+                                      (side > 0.42 && rawDx < 0);
+                if (opensOuterEdge)
+                {
+                    finalStrength = Math.Min(finalStrength, 0.58);
+                }
+            }
+
+            double dx = rawDx * finalStrength;
+            double dy = rawDy * finalStrength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltAnchorIndices)
+        {
+            double strength = featherBoostIndices.Contains(index) ? 1.12 : 1.0;
+            AddControl(index, strength, true);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            double strength = featherBoostIndices.Contains(index) ? 1.12 : 1.0;
+            AddControl(index, strength, true);
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            double strength = centralIndices.Contains(index)
+                ? 0.72
+                : featureEdgeIndices.Contains(index)
+                    ? 1.0
+                    : 0.92;
+            AddControl(index, strength, false);
+        }
+
+        return controls;
+    }
+
+    private static List<Point> BuildFaceShapeHeadTiltFacePolygon(
+        IReadOnlyDictionary<int, Point> sourcePointMap)
+    {
+        List<Point> polygon = new(FaceShapeHeadTiltFaceOvalIndices.Length);
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            if (!sourcePointMap.TryGetValue(index, out Point point))
+            {
+                return [];
+            }
+
+            polygon.Add(point);
+        }
+
+        return polygon;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeHeadTiltReliefControls(
+        FaceShapePointArray sourcePointMap,
+        Point[] projectedPointMap)
+    {
+        bool[] addedIndices = new bool[sourcePointMap.Points.Length];
+        List<FaceShapeControlPoint> controls = [];
+
+        void AddControl(int index, double strength)
+        {
+            if (index < 0 ||
+                index >= addedIndices.Length ||
+                index >= projectedPointMap.Length ||
+                !sourcePointMap.HasPoint[index] ||
+                addedIndices[index])
+            {
+                return;
+            }
+
+            addedIndices[index] = true;
+            Point source = sourcePointMap.Points[index];
+            Point projected = projectedPointMap[index];
+            double dx = (projected.X - source.X) * strength;
+            double dy = (projected.Y - source.Y) * strength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            AddControl(index, 0.35);
+        }
+
+        return controls;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeFaceTiltReliefControls(
+        FaceShapePointArray sourcePointMap,
+        Point[] projectedPointMap)
+    {
+        bool[] addedIndices = new bool[sourcePointMap.Points.Length];
+        List<FaceShapeControlPoint> controls = [];
+
+        void AddControl(int index, double strength)
+        {
+            if (index < 0 ||
+                index >= addedIndices.Length ||
+                index >= projectedPointMap.Length ||
+                !sourcePointMap.HasPoint[index] ||
+                addedIndices[index])
+            {
+                return;
+            }
+
+            addedIndices[index] = true;
+            Point source = sourcePointMap.Points[index];
+            Point projected = projectedPointMap[index];
+            double dx = (projected.X - source.X) * strength;
+            double dy = (projected.Y - source.Y) * strength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeFaceTiltAnchorIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            AddControl(index, 1.0);
+        }
+
+        return controls;
+    }
+
+    private static List<FaceShapeControlPoint> BuildFaceShapeFaceTurnReliefControls(
+        FaceShapePointArray sourcePointMap,
+        Point[] projectedPointMap,
+        int width,
+        int height)
+    {
+        bool[] addedIndices = new bool[sourcePointMap.Points.Length];
+        List<FaceShapeControlPoint> controls = [];
+        Rect bounds = BuildFaceShapeLandmarkBounds(sourcePointMap, width, height);
+        double centerX = bounds.IsEmpty ? width * 0.5 : bounds.Left + (bounds.Width * 0.5);
+        double halfWidth = Math.Max(1.0, bounds.IsEmpty ? width * 0.25 : bounds.Width * 0.5);
+
+        void AddControl(int index, double strength, bool protectOpeningEdge)
+        {
+            if (index < 0 ||
+                index >= addedIndices.Length ||
+                index >= projectedPointMap.Length ||
+                !sourcePointMap.HasPoint[index] ||
+                addedIndices[index])
+            {
+                return;
+            }
+
+            addedIndices[index] = true;
+            Point source = sourcePointMap.Points[index];
+            Point projected = projectedPointMap[index];
+            double rawDx = projected.X - source.X;
+            double rawDy = projected.Y - source.Y;
+            double finalStrength = strength;
+            if (protectOpeningEdge)
+            {
+                double side = Math.Clamp((source.X - centerX) / halfWidth, -1.0, 1.0);
+                bool opensOuterEdge = (side < -0.42 && rawDx > 0) ||
+                                      (side > 0.42 && rawDx < 0);
+                if (opensOuterEdge)
+                {
+                    finalStrength = Math.Min(finalStrength, 0.58);
+                }
+            }
+
+            double dx = rawDx * finalStrength;
+            double dy = rawDy * finalStrength;
+            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
+            {
+                return;
+            }
+
+            controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
+        }
+
+        foreach (int index in FaceShapeFaceTiltAnchorIndices)
+        {
+            double strength = ContainsFaceShapeIndex(FaceShapeFaceTurnFeatherBoostIndices, index) ? 1.12 : 1.0;
+            AddControl(index, strength, true);
+        }
+
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            double strength = ContainsFaceShapeIndex(FaceShapeFaceTurnFeatherBoostIndices, index) ? 1.12 : 1.0;
+            AddControl(index, strength, true);
+        }
+
+        foreach (int index in FaceShapeFaceTiltMoveIndices)
+        {
+            double strength = ContainsFaceShapeIndex(FaceShapeFaceTurnCentralIndices, index)
+                ? 0.72
+                : ContainsFaceShapeIndex(FaceShapeFaceTurnFeatureEdgeIndices, index)
+                    ? 1.0
+                    : 0.92;
+            AddControl(index, strength, false);
+        }
+
+        return controls;
+    }
+
+    private static List<Point> BuildFaceShapeHeadTiltFacePolygon(FaceShapePointArray sourcePointMap)
+    {
+        List<Point> polygon = new(FaceShapeHeadTiltFaceOvalIndices.Length);
+        foreach (int index in FaceShapeHeadTiltFaceOvalIndices)
+        {
+            if (!TryGetFaceShapePoint(sourcePointMap, index, out Point point))
+            {
+                return [];
+            }
+
+            polygon.Add(point);
+        }
+
+        return polygon;
+    }
+
+    private static List<IReadOnlyList<Point>> BuildFaceShapeHeadTiltProjectedGuidePaths(
+        IReadOnlyDictionary<int, Point> projectedPointMap)
+    {
+        List<IReadOnlyList<Point>> paths = [];
+        foreach ((int[] indices, bool closed) in FaceShapeHeadTiltFeaturePaths)
+        {
+            AddFaceShapeHeadTiltFeaturePath(paths, projectedPointMap, indices, closed);
+        }
+
+        return paths;
+    }
+
+    private static void AddFaceShapeHeadTiltFeaturePath(
+        List<IReadOnlyList<Point>> paths,
+        IReadOnlyDictionary<int, Point> projectedPointMap,
+        IReadOnlyList<int> indices,
+        bool closed)
+    {
+        List<Point> path = new(indices.Count + (closed ? 1 : 0));
+        foreach (int index in indices)
+        {
+            if (!projectedPointMap.TryGetValue(index, out Point point))
+            {
+                return;
+            }
+
+            path.Add(point);
+        }
+
+        if (closed && path.Count > 2)
+        {
+            path.Add(path[0]);
+        }
+
+        if (path.Count > 1)
+        {
+            paths.Add(path);
+        }
+    }
+
+    private static bool TryGetFaceShapeProjectionAverage(
+        IReadOnlyList<MediaPipeLandmarkPoint> landmarks,
+        IReadOnlyList<int> indices,
+        int width,
+        int height,
+        out FaceShapeProjectionSample sample)
+    {
+        double sumX = 0;
+        double sumY = 0;
+        double sumZ = 0;
+        int count = 0;
+        foreach (int index in indices)
+        {
+            foreach (MediaPipeLandmarkPoint landmark in landmarks)
+            {
+                if (landmark.Index != index)
+                {
+                    continue;
+                }
+
+                sumX += landmark.X * width;
+                sumY += landmark.Y * height;
+                sumZ += landmark.Z;
+                count++;
+                break;
+            }
+        }
+
+        if (count == 0)
+        {
+            sample = default;
+            return false;
+        }
+
+        sample = new FaceShapeProjectionSample(sumX / count, sumY / count, sumZ / count);
+        return true;
+    }
+
+    private static bool TryGetFaceShapeProjectionAverage(
+        FaceShapePointArray landmarks,
+        IReadOnlyList<int> indices,
+        out FaceShapeProjectionSample sample)
+    {
+        double sumX = 0;
+        double sumY = 0;
+        double sumZ = 0;
+        int count = 0;
+        foreach (int index in indices)
+        {
+            if (index < 0 ||
+                index >= landmarks.Points.Length ||
+                index >= landmarks.ZValues.Length ||
+                index >= landmarks.HasPoint.Length ||
+                !landmarks.HasPoint[index])
+            {
+                continue;
+            }
+
+            Point point = landmarks.Points[index];
+            sumX += point.X;
+            sumY += point.Y;
+            sumZ += landmarks.ZValues[index];
+            count++;
+        }
+
+        if (count == 0)
+        {
+            sample = default;
+            return false;
+        }
+
+        sample = new FaceShapeProjectionSample(sumX / count, sumY / count, sumZ / count);
+        return true;
+    }
+
+    private static Point ProjectFaceShapeHeadTiltPoint(
+        double imageX,
+        double imageY,
+        double correctedZ,
+        double pivotX,
+        double pivotY,
+        double pivotZ,
+        double pitchRadians,
+        double focalLength,
+        double cameraDistance)
+    {
+        double z = correctedZ - pivotZ;
+        double depth = Math.Max(1.0, cameraDistance + z);
+        double x3 = (imageX - pivotX) * depth / focalLength;
+        double y3 = (imageY - pivotY) * depth / focalLength;
+        double sin = Math.Sin(pitchRadians);
+        double cos = Math.Cos(pitchRadians);
+        double rotatedY = (y3 * cos) - (z * sin);
+        double rotatedZ = (y3 * sin) + (z * cos);
+        double projectedDepth = Math.Max(1.0, cameraDistance + rotatedZ);
+        return new Point(
+            pivotX + (x3 * focalLength / projectedDepth),
+            pivotY + (rotatedY * focalLength / projectedDepth));
+    }
+
+    private static Point ProjectFaceShapeFaceTurnPoint(
+        double imageX,
+        double imageY,
+        double correctedZ,
+        double pivotX,
+        double pivotY,
+        double pivotZ,
+        double yawRadians,
+        double focalLength,
+        double cameraDistance)
+    {
+        double z = correctedZ - pivotZ;
+        double depth = Math.Max(1.0, cameraDistance + z);
+        double x3 = (imageX - pivotX) * depth / focalLength;
+        double y3 = (imageY - pivotY) * depth / focalLength;
+        double sin = Math.Sin(yawRadians);
+        double cos = Math.Cos(yawRadians);
+        double rotatedX = (x3 * cos) + (z * sin);
+        double rotatedZ = (-x3 * sin) + (z * cos);
+        double projectedDepth = Math.Max(1.0, cameraDistance + rotatedZ);
+        double projectedY = pivotY + (y3 * focalLength / projectedDepth);
+        return new Point(
+            pivotX + (rotatedX * focalLength / projectedDepth),
+            imageY + ((projectedY - imageY) * FaceShapeFaceTurnVerticalProjectionRatio));
+    }
+
+    private static BitmapSource BuildFaceShapeHeadTiltReliefPreview(
+        BitmapSource source,
+        List<FaceShapeControlPoint> controls,
+        IReadOnlyList<Point> facePolygon,
+        Func<bool>? shouldCancel = null)
+    {
+        BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
+        int width = bgraSource.PixelWidth;
+        int height = bgraSource.PixelHeight;
+        if (width < 2 || height < 2 || controls.Count < 8 || facePolygon.Count < 12)
+        {
+            return CloneBitmapSource(bgraSource);
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(facePolygon, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return CloneBitmapSource(bgraSource);
+        }
+
+        double feather = FaceShapeHeadTiltReliefFeatherPx;
+        bounds.Inflate(feather + 2.0, feather + 2.0);
+        bounds.Intersect(new Rect(0, 0, width, height));
+
+        int left = Math.Max(0, (int)Math.Floor(bounds.Left));
+        int top = Math.Max(0, (int)Math.Floor(bounds.Top));
+        int right = Math.Min(width - 1, (int)Math.Ceiling(bounds.Right));
+        int bottom = Math.Min(height - 1, (int)Math.Ceiling(bounds.Bottom));
+        if (left > right || top > bottom)
+        {
+            return CloneBitmapSource(bgraSource);
+        }
+
+        int regionWidth = right - left + 1;
+        int regionHeight = bottom - top + 1;
+        int regionStride = regionWidth * 4;
+        int regionBufferSize = regionStride * regionHeight;
+        GetFaceShapeMaxControlOffset(controls, out double maxControlDx, out double maxControlDy);
+        int sampleMarginX = Math.Max(3, (int)Math.Ceiling(maxControlDx) + 4);
+        int sampleMarginY = Math.Max(3, (int)Math.Ceiling(maxControlDy) + 4);
+        int sourceLeft = Math.Max(0, left - sampleMarginX);
+        int sourceTop = Math.Max(0, top - sampleMarginY);
+        int sourceRight = Math.Min(width - 1, right + sampleMarginX);
+        int sourceBottom = Math.Min(height - 1, bottom + sampleMarginY);
+        int sourceWidth = sourceRight - sourceLeft + 1;
+        int sourceHeight = sourceBottom - sourceTop + 1;
+        int sourceStride = sourceWidth * 4;
+        int sourceBufferSize = sourceStride * sourceHeight;
+        byte[] sourcePixels = ArrayPool<byte>.Shared.Rent(sourceBufferSize);
+        byte[] regionPixels = ArrayPool<byte>.Shared.Rent(regionBufferSize);
+
+        try
+        {
+            bgraSource.CopyPixels(
+                new Int32Rect(sourceLeft, sourceTop, sourceWidth, sourceHeight),
+                sourcePixels,
+                sourceStride,
+                0);
+            if (shouldCancel?.Invoke() == true)
+            {
+                return bgraSource;
+            }
+
+            for (int row = 0; row < regionHeight; row++)
+            {
+                Buffer.BlockCopy(
+                    sourcePixels,
+                    ((top + row - sourceTop) * sourceStride) + ((left - sourceLeft) * 4),
+                    regionPixels,
+                    row * regionStride,
+                    regionStride);
+            }
+
+            double sigma = Math.Max(16.0, Math.Max(bounds.Width, bounds.Height) * FaceShapeHeadTiltReliefSigmaRatio);
+            double sigma2 = sigma * sigma * 2.0;
+            RenderFaceShapeHeadTiltReliefPixels(
+                sourcePixels,
+                regionPixels,
+                sourceWidth,
+                sourceHeight,
+                sourceStride,
+                regionStride,
+                sourceLeft,
+                sourceTop,
+                left,
+                top,
+                right,
+                bottom,
+                controls,
+                facePolygon,
+                sigma2,
+                feather,
+                shouldCancel);
+
+            if (shouldCancel?.Invoke() == true)
+            {
+                return bgraSource;
+            }
+
+            WriteableBitmap preview = new(bgraSource);
+            preview.WritePixels(new Int32Rect(left, top, regionWidth, regionHeight), regionPixels, regionStride, 0);
+            preview.Freeze();
+            return preview;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(sourcePixels);
+            ArrayPool<byte>.Shared.Return(regionPixels);
+        }
+    }
+
+    private static void RenderFaceShapeHeadTiltReliefPixels(
+        byte[] sourcePixels,
+        byte[] resultPixels,
+        int width,
+        int height,
+        int stride,
+        int resultStride,
+        int sourceLeft,
+        int sourceTop,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        List<FaceShapeControlPoint> controls,
+        IReadOnlyList<Point> facePolygon,
+        double sigma2,
+        double feather,
+        Func<bool>? shouldCancel = null)
+    {
+        if (left > right || top > bottom || controls.Count == 0 || facePolygon.Count < 3 || shouldCancel?.Invoke() == true)
+        {
+            return;
+        }
+
+        int controlCount = controls.Count;
+        double cutoffDistance2 = sigma2 * 7.600902459542082;
+        double invSigma2 = 1.0 / sigma2;
+
+        void RenderRow(int y)
+        {
+            int rowOffset = (y - top) * resultStride;
+            for (int x = left; x <= right; x++)
+            {
+                double faceWeight = GetFaceShapePolygonFeatherWeight(x + 0.5, y + 0.5, facePolygon, feather);
+                if (faceWeight <= 0.001)
+                {
+                    continue;
+                }
+
+                double weightedDx = 0;
+                double weightedDy = 0;
+                double totalWeight = 0;
+                for (int i = 0; i < controlCount; i++)
+                {
+                    FaceShapeControlPoint control = controls[i];
+                    double dx = x - control.X;
+                    double dy = y - control.Y;
+                    double distance2 = (dx * dx) + (dy * dy);
+                    if (distance2 >= cutoffDistance2)
+                    {
+                        continue;
+                    }
+
+                    double weight = Math.Exp(-distance2 * invSigma2);
+                    if (weight <= 0.0005)
+                    {
+                        continue;
+                    }
+
+                    weightedDx += control.Dx * weight;
+                    weightedDy += control.Dy * weight;
+                    totalWeight += weight;
+                }
+
+                if (totalWeight <= 0.0001)
+                {
+                    continue;
+                }
+
+                double appliedDx = weightedDx / totalWeight * faceWeight;
+                double appliedDy = weightedDy / totalWeight * faceWeight;
+                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
+                {
+                    continue;
+                }
+
+                SampleBilinearBgra32(
+                    sourcePixels,
+                    width,
+                    height,
+                    stride,
+                    x - appliedDx - sourceLeft,
+                    y - appliedDy - sourceTop,
+                    out byte b,
+                    out byte g,
+                    out byte r,
+                    out byte a);
+
+                int offset = rowOffset + ((x - left) * 4);
+                resultPixels[offset] = BlendFaceShapeByte(resultPixels[offset], b, faceWeight);
+                resultPixels[offset + 1] = BlendFaceShapeByte(resultPixels[offset + 1], g, faceWeight);
+                resultPixels[offset + 2] = BlendFaceShapeByte(resultPixels[offset + 2], r, faceWeight);
+                resultPixels[offset + 3] = BlendFaceShapeByte(resultPixels[offset + 3], a, faceWeight);
+            }
+        }
+
+        int pixelCount = (right - left + 1) * (bottom - top + 1);
+        if (pixelCount < 20000)
+        {
+            for (int y = top; y <= bottom; y++)
+            {
+                if (shouldCancel?.Invoke() == true)
+                {
+                    return;
+                }
+
+                RenderRow(y);
+            }
+
+            return;
+        }
+
+        Parallel.For(
+            top,
+            bottom + 1,
+            (y, state) =>
+            {
+                if (shouldCancel?.Invoke() == true)
+                {
+                    state.Stop();
+                    return;
+                }
+
+                RenderRow(y);
+            });
+    }
+
+    private static byte BlendFaceShapeByte(byte original, byte warped, double weight)
+    {
+        return (byte)Math.Clamp(
+            (int)Math.Round(original + ((warped - original) * Math.Clamp(weight, 0.0, 1.0))),
+            0,
+            255);
+    }
+
+    private static double GetFaceShapePolygonFeatherWeight(
+        double x,
+        double y,
+        IReadOnlyList<Point> polygon,
+        double feather)
+    {
+        if (!IsPointInsideFaceShapePolygon(x, y, polygon))
+        {
+            return 0.0;
+        }
+
+        double distance2 = double.PositiveInfinity;
+        for (int i = 0; i < polygon.Count; i++)
+        {
+            Point a = polygon[i];
+            Point b = polygon[(i + 1) % polygon.Count];
+            distance2 = Math.Min(distance2, GetDistanceSquaredToFaceShapeSegment(x, y, a, b));
+        }
+
+        double distance = Math.Sqrt(distance2);
+        return SmoothStep01(distance / Math.Max(1.0, feather));
+    }
+
+    private static bool IsPointInsideFaceShapePolygon(double x, double y, IReadOnlyList<Point> polygon)
+    {
+        bool inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            Point pi = polygon[i];
+            Point pj = polygon[j];
+            double denominator = pj.Y - pi.Y;
+            bool intersects = Math.Abs(denominator) > 0.000001 &&
+                (pi.Y > y) != (pj.Y > y) &&
+                x < ((pj.X - pi.X) * (y - pi.Y) / denominator) + pi.X;
+            if (intersects)
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
+    private static double GetDistanceSquaredToFaceShapeSegment(double x, double y, Point a, Point b)
+    {
+        double dx = b.X - a.X;
+        double dy = b.Y - a.Y;
+        double length2 = (dx * dx) + (dy * dy);
+        if (length2 <= 0.000001)
+        {
+            double pointDx = x - a.X;
+            double pointDy = y - a.Y;
+            return (pointDx * pointDx) + (pointDy * pointDy);
+        }
+
+        double t = Math.Clamp((((x - a.X) * dx) + ((y - a.Y) * dy)) / length2, 0.0, 1.0);
+        double projectionX = a.X + (t * dx);
+        double projectionY = a.Y + (t * dy);
+        double projectionDx = x - projectionX;
+        double projectionDy = y - projectionY;
+        return (projectionDx * projectionDx) + (projectionDy * projectionDy);
     }
 
     private static BitmapSource BuildFaceShapeSymmetryPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1174,103 +3226,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeSymmetryControls(landmarks, width, height, strength, out FaceShapeSymmetryPlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(24.0, Math.Max(plan.Bounds.Width, plan.Bounds.Height) * 0.18);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeEllipseWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeSymmetryWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeCheekPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1280,103 +3255,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeCheekControls(landmarks, width, height, strength, out FaceShapeCheekPlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(18.0, plan.Bounds.Width * 0.12);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeCheekWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeCheekWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeBonePreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1386,103 +3284,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeBoneControls(landmarks, width, height, strength, out FaceShapeBonePlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(16.0, plan.Bounds.Width * 0.11);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeBoneWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeBoneWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeJawPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1492,103 +3313,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeJawControls(landmarks, width, height, strength, out FaceShapeJawPlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(18.0, plan.Bounds.Width * 0.13);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeJawWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeJawWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeChinPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1598,103 +3342,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeChinControls(landmarks, width, height, strength, out FaceShapeChinPlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(14.0, plan.Bounds.Width * 0.12);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeChinWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeChinWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeFaceTiltPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1704,103 +3371,26 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeFaceTiltControls(landmarks, width, height, strength, out FaceShapeFaceTiltPlan plan))
         {
             return CloneBitmapSource(bgraSource);
         }
 
-        int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
         double sigma = Math.Max(18.0, Math.Max(plan.Bounds.Width, plan.Bounds.Height) * 0.13);
-        double sigma2 = sigma * sigma * 2.0;
-        int left = Math.Max(0, (int)Math.Floor(plan.Bounds.Left));
-        int top = Math.Max(0, (int)Math.Floor(plan.Bounds.Top));
-        int right = Math.Min(width - 1, (int)Math.Ceiling(plan.Bounds.Right));
-        int bottom = Math.Min(height - 1, (int)Math.Ceiling(plan.Bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                double faceWeight = GetFaceShapeFaceTiltWeight(x, y, plan);
-                if (faceWeight <= 0.001)
-                {
-                    continue;
-                }
-
-                double weightedDx = 0;
-                double weightedDy = 0;
-                double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in plan.Controls)
-                {
-                    double dx = x - control.X;
-                    double dy = y - control.Y;
-                    double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
-                    if (weight <= 0.0005)
-                    {
-                        continue;
-                    }
-
-                    weightedDx += control.Dx * weight;
-                    weightedDy += control.Dy * weight;
-                    totalWeight += weight;
-                }
-
-                if (totalWeight <= 0.0001)
-                {
-                    continue;
-                }
-
-                double appliedDx = weightedDx / totalWeight * faceWeight;
-                double appliedDy = weightedDy / totalWeight * faceWeight;
-                if (Math.Abs(appliedDx) < 0.01 && Math.Abs(appliedDy) < 0.01)
-                {
-                    continue;
-                }
-
-                SampleBilinearBgra32(
-                    sourcePixels,
-                    width,
-                    height,
-                    stride,
-                    x - appliedDx,
-                    y - appliedDy,
-                    out byte b,
-                    out byte g,
-                    out byte r,
-                    out byte a);
-
-                int offset = (y * stride) + (x * 4);
-                resultPixels[offset] = b;
-                resultPixels[offset + 1] = g;
-                resultPixels[offset + 2] = r;
-                resultPixels[offset + 3] = a;
-            }
-        }
-
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapeFaceTiltWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeFaceTurnPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1810,7 +3400,6 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeFaceTurnControls(landmarks, width, height, strength, out FaceShapePosePlan plan))
         {
@@ -1820,16 +3409,17 @@ public partial class MainWindow
         double sigma = Math.Max(18.0, Math.Max(plan.Bounds.Width, plan.Bounds.Height) * 0.14);
         return BuildFaceShapeControlWarpPreview(
             bgraSource,
-            plan.Bounds,
             plan.Controls,
             sigma,
-            (x, y) => GetFaceShapePoseWeight(x, y, plan));
+            CreateFaceShapePoseWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeHeadTiltPreview(
         BitmapSource source,
-        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
-        double strength)
+        IReadOnlyDictionary<int, Point> landmarks,
+        double strength,
+        Func<bool>? shouldCancel = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -1839,7 +3429,6 @@ public partial class MainWindow
             return CloneBitmapSource(bgraSource);
         }
 
-        Dictionary<int, Point> landmarks = BuildFaceShapePointMap(normalizedLandmarks, width, height);
         if (landmarks.Count < 32 ||
             !TryBuildFaceShapeHeadTiltControls(landmarks, width, height, strength, out FaceShapePosePlan plan))
         {
@@ -1849,37 +3438,141 @@ public partial class MainWindow
         double sigma = Math.Max(18.0, Math.Max(plan.Bounds.Width, plan.Bounds.Height) * 0.14);
         return BuildFaceShapeControlWarpPreview(
             bgraSource,
-            plan.Bounds,
             plan.Controls,
             sigma,
-            (x, y) => GetFaceShapePoseWeight(x, y, plan));
+            CreateFaceShapePoseWeightProfile(plan),
+            shouldCancel);
     }
 
     private static BitmapSource BuildFaceShapeControlWarpPreview(
         BitmapSource bgraSource,
-        Rect bounds,
-        IReadOnlyList<FaceShapeControlPoint> controls,
+        List<FaceShapeControlPoint> controls,
         double sigma,
-        Func<int, int, double> getFaceWeight)
+        FaceShapeWeightProfile weightProfile,
+        Func<bool>? shouldCancel = null)
     {
         int width = bgraSource.PixelWidth;
         int height = bgraSource.PixelHeight;
         int stride = CalculateStride(width, PixelFormats.Bgra32);
-        byte[] sourcePixels = new byte[stride * height];
-        bgraSource.CopyPixels(sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
-
-        double sigma2 = sigma * sigma * 2.0;
+        Rect bounds = weightProfile.Bounds;
         int left = Math.Max(0, (int)Math.Floor(bounds.Left));
         int top = Math.Max(0, (int)Math.Floor(bounds.Top));
         int right = Math.Min(width - 1, (int)Math.Ceiling(bounds.Right));
         int bottom = Math.Min(height - 1, (int)Math.Ceiling(bounds.Bottom));
-
-        for (int y = top; y <= bottom; y++)
+        if (left > right || top > bottom || controls.Count == 0)
         {
+            return bgraSource;
+        }
+
+        int regionWidth = right - left + 1;
+        int regionHeight = bottom - top + 1;
+        int regionStride = regionWidth * 4;
+        int regionBufferSize = regionStride * regionHeight;
+        GetFaceShapeMaxControlOffset(controls, out double maxControlDx, out double maxControlDy);
+        int sampleMarginX = Math.Max(2, (int)Math.Ceiling(maxControlDx) + 2);
+        int sampleMarginY = Math.Max(2, (int)Math.Ceiling(maxControlDy) + 2);
+        int sourceLeft = Math.Max(0, left - sampleMarginX);
+        int sourceTop = Math.Max(0, top - sampleMarginY);
+        int sourceRight = Math.Min(width - 1, right + sampleMarginX);
+        int sourceBottom = Math.Min(height - 1, bottom + sampleMarginY);
+        int sourceWidth = sourceRight - sourceLeft + 1;
+        int sourceHeight = sourceBottom - sourceTop + 1;
+        int sourceStride = sourceWidth * 4;
+        int sourceBufferSize = sourceStride * sourceHeight;
+        byte[] sourcePixels = ArrayPool<byte>.Shared.Rent(sourceBufferSize);
+        byte[] regionPixels = ArrayPool<byte>.Shared.Rent(regionBufferSize);
+
+        try
+        {
+            bgraSource.CopyPixels(
+                new Int32Rect(sourceLeft, sourceTop, sourceWidth, sourceHeight),
+                sourcePixels,
+                sourceStride,
+                0);
+            if (shouldCancel?.Invoke() == true)
+            {
+                return bgraSource;
+            }
+
+            for (int row = 0; row < regionHeight; row++)
+            {
+                Buffer.BlockCopy(
+                    sourcePixels,
+                    ((top + row - sourceTop) * sourceStride) + ((left - sourceLeft) * 4),
+                    regionPixels,
+                    row * regionStride,
+                    regionStride);
+            }
+
+            double sigma2 = sigma * sigma * 2.0;
+            RenderFaceShapeControlWarpPixels(
+                sourcePixels,
+                regionPixels,
+                sourceWidth,
+                sourceHeight,
+                sourceStride,
+                regionStride,
+                sourceLeft,
+                sourceTop,
+                left,
+                top,
+                right,
+                bottom,
+                controls,
+                sigma2,
+                weightProfile,
+                shouldCancel);
+            if (shouldCancel?.Invoke() == true)
+            {
+                return bgraSource;
+            }
+
+            WriteableBitmap preview = new(
+                bgraSource);
+            preview.WritePixels(new Int32Rect(left, top, regionWidth, regionHeight), regionPixels, regionStride, 0);
+            preview.Freeze();
+            return preview;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(sourcePixels);
+            ArrayPool<byte>.Shared.Return(regionPixels);
+        }
+    }
+
+    private static void RenderFaceShapeControlWarpPixels(
+        byte[] sourcePixels,
+        byte[] resultPixels,
+        int width,
+        int height,
+        int stride,
+        int resultStride,
+        int sourceLeft,
+        int sourceTop,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        List<FaceShapeControlPoint> controls,
+        double sigma2,
+        FaceShapeWeightProfile weightProfile,
+        Func<bool>? shouldCancel = null)
+    {
+        if (left > right || top > bottom || controls.Count == 0 || shouldCancel?.Invoke() == true)
+        {
+            return;
+        }
+
+        int controlCount = controls.Count;
+        double cutoffDistance2 = sigma2 * 7.600902459542082;
+        double invSigma2 = 1.0 / sigma2;
+
+        void RenderRow(int y)
+        {
+            int rowOffset = (y - top) * resultStride;
             for (int x = left; x <= right; x++)
             {
-                double faceWeight = getFaceWeight(x, y);
+                double faceWeight = GetFaceShapeWeight(x, y, in weightProfile);
                 if (faceWeight <= 0.001)
                 {
                     continue;
@@ -1888,12 +3581,18 @@ public partial class MainWindow
                 double weightedDx = 0;
                 double weightedDy = 0;
                 double totalWeight = 0;
-                foreach (FaceShapeControlPoint control in controls)
+                for (int i = 0; i < controlCount; i++)
                 {
+                    FaceShapeControlPoint control = controls[i];
                     double dx = x - control.X;
                     double dy = y - control.Y;
                     double distance2 = (dx * dx) + (dy * dy);
-                    double weight = Math.Exp(-distance2 / sigma2);
+                    if (distance2 >= cutoffDistance2)
+                    {
+                        continue;
+                    }
+
+                    double weight = Math.Exp(-distance2 * invSigma2);
                     if (weight <= 0.0005)
                     {
                         continue;
@@ -1921,14 +3620,14 @@ public partial class MainWindow
                     width,
                     height,
                     stride,
-                    x - appliedDx,
-                    y - appliedDy,
+                    x - appliedDx - sourceLeft,
+                    y - appliedDy - sourceTop,
                     out byte b,
                     out byte g,
                     out byte r,
                     out byte a);
 
-                int offset = (y * stride) + (x * 4);
+                int offset = rowOffset + ((x - left) * 4);
                 resultPixels[offset] = b;
                 resultPixels[offset + 1] = g;
                 resultPixels[offset + 2] = r;
@@ -1936,17 +3635,50 @@ public partial class MainWindow
             }
         }
 
-        BitmapSource preview = BitmapSource.Create(
-            width,
-            height,
-            bgraSource.DpiX,
-            bgraSource.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            resultPixels,
-            stride);
-        preview.Freeze();
-        return preview;
+        int pixelCount = (right - left + 1) * (bottom - top + 1);
+        if (pixelCount < 20000)
+        {
+            for (int y = top; y <= bottom; y++)
+            {
+                if (shouldCancel?.Invoke() == true)
+                {
+                    return;
+                }
+
+                RenderRow(y);
+            }
+
+            return;
+        }
+
+        Parallel.For(
+            top,
+            bottom + 1,
+            (y, state) =>
+            {
+                if (shouldCancel?.Invoke() == true)
+                {
+                    state.Stop();
+                    return;
+                }
+
+                RenderRow(y);
+            });
+    }
+
+    private static void GetFaceShapeMaxControlOffset(
+        List<FaceShapeControlPoint> controls,
+        out double maxDx,
+        out double maxDy)
+    {
+        maxDx = 0;
+        maxDy = 0;
+        for (int i = 0; i < controls.Count; i++)
+        {
+            FaceShapeControlPoint control = controls[i];
+            maxDx = Math.Max(maxDx, Math.Abs(control.Dx));
+            maxDy = Math.Max(maxDy, Math.Abs(control.Dy));
+        }
     }
 
     private static Dictionary<int, Point> BuildFaceShapePointMap(
@@ -1954,7 +3686,7 @@ public partial class MainWindow
         int width,
         int height)
     {
-        Dictionary<int, Point> points = new();
+        Dictionary<int, Point> points = new(normalizedLandmarks.Count);
         foreach (MediaPipeLandmarkPoint landmark in normalizedLandmarks)
         {
             if (landmark.Index < 0 ||
@@ -1972,6 +3704,77 @@ public partial class MainWindow
         return points;
     }
 
+    private static FaceShapePointArray BuildFaceShapePointArray(
+        IReadOnlyList<MediaPipeLandmarkPoint> normalizedLandmarks,
+        int width,
+        int height)
+    {
+        int length = 478;
+        foreach (MediaPipeLandmarkPoint landmark in normalizedLandmarks)
+        {
+            if (landmark.Index >= length)
+            {
+                length = landmark.Index + 1;
+            }
+        }
+
+        Point[] points = new Point[length];
+        double[] zValues = new double[length];
+        bool[] hasPoint = new bool[length];
+        int count = 0;
+        foreach (MediaPipeLandmarkPoint landmark in normalizedLandmarks)
+        {
+            if (landmark.Index < 0 ||
+                landmark.Index >= length ||
+                double.IsNaN(landmark.X) ||
+                double.IsNaN(landmark.Y))
+            {
+                continue;
+            }
+
+            if (!hasPoint[landmark.Index])
+            {
+                count++;
+            }
+
+            hasPoint[landmark.Index] = true;
+            points[landmark.Index] = new Point(
+                Math.Clamp(landmark.X * width, 0, Math.Max(0, width - 1)),
+                Math.Clamp(landmark.Y * height, 0, Math.Max(0, height - 1)));
+            zValues[landmark.Index] = double.IsNaN(landmark.Z) ? 0 : landmark.Z;
+        }
+
+        return new FaceShapePointArray(points, zValues, hasPoint, count);
+    }
+
+    private static bool TryGetFaceShapePoint(FaceShapePointArray landmarks, int index, out Point point)
+    {
+        if (index >= 0 &&
+            index < landmarks.Points.Length &&
+            index < landmarks.HasPoint.Length &&
+            landmarks.HasPoint[index])
+        {
+            point = landmarks.Points[index];
+            return true;
+        }
+
+        point = default;
+        return false;
+    }
+
+    private static bool ContainsFaceShapeIndex(IReadOnlyList<int> indices, int index)
+    {
+        for (int i = 0; i < indices.Count; i++)
+        {
+            if (indices[i] == index)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryBuildFaceShapeSymmetryControls(
         IReadOnlyDictionary<int, Point> landmarks,
         int width,
@@ -1986,32 +3789,14 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3)
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) * FaceShapeSymmetryMaxCorrection;
-        List<FaceShapeControlPoint> controls = [];
+        List<FaceShapeControlPoint> controls = new(
+            (FaceShapeSymmetryPairs.Length * 2) + FaceShapeSymmetryMidlineIndices.Length);
 
         foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
         {
@@ -2088,34 +3873,16 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3)
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeCheekMaxInwardRatio;
-        List<FaceShapeControlPoint> controls = [];
+        List<FaceShapeControlPoint> controls = new(
+            (FaceShapeCheekPairs.Length * 2) + FaceShapeCheekAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeCheekPairs)
         {
@@ -2179,34 +3946,16 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3)
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeBoneMaxInwardRatio;
-        List<FaceShapeControlPoint> controls = [];
+        List<FaceShapeControlPoint> controls = new(
+            (FaceShapeBonePairs.Length * 2) + FaceShapeBoneAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeBonePairs)
         {
@@ -2270,34 +4019,16 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3)
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeJawMaxInwardRatio;
-        List<FaceShapeControlPoint> controls = [];
+        List<FaceShapeControlPoint> controls = new(
+            (FaceShapeJawPairs.Length * 2) + FaceShapeJawAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeJawPairs)
         {
@@ -2360,38 +4091,20 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3 ||
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX) ||
             !landmarks.TryGetValue(152, out Point chinTip))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double inwardAmount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeChinMaxInwardRatio;
         double liftAmount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Height *
             FaceShapeChinMaxLiftRatio;
-        List<FaceShapeControlPoint> controls = [];
+        List<FaceShapeControlPoint> controls = new(
+            (FaceShapeChinPairs.Length * 2) + FaceShapeChinCenterIndices.Length + FaceShapeChinAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeChinPairs)
         {
@@ -2465,52 +4178,25 @@ public partial class MainWindow
             return false;
         }
 
-        List<double> centerSamples = [];
-        foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
-        {
-            if (landmarks.TryGetValue(leftIndex, out Point left) &&
-                landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                centerSamples.Add((left.X + right.X) * 0.5);
-            }
-        }
-
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                centerSamples.Add(point.X);
-            }
-        }
-
-        if (centerSamples.Count < 3)
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
         {
             return false;
         }
 
-        double centerX = centerSamples.Average();
         double centerY = bounds.Top + (bounds.Height * 0.46);
-        List<Point> pivotPoints = [];
-        foreach (int index in FaceShapeFaceTiltPivotIndices)
+        if (TryGetFaceShapeAveragePoint(landmarks, FaceShapeFaceTiltPivotIndices, out Point pivot))
         {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                pivotPoints.Add(point);
-            }
-        }
-
-        if (pivotPoints.Count > 0)
-        {
-            centerX = pivotPoints.Average(point => point.X);
-            centerY = pivotPoints.Average(point => point.Y);
+            centerX = pivot.X;
+            centerY = pivot.Y;
         }
 
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
         double angle = normalized * FaceShapeFaceTiltMaxDegrees * Math.PI / 180.0;
         double sin = Math.Sin(angle);
         double cos = Math.Cos(angle);
-        List<FaceShapeControlPoint> controls = [];
-        List<Point> movingPoints = [];
+        List<FaceShapeControlPoint> controls = new(
+            FaceShapeFaceTiltMoveIndices.Length + FaceShapeFaceTiltAnchorIndices.Length);
+        List<Point> movingPoints = new(FaceShapeFaceTiltMoveIndices.Length);
 
         foreach (int index in FaceShapeFaceTiltMoveIndices)
         {
@@ -2573,8 +4259,9 @@ public partial class MainWindow
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
         double baseShift = normalized * bounds.Width * FaceShapeFaceTurnMaxShiftRatio;
         double halfWidth = Math.Max(1.0, bounds.Width * 0.5);
-        List<FaceShapeControlPoint> controls = [];
-        List<Point> movingPoints = [];
+        List<FaceShapeControlPoint> controls = new(
+            FaceShapeFaceTiltMoveIndices.Length + FaceShapeFaceTiltAnchorIndices.Length);
+        List<Point> movingPoints = new(FaceShapeFaceTiltMoveIndices.Length);
 
         foreach (int index in FaceShapeFaceTiltMoveIndices)
         {
@@ -2635,9 +4322,10 @@ public partial class MainWindow
         }
 
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
-        double baseShift = -normalized * bounds.Height * FaceShapeHeadTiltMaxShiftRatio;
-        List<FaceShapeControlPoint> controls = [];
-        List<Point> movingPoints = [];
+        double baseShift = normalized * bounds.Height * FaceShapeHeadTiltMaxShiftRatio;
+        List<FaceShapeControlPoint> controls = new(
+            FaceShapeFaceTiltMoveIndices.Length + FaceShapeFaceTiltAnchorIndices.Length);
+        List<Point> movingPoints = new(FaceShapeFaceTiltMoveIndices.Length);
 
         foreach (int index in FaceShapeFaceTiltMoveIndices)
         {
@@ -2689,13 +4377,89 @@ public partial class MainWindow
         out double centerX,
         out double centerY)
     {
-        List<double> centerSamples = [];
+        if (!TryGetFaceShapeCenterX(landmarks, out centerX))
+        {
+            centerY = 0;
+            return false;
+        }
+
+        centerY = bounds.Top + (bounds.Height * 0.46);
+        if (TryGetFaceShapeAveragePoint(landmarks, FaceShapeFaceTiltPivotIndices, out Point pivot))
+        {
+            centerX = pivot.X;
+            centerY = pivot.Y;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetFaceShapeAveragePoint(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        out Point averagePoint)
+    {
+        double sumX = 0;
+        double sumY = 0;
+        int count = 0;
+        foreach (int index in indices)
+        {
+            if (landmarks.TryGetValue(index, out Point point))
+            {
+                sumX += point.X;
+                sumY += point.Y;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            averagePoint = default;
+            return false;
+        }
+
+        averagePoint = new Point(sumX / count, sumY / count);
+        return true;
+    }
+
+    private static bool TryGetFaceShapeAveragePoint(
+        FaceShapePointArray landmarks,
+        IReadOnlyList<int> indices,
+        out Point averagePoint)
+    {
+        double sumX = 0;
+        double sumY = 0;
+        int count = 0;
+        foreach (int index in indices)
+        {
+            if (TryGetFaceShapePoint(landmarks, index, out Point point))
+            {
+                sumX += point.X;
+                sumY += point.Y;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            averagePoint = default;
+            return false;
+        }
+
+        averagePoint = new Point(sumX / count, sumY / count);
+        return true;
+    }
+
+    private static bool TryGetFaceShapeCenterX(IReadOnlyDictionary<int, Point> landmarks, out double centerX)
+    {
+        double sum = 0;
+        int count = 0;
         foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
         {
             if (landmarks.TryGetValue(leftIndex, out Point left) &&
                 landmarks.TryGetValue(rightIndex, out Point right))
             {
-                centerSamples.Add((left.X + right.X) * 0.5);
+                sum += (left.X + right.X) * 0.5;
+                count++;
             }
         }
 
@@ -2703,34 +4467,18 @@ public partial class MainWindow
         {
             if (landmarks.TryGetValue(index, out Point point))
             {
-                centerSamples.Add(point.X);
+                sum += point.X;
+                count++;
             }
         }
 
-        if (centerSamples.Count < 3)
+        if (count < 3)
         {
             centerX = 0;
-            centerY = 0;
             return false;
         }
 
-        centerX = centerSamples.Average();
-        centerY = bounds.Top + (bounds.Height * 0.46);
-        List<Point> pivotPoints = [];
-        foreach (int index in FaceShapeFaceTiltPivotIndices)
-        {
-            if (landmarks.TryGetValue(index, out Point point))
-            {
-                pivotPoints.Add(point);
-            }
-        }
-
-        if (pivotPoints.Count > 0)
-        {
-            centerX = pivotPoints.Average(point => point.X);
-            centerY = pivotPoints.Average(point => point.Y);
-        }
-
+        centerX = sum / count;
         return true;
     }
 
@@ -2756,190 +4504,276 @@ public partial class MainWindow
             : Rect.Empty;
     }
 
-    private static double GetFaceShapeEllipseWeight(int x, int y, FaceShapeSymmetryPlan plan)
+    private static Rect BuildFaceShapeLandmarkBounds(FaceShapePointArray landmarks, int width, int height)
     {
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.5);
+        double left = width;
+        double top = height;
+        double right = 0;
+        double bottom = 0;
+        bool hasPoint = false;
+
+        int count = Math.Min(landmarks.Points.Length, landmarks.HasPoint.Length);
+        for (int i = 0; i < count; i++)
+        {
+            if (!landmarks.HasPoint[i])
+            {
+                continue;
+            }
+
+            Point point = landmarks.Points[i];
+            left = Math.Min(left, point.X);
+            top = Math.Min(top, point.Y);
+            right = Math.Max(right, point.X);
+            bottom = Math.Max(bottom, point.Y);
+            hasPoint = true;
+        }
+
+        return hasPoint
+            ? new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top))
+            : Rect.Empty;
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeSymmetryWeightProfile(FaceShapeSymmetryPlan plan)
+    {
         double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.5);
-        double centerY = plan.Bounds.Top + radiusY;
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - centerY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Symmetry,
+            plan.Bounds,
+            plan.CenterX,
+            plan.Bounds.Top + radiusY,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.5),
+            radiusY,
+            0.76);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeCheekWeightProfile(FaceShapeCheekPlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Cheek,
+            plan.Bounds,
+            plan.CenterX,
+            plan.Bounds.Top + (plan.Bounds.Height * 0.50),
+            plan.UpperStartY,
+            plan.PeakY,
+            plan.LowerEndY,
+            0,
+            0,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.5),
+            Math.Max(1.0, plan.Bounds.Height * 0.56),
+            0.70);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeBoneWeightProfile(FaceShapeBonePlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Bone,
+            plan.Bounds,
+            plan.CenterX,
+            plan.Bounds.Top + (plan.Bounds.Height * 0.42),
+            plan.UpperStartY,
+            plan.PeakY,
+            plan.LowerEndY,
+            0,
+            0,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.5),
+            Math.Max(1.0, plan.Bounds.Height * 0.48),
+            0.68);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeJawWeightProfile(FaceShapeJawPlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Jaw,
+            plan.Bounds,
+            plan.CenterX,
+            plan.Bounds.Top + (plan.Bounds.Height * 0.46),
+            0,
+            0,
+            0,
+            plan.LowerStartY,
+            plan.FullEffectY,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.5),
+            Math.Max(1.0, plan.Bounds.Height * 0.56),
+            0.72);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeChinWeightProfile(FaceShapeChinPlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Chin,
+            plan.Bounds,
+            plan.CenterX,
+            plan.Bounds.Top + (plan.Bounds.Height * 0.58),
+            0,
+            0,
+            0,
+            0,
+            0,
+            plan.StartY,
+            plan.ChinTipY,
+            Math.Max(1.0, plan.Bounds.Width * 0.42),
+            Math.Max(1.0, plan.Bounds.Height * 0.58),
+            0.70);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapeFaceTiltWeightProfile(FaceShapeFaceTiltPlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.FaceTilt,
+            plan.Bounds,
+            plan.CenterX,
+            plan.CenterY,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.52),
+            Math.Max(1.0, plan.Bounds.Height * 0.54),
+            0.78);
+    }
+
+    private static FaceShapeWeightProfile CreateFaceShapePoseWeightProfile(FaceShapePosePlan plan)
+    {
+        return new FaceShapeWeightProfile(
+            FaceShapeWeightMode.Pose,
+            plan.Bounds,
+            plan.CenterX,
+            plan.CenterY,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Math.Max(1.0, plan.Bounds.Width * 0.54),
+            Math.Max(1.0, plan.Bounds.Height * 0.56),
+            0.76);
+    }
+
+    private static double GetFaceShapeWeight(int x, int y, in FaceShapeWeightProfile profile)
+    {
+        double verticalWeight = 1.0;
+        if (profile.Mode is FaceShapeWeightMode.Cheek or FaceShapeWeightMode.Bone)
+        {
+            verticalWeight = GetFaceShapeBandWeight(y, profile.UpperStartY, profile.PeakY, profile.LowerEndY);
+            if (verticalWeight <= 0.001)
+            {
+                return 0.0;
+            }
+        }
+        else if (profile.Mode == FaceShapeWeightMode.Jaw)
+        {
+            verticalWeight = SmoothStep01((y - profile.LowerStartY) / Math.Max(1.0, profile.FullEffectY - profile.LowerStartY));
+            if (verticalWeight <= 0.001)
+            {
+                return 0.0;
+            }
+        }
+        else if (profile.Mode == FaceShapeWeightMode.Chin)
+        {
+            verticalWeight = SmoothStep01((y - profile.StartY) / Math.Max(1.0, profile.ChinTipY - profile.StartY));
+            if (verticalWeight <= 0.001)
+            {
+                return 0.0;
+            }
+        }
+
+        double nx = (x - profile.CenterX) / profile.RadiusX;
+        double ny = (y - profile.CenterY) / profile.RadiusY;
+        double ellipseWeight = GetFaceShapeEllipseFalloff(nx, ny, profile.SolidRadius);
+        if (ellipseWeight <= 0.001)
         {
             return 0.0;
         }
 
-        if (distance <= 0.76)
+        return profile.Mode switch
+        {
+            FaceShapeWeightMode.Cheek => verticalWeight *
+                ellipseWeight *
+                SmoothStep01(((Math.Abs(x - profile.CenterX) / profile.RadiusX) - 0.20) / 0.18),
+            FaceShapeWeightMode.Bone => verticalWeight *
+                ellipseWeight *
+                SmoothStep01(((Math.Abs(x - profile.CenterX) / profile.RadiusX) - 0.30) / 0.18),
+            FaceShapeWeightMode.Jaw or FaceShapeWeightMode.Chin => verticalWeight * ellipseWeight,
+            _ => ellipseWeight
+        };
+    }
+
+    private static double GetFaceShapeBandWeight(int y, double upperStartY, double peakY, double lowerEndY)
+    {
+        if (y <= peakY)
+        {
+            return SmoothStep01((y - upperStartY) / Math.Max(1.0, peakY - upperStartY));
+        }
+
+        return 1.0 - SmoothStep01((y - peakY) / Math.Max(1.0, lowerEndY - peakY));
+    }
+
+    private static double GetFaceShapeEllipseFalloff(double nx, double ny, double solidRadius)
+    {
+        double distance2 = (nx * nx) + (ny * ny);
+        if (distance2 >= 1.0)
+        {
+            return 0.0;
+        }
+
+        double solidRadius2 = solidRadius * solidRadius;
+        if (distance2 <= solidRadius2)
         {
             return 1.0;
         }
 
-        return 1.0 - SmoothStep01((distance - 0.76) / 0.24);
+        double distance = Math.Sqrt(distance2);
+        return 1.0 - SmoothStep01((distance - solidRadius) / Math.Max(0.001, 1.0 - solidRadius));
     }
 
-    private static double GetFaceShapeCheekWeight(int x, int y, FaceShapeCheekPlan plan)
+    private enum FaceShapeWeightMode
     {
-        double verticalWeight;
-        if (y <= plan.PeakY)
-        {
-            double upperRange = Math.Max(1.0, plan.PeakY - plan.UpperStartY);
-            verticalWeight = SmoothStep01((y - plan.UpperStartY) / upperRange);
-        }
-        else
-        {
-            double lowerRange = Math.Max(1.0, plan.LowerEndY - plan.PeakY);
-            verticalWeight = 1.0 - SmoothStep01((y - plan.PeakY) / lowerRange);
-        }
-
-        if (verticalWeight <= 0.001)
-        {
-            return 0.0;
-        }
-
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.5);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.56);
-        double centerY = plan.Bounds.Top + (plan.Bounds.Height * 0.50);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - centerY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        double ellipseWeight = distance <= 0.70
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.70) / 0.30);
-        double sideAmount = Math.Abs(x - plan.CenterX) / radiusX;
-        double centerFade = SmoothStep01((sideAmount - 0.20) / 0.18);
-        return Math.Clamp(verticalWeight * ellipseWeight * centerFade, 0.0, 1.0);
+        Symmetry,
+        Cheek,
+        Bone,
+        Jaw,
+        Chin,
+        FaceTilt,
+        Pose
     }
 
-    private static double GetFaceShapeBoneWeight(int x, int y, FaceShapeBonePlan plan)
-    {
-        double verticalWeight;
-        if (y <= plan.PeakY)
-        {
-            double upperRange = Math.Max(1.0, plan.PeakY - plan.UpperStartY);
-            verticalWeight = SmoothStep01((y - plan.UpperStartY) / upperRange);
-        }
-        else
-        {
-            double lowerRange = Math.Max(1.0, plan.LowerEndY - plan.PeakY);
-            verticalWeight = 1.0 - SmoothStep01((y - plan.PeakY) / lowerRange);
-        }
-
-        if (verticalWeight <= 0.001)
-        {
-            return 0.0;
-        }
-
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.5);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.48);
-        double centerY = plan.Bounds.Top + (plan.Bounds.Height * 0.42);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - centerY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        double ellipseWeight = distance <= 0.68
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.68) / 0.32);
-        double sideAmount = Math.Abs(x - plan.CenterX) / radiusX;
-        double centerFade = SmoothStep01((sideAmount - 0.30) / 0.18);
-        return Math.Clamp(verticalWeight * ellipseWeight * centerFade, 0.0, 1.0);
-    }
-
-    private static double GetFaceShapeJawWeight(int x, int y, FaceShapeJawPlan plan)
-    {
-        double verticalRange = Math.Max(1.0, plan.FullEffectY - plan.LowerStartY);
-        double verticalWeight = SmoothStep01((y - plan.LowerStartY) / verticalRange);
-        if (verticalWeight <= 0.001)
-        {
-            return 0.0;
-        }
-
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.5);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.56);
-        double centerY = plan.Bounds.Top + (plan.Bounds.Height * 0.46);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - centerY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        double ellipseWeight = distance <= 0.72
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.72) / 0.28);
-        return Math.Clamp(verticalWeight * ellipseWeight, 0.0, 1.0);
-    }
-
-    private static double GetFaceShapeChinWeight(int x, int y, FaceShapeChinPlan plan)
-    {
-        double verticalRange = Math.Max(1.0, plan.ChinTipY - plan.StartY);
-        double verticalWeight = SmoothStep01((y - plan.StartY) / verticalRange);
-        if (verticalWeight <= 0.001)
-        {
-            return 0.0;
-        }
-
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.42);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.58);
-        double centerY = plan.Bounds.Top + (plan.Bounds.Height * 0.58);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - centerY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        double ellipseWeight = distance <= 0.70
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.70) / 0.30);
-        return Math.Clamp(verticalWeight * ellipseWeight, 0.0, 1.0);
-    }
-
-    private static double GetFaceShapeFaceTiltWeight(int x, int y, FaceShapeFaceTiltPlan plan)
-    {
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.52);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.54);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - plan.CenterY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        return distance <= 0.78
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.78) / 0.22);
-    }
-
-    private static double GetFaceShapePoseWeight(int x, int y, FaceShapePosePlan plan)
-    {
-        double radiusX = Math.Max(1.0, plan.Bounds.Width * 0.54);
-        double radiusY = Math.Max(1.0, plan.Bounds.Height * 0.56);
-        double nx = (x - plan.CenterX) / radiusX;
-        double ny = (y - plan.CenterY) / radiusY;
-        double distance = Math.Sqrt((nx * nx) + (ny * ny));
-        if (distance >= 1.0)
-        {
-            return 0.0;
-        }
-
-        return distance <= 0.76
-            ? 1.0
-            : 1.0 - SmoothStep01((distance - 0.76) / 0.24);
-    }
+    private readonly record struct FaceShapeWeightProfile(
+        FaceShapeWeightMode Mode,
+        Rect Bounds,
+        double CenterX,
+        double CenterY,
+        double UpperStartY,
+        double PeakY,
+        double LowerEndY,
+        double LowerStartY,
+        double FullEffectY,
+        double StartY,
+        double ChinTipY,
+        double RadiusX,
+        double RadiusY,
+        double SolidRadius);
 
     private readonly record struct FaceShapeControlPoint(double X, double Y, double Dx, double Dy);
+
+    private readonly record struct FaceShapeProjectionSample(double X, double Y, double Z);
 
     private readonly record struct FaceShapeSymmetryPlan(
         Rect Bounds,

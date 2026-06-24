@@ -58,6 +58,19 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
         SkinExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeSkinMode = SkinMode.Heal;
+        _healStrength = 0;
+        _acneStrength = 0;
+        _moleStrength = 0;
+        _freckStrength = 0;
+        _smoothStrength = 0;
+
+        NotifySkinModeProperties();
+        OnPropertyChanged(nameof(ActiveSkinStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

@@ -58,6 +58,19 @@ public partial class BodyTabView : System.Windows.Controls.UserControl, INotifyP
         BodyExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeBodyMode = BodyMode.Neck;
+        _neckStrength = 0;
+        _shoulderStrength = 0;
+        _collarStrength = 0;
+        _slimStrength = 0;
+        _levelStrength = 0;
+
+        NotifyBodyModeProperties();
+        OnPropertyChanged(nameof(ActiveBodyStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

@@ -297,3 +297,24 @@ Meaning:
 - the septum and philtrum region must distribute texture tension before reaching the mouth.
 - nose tip rotation must not pull the upper lip texture into one convergence point.
 - this strip is the minimum accepted topology for future face-rotation preview and warp work.
+
+## 13. Up/Dn Projection Decision
+
+The approved `Facial Reshape > Head Pose > Up/Dn` path is now defined separately in:
+
+- [Face Up/Dn 3D Projection Rule](FACE_UPDN_3D_PROJECTION_RULE.md)
+
+This rule is mandatory before any future `Up/Dn` pixel-warp work.
+
+Key decision:
+
+```text
+Do not chase exact lens and distance reconstruction from a single 2D portrait.
+Use a fast portrait-camera assumption.
+Use MediaPipe landmarks and z values once, cache them, and project shallowly.
+Validate with a dedicated all-point source/projected debug overlay before mesh or pixel warp.
+Use the six rigid anchors only as the initial pivot/camera sanity reference:
+nose tip 4, chin 152, eye outer corners 33/263, mouth corners 61/291.
+```
+
+`solvePnP` may be used later as a cached initial camera-pose hint, but it is not the first implementation step and must not run inside the slider loop.

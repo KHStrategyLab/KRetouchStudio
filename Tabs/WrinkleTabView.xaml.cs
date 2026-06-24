@@ -59,6 +59,19 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         WrinkleExpander.IsExpanded = false;
     }
 
+    public void ResetForPhotoChange()
+    {
+        _activeWrinkleMode = WrinkleMode.Forehead;
+        _foreheadStrength = 0;
+        _frownStrength = 0;
+        _eyeStrength = 0;
+        _smileStrength = 50;
+        _neckStrength = 0;
+
+        NotifyWrinkleModeProperties();
+        OnPropertyChanged(nameof(ActiveWrinkleStrength));
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)

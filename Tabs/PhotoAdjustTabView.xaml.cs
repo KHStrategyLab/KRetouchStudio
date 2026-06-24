@@ -179,8 +179,16 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
     public void RefreshForPhoto(BitmapSource? source)
     {
         _curveHistogramRefreshTimer.Stop();
+        _curveDragPreviewTimer.Stop();
+        _toneQuickPreviewTimer.Stop();
         _pendingCurveHistogramSource = null;
         _hasPendingCurveHistogramRefresh = false;
+        _draggingCurvePoint = null;
+        _isDraggingCurvePoint = false;
+        _isDraggingCurveStrengthControl = false;
+        _hasDeferredCurvePreview = false;
+        _isDraggingToneQuickControl = false;
+        _hasDeferredToneQuickPreview = false;
 
         _isRefreshingCurvePreview = true;
         try
@@ -188,9 +196,16 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
             CurvePreviewBaseSource = source;
             ClearSelectedCurvePoint();
             CurveState.ResetAllChannels();
+            SetActiveToneQuickControl(ToneQuickControlKind.Exposure);
+            _toneExposureValue = 0;
+            _toneContrastValue = 0;
+            _toneSaturationValue = 0;
+            _toneWhiteBalanceValue = 0;
+            _toneSharpnessValue = 0;
             CurveState.SetCurveHistogramSource(source);
             UpdateTrackedCurveGuidePoint();
             RaiseCurveGuidePropertyChanged();
+            NotifyToneQuickControlValuesChanged();
         }
         finally
         {

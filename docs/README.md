@@ -8,13 +8,15 @@
 4. `DETECTION_PIPELINE_CONTRACT.md` - shared detection-first pipeline contract from anchor intake to original apply.
 5. `FACEBOX_DEPTH_ROLE_MODEL.md` - lightweight 2.5D facial volume interpretation from a frontal face box.
 6. `FACE_ROTATION_DEPTH_RULE.md` - face rotation policy derived from the FaceBox depth-role model instead of flat 2D image spin.
-7. `DETECTOR_TARGET_AND_MASK_IDS.md` - code-facing detector target, search ROI, work box, and mask ID catalog.
-8. `PERSON_MASK_AND_SUBJECT_FORMULA_SPEC.md` - canonical PersonMask, SubjectMask, BioMask, and background formula.
-9. `KRETOUCHPRO_PHOTOGRAPHIC_TERMS_DICTIONARY.md` - photographic and retouch-routing vocabulary.
-10. `PORTRAIT_BODY_HAIR_CLOTHING_LOCATION_DICTIONARY.md` - body, hair, clothing, and region naming dictionary.
-11. `PORTABILITY_AND_SETUP.md` - checkout-root, dependency, and local-state rules for other computers.
-12. `session_logs/2026-06-15.md` - migration diary and historical direction notes.
-13. `session_logs/2026-06-16.md` - 8-point approval crop policy decision log.
+7. `FACE_UPDN_3D_PROJECTION_RULE.md` - approved Up/Dn path: fast camera assumption, shallow z, cached landmarks, all-point debug projection before mesh warp.
+8. `DETECTOR_TARGET_AND_MASK_IDS.md` - code-facing detector target, search ROI, work box, and mask ID catalog.
+9. `PERSON_MASK_AND_SUBJECT_FORMULA_SPEC.md` - canonical PersonMask, SubjectMask, BioMask, and background formula.
+10. `KRETOUCHPRO_PHOTOGRAPHIC_TERMS_DICTIONARY.md` - photographic and retouch-routing vocabulary.
+11. `PORTRAIT_BODY_HAIR_CLOTHING_LOCATION_DICTIONARY.md` - body, hair, clothing, and region naming dictionary.
+12. `PORTABILITY_AND_SETUP.md` - checkout-root, dependency, and local-state rules for other computers.
+13. `session_logs/2026-06-15.md` - migration diary and historical direction notes.
+14. `session_logs/2026-06-16.md` - 8-point approval crop policy decision log.
+15. `session_logs/2026-06-24.md` - Face Up/Dn 3D projection direction lock and first debug checkpoint.
 
 ## CORE Documents
 
@@ -24,6 +26,7 @@
 - [Detection Pipeline Contract](DETECTION_PIPELINE_CONTRACT.md) - shared detection-first analysis order and original-remap rule.
 - [FaceBox Depth Role Model](FACEBOX_DEPTH_ROLE_MODEL.md) - frontal `FaceBox` interpreted as a lightweight 2.5D facial volume container.
 - [Face Rotation Depth Rule](FACE_ROTATION_DEPTH_RULE.md) - future face rotation follows role-guided local depth behavior instead of flat image rotation.
+- [Face Up/Dn 3D Projection Rule](FACE_UPDN_3D_PROJECTION_RULE.md) - approved practical route for `Up/Dn`: no exact camera chase, cached MediaPipe, shallow z, all-point debug projection first.
 - [Detector Target And Mask IDs](DETECTOR_TARGET_AND_MASK_IDS.md) - code-facing ID split for detector targets, search ROI, work boxes, and reusable masks.
 - [Face Visible Structure Master](FACE_VISIBLE_STRUCTURE_MASTER.md) - one-sheet visible face structure vocabulary for detection, mask, and tool routing.
 - [Screen I/O And Work Mode Architecture](SCREEN_IO_AND_WORK_MODE_ARCHITECTURE.md) - screen mode, panel state, layer/history split, and tool-file policy.

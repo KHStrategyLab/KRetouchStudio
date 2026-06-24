@@ -2217,6 +2217,49 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding FaceShapeProjectionDebugPathOverlays}"
+                                      Visibility="{Binding FaceShapeProjectionDebugOverlayVisibility}"
+                                      IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Polyline Points="{Binding Points}"
+                                              Stroke="{Binding Stroke}"
+                                              StrokeThickness="{Binding StrokeThickness}"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding FaceShapeProjectionDebugPointOverlays}"
+                                      Visibility="{Binding FaceShapeProjectionDebugOverlayVisibility}"
+                                      IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="{x:Type ContentPresenter}">
+                                    <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="{Binding Size}"
+                                             Height="{Binding Size}"
+                                             Stroke="{Binding Stroke}"
+                                             StrokeThickness="{Binding StrokeThickness}"
+                                             Fill="{Binding Fill}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <Rectangle Visibility="{Binding RectangleFrameSelectionVisibility}"
                                    IsHitTestVisible="False"
                                    Canvas.Left="{Binding FrameSelectionLeft}"
