@@ -1,4 +1,4 @@
-# Face Up/Dn 3D Projection Rule
+﻿# Face Up/Dn 3D Projection Rule
 
 ## 1. Purpose
 
@@ -236,6 +236,15 @@ Do:
 - clamp extreme z
 - scale z down before projection
 
+Projection convention:
+
+```text
+image plane: z = 0
+positive z: closer to the camera
+camera projection denominator: cameraDistance - z
+z scaling: apply to (correctedZ - pivotZ), not to absolute image coordinates
+```
+
 Do not:
 
 - multiply raw z aggressively
@@ -252,47 +261,125 @@ eye and mouth regions are on the same flexible surface
 pitch rotates the surface, not individual features
 ```
 
-## 10. Relief Warp Path
+## 10. Rejected Relief Warp Path
 
-Only expand after the all-point projected debug layer looks right.
+The first face-line relief warp was visually rejected.
 
-Approved order:
+Reason:
 
-1. draw all source and projected MediaPipe points on the dedicated `Up/Dn` debug layer
-2. use the six rigid control anchors to judge pivot and sensitivity
-3. add projected face-line sample points
-4. add eye, nose, mouth local sample points
-5. draw projected eye, eyebrow, and mouth guide lines for visual checking
-6. validate zero-pose drift
-7. add pixel warp inside face-line only
-8. blend with an inner feather around the face-line boundary
-9. add optional camera-pose hint from `solvePnP`
+- point controls made the face feel soft and rubber-like
+- chin and facial features could drift as independent local pulls
+- the result looked like liquify, not a rigid face mask
 
-Do not jump directly from point projection to full image warp.
+The relief warp code may remain as a fallback for other shape tools, but `Up/Dn` must not use it as the primary renderer.
 
-## 11. Face Region Scope
+## 11. Rigid 2.5D Face Mask Rule
 
-First `Up/Dn` warp scope:
+The approved `Up/Dn` renderer is a rigid 2.5D face mask layer.
+
+Required mental model:
 
 ```text
-face-line interior only
+cut a face mask from the original image
+give the whole mask a shallow synthetic face depth
+keep the landmark surface topology fixed
+rotate/project the mask as one firm shell
+feather only the alpha edge
 ```
 
-Excluded in first warp:
+Required behavior:
+
+- use cached MediaPipe points only
+- use the 478 points as a fixed face surface, not as independent liquify handles
+- preserve point-to-point structure during projection
+- render source triangles into projected target triangles
+- do not run local RBF, local Gaussian pull, or per-feature displacement inside `Up/Dn`
+- do not independently warp eyes, nose, mouth, cheeks, or jaw
+- allow only small 2.5D pitch projection and global mask movement
+- keep the face interior firm
+- use soft alpha feather only at the mask boundary
+
+Boundary attach rule:
+
+```text
+rigid mask interior: fixed, plate-like
+outside attach band: 10px to 30px from the mask boundary
+outside movement: follow the projected boundary delta weakly
+outside falloff: strongest near the boundary, fades to 0 at 30px
+```
+
+The attach band must not make the mask interior soft. It is only a small skin-adherence pass to reduce edge separation.
+
+Depth rule:
+
+```text
+nose tip: highest
+nose bridge: high
+cheeks / forehead / mouth area: medium
+chin: lower
+jaw line / face outline: lowest
+```
+
+Current test value:
+
+```text
+synthetic nose depth max: faceWidth * 0.09
+```
+
+If MediaPipe `z` is unstable, use the approved synthetic oval depth.
+
+## 12. Up/Dn First Implementation Scope
+
+The rigid renderer is implemented in `Up/Dn` first.
+
+First scope:
+
+```text
+face mask from face-line interior
+include an extended full lower-jaw under-chin band
+exclude hair
+exclude ears
+exclude shoulders
+exclude clothes
+```
+
+Implementation steps:
+
+1. build cached source landmark points
+2. calculate projected points with shallow 2.5D pitch
+3. build a rigid mask polygon from the face oval plus extended full lower-jaw band
+4. triangulate source points once for the render request
+5. render projected target triangles by inverse sampling from source triangles
+6. blend with normal edge feather, and use stronger feather on the lower expanded edge
+7. keep the old relief path available for non-`Up/Dn` tools
+
+Do not move this into common FaceShape code until the `Up/Dn` visual behavior is accepted.
+
+## 13. Face Region Scope
+
+First `Up/Dn` rigid mask scope:
+
+```text
+face-line interior
++ full lower-jaw under-chin upper-neck mask extension
+```
+
+Excluded in first rigid mask:
 
 - hair
 - ears
-- neck
+- lower neck
 - shoulders
 - clothes
 - full person mask
 
 Reason:
 
-- head tilt involving hair, ears, neck, and clothes is a different tool
-- first goal is facial pitch correction, not full head pose correction
+- the first goal is facial pitch correction
+- full head pose correction needs separate hair, neck, and body layers
+- the current renderer must prove the rigid face mask first
 
-## 12. Performance Rule
+## 14. Performance Rule
 
 Studio use requires immediate response.
 
@@ -308,7 +395,7 @@ Required:
 
 Reject any implementation that makes the slider feel heavy.
 
-## 13. Fallback Rule
+## 15. Fallback Rule
 
 The engine must always have a safe fallback.
 
@@ -333,8 +420,8 @@ use shallow oval face depth
 If projection looks visually wrong:
 
 ```text
-do not warp pixels
-return to point-only overlay
+disable rigid mask rendering
+return to projected point overlay or previous stable relief path
 ```
 
 If cache is missing:
@@ -345,29 +432,30 @@ cache result
 then continue
 ```
 
-## 14. Current Implementation Checkpoint
+## 16. Current Implementation Checkpoint
 
 Current approved checkpoint:
 
 - MediaPipe worker can stay warm in RAM
 - FaceShape can reuse cached 478 landmarks
-- `Up/Dn` debug path must hide normal MediaPipe face boxes and feature lines
-- `Up/Dn` debug path displays all cached MediaPipe source points and projected points on a dedicated layer
-- `Up/Dn` debug path does not display projected triangle wireframe lines
-- `Up/Dn` debug path displays projected eye, eyebrow, outer-mouth, and inner-mouth guide lines for visual judgment
-- `Up/Dn` applies a first face-line-only relief warp by blending a warped face interior over the original image
-- the face-line boundary uses an inner feather and does not move hair, ears, neck, shoulders, clothes, or background
+- `Up/Dn` debug overlays are optional and must not block judgment when disabled
+- `Up/Dn` applies a rigid 2.5D face mask layer, not a soft relief warp
+- the mask includes face-line interior and a small under-chin extension
+- the mask boundary uses feathered alpha only
+- the face interior remains rigid
+- hair, ears, lower neck, shoulders, clothes, and background are excluded from the first rigid mask
 - the six rigid control anchors are still used to set the initial pivot/camera sanity frame
 - build target remains x64 Debug in the program's normal output folder
 
 Next accepted implementation step:
 
 ```text
-validate the face-line-only relief warp visually
-then tune point-to-point weighting, feather width, and projection strength
+validate the Up/Dn rigid mask renderer visually
+then tune depth strength, mask polygon, edge feather, and projection strength
+then move the accepted rigid renderer into common FaceShape pose code
 ```
 
-## 15. Short Version
+## 17. Short Version
 
 Short rule:
 
@@ -376,6 +464,7 @@ Do not solve the impossible exact camera problem.
 Use a fast portrait-camera assumption.
 Use MediaPipe once and cache it.
 Use z shallowly.
-Verify Up/Dn with all source/projected points first.
-Warp only the face-line interior as a shallow relief layer over the original image.
+Use a rigid 2.5D face mask for Up/Dn.
+Do not use soft local liquify controls for Up/Dn.
+Feather only the edge.
 ```
