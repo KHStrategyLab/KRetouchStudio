@@ -1,4 +1,5 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -140,6 +141,9 @@ internal static class BiRefNetMattingService
 
     private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private static readonly SemaphoreSlim WorkerGate = new(1, 1);
+    private static readonly object DependencyCheckSync = new();
+    private static readonly Dictionary<string, string?> DependencyCheckResults = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] RequiredPythonModules = ["torch", "torchvision", "transformers", "PIL", "numpy", "einops", "kornia", "timm"];
     private static readonly string WorkerLogDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "KRetouchStudio",
@@ -169,6 +173,12 @@ internal static class BiRefNetMattingService
             return CreateFailureResult(request, OneShotRunMode, "Image not found: " + request.ImagePath);
         }
 
+        string? dependencyError = await GetDependencyErrorAsync(request.PythonRuntime, cancellationToken);
+        if (dependencyError is not null)
+        {
+            return CreateFailureResult(request, OneShotRunMode, dependencyError);
+        }
+
         BiRefNetMattingRunResult workerResult = await TryRunPersistentWorkerAsync(request, cancellationToken);
         if (workerResult.Succeeded)
         {
@@ -194,6 +204,12 @@ internal static class BiRefNetMattingService
         if (!File.Exists(workerPath))
         {
             return CreateWarmUpFailureResult(request, "Worker not found: " + workerPath);
+        }
+
+        string? dependencyError = await GetDependencyErrorAsync(request.PythonRuntime, cancellationToken);
+        if (dependencyError is not null)
+        {
+            return CreateWarmUpFailureResult(request, dependencyError);
         }
 
         await WorkerGate.WaitAsync(cancellationToken);
@@ -296,6 +312,12 @@ internal static class BiRefNetMattingService
         if (!File.Exists(workerPath))
         {
             return CreateInputPrepareFailureResult(request, "Worker not found: " + workerPath);
+        }
+
+        string? dependencyError = await GetDependencyErrorAsync(request.PythonRuntime, cancellationToken);
+        if (dependencyError is not null)
+        {
+            return CreateInputPrepareFailureResult(request, dependencyError);
         }
 
         await WorkerGate.WaitAsync(cancellationToken);
@@ -534,6 +556,74 @@ internal static class BiRefNetMattingService
         _workerPythonRuntime = pythonRuntime;
         _workerPath = workerPath;
         _ = Task.Run(() => PumpWorkerStandardErrorAsync(process, _workerStderrPath));
+    }
+
+    private static async Task<string?> GetDependencyErrorAsync(string requestedPythonRuntime, CancellationToken cancellationToken)
+    {
+        string pythonRuntime = string.IsNullOrWhiteSpace(requestedPythonRuntime) ? "python" : requestedPythonRuntime;
+        lock (DependencyCheckSync)
+        {
+            if (DependencyCheckResults.TryGetValue(pythonRuntime, out string? cachedError))
+            {
+                return cachedError;
+            }
+        }
+
+        string moduleList = string.Join(",", RequiredPythonModules);
+        string checkScript =
+            "import importlib.util, sys; " +
+            $"mods={JsonSerializer.Serialize(RequiredPythonModules)}; " +
+            "missing=[m for m in mods if importlib.util.find_spec(m) is None]; " +
+            "print(','.join(missing)); " +
+            "sys.exit(1 if missing else 0)";
+
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = pythonRuntime,
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom,
+            CreateNoWindow = true,
+        };
+        startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add(checkScript);
+
+        string? dependencyError = null;
+        try
+        {
+            using Process process = new() { StartInfo = startInfo };
+            process.Start();
+            Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            string stdout = (await stdoutTask).Trim();
+            string stderr = (await stderrTask).Trim();
+            if (process.ExitCode != 0 || !string.IsNullOrWhiteSpace(stdout))
+            {
+                string missing = string.IsNullOrWhiteSpace(stdout) ? moduleList : stdout;
+                dependencyError = $"Python dependency missing for BiRefNet: {missing}. Install torch, torchvision, transformers, Pillow, and numpy.";
+            }
+            else if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                dependencyError = "Python dependency check failed: " + stderr;
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or IOException)
+        {
+            dependencyError = "Python dependency check failed: " + ex.Message;
+        }
+
+        lock (DependencyCheckSync)
+        {
+            DependencyCheckResults[pythonRuntime] = dependencyError;
+        }
+
+        return dependencyError;
     }
 
     private static async Task PumpWorkerStandardErrorAsync(Process process, string? logPath)

@@ -265,10 +265,34 @@
                         Style="{StaticResource BackgroundImageNavButtonStyle}"
                         ToolTip="Next background image"/>
             </Grid>
-            <Slider Minimum="0"
-                    Maximum="100"
-                    TickFrequency="1"
-                    Value="{Binding ElementName=Root, Path=BackgroundOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="34"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="Opacity"
+                           Foreground="{StaticResource TextSub}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <Slider Grid.Column="1"
+                        x:Name="BackgroundOpacitySlider"
+                        Minimum="0"
+                        Maximum="100"
+                        TickFrequency="1"
+                        Value="{Binding ElementName=Root, Path=BackgroundOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="Background replacement opacity"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
+                        KeyUp="BoundarySlider_KeyUp"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding ElementName=Root, Path=BackgroundOpacity, StringFormat={}{0:0}}"
+                           Foreground="{StaticResource TextSub}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
             <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

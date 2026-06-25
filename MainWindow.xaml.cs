@@ -403,6 +403,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_selectedPhoto is not null)
             {
                 _selectedPhoto.PropertyChanged += SelectedPhoto_PropertyChanged;
+                QueuePreviewProxy1200Build(_selectedPhoto);
             }
 
             CancelToneCurvePreviewRender();
@@ -418,6 +419,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearTypeTextTool();
             ClearMediaPipePreviewOverlay();
             ClearBackgroundPreview();
+            ResetBackgroundAdjustmentSliders();
             LoadEditorHistoryForSelectedPhoto();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
@@ -936,7 +938,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension));
             using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
             encoder.Save(stream);
-            SaveBackgroundSettingsFromCurrentSliders();
         }
         catch (Exception ex)
         {

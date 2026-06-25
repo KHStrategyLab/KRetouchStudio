@@ -55,14 +55,22 @@ public partial class MainWindow
     private string? _personAlphaPhotoPath;
     private string? _personAlphaEngine;
     private string? _personAlphaRunMode;
+    private string? _personAlphaFailurePhotoPath;
+    private string? _personAlphaFailureStatus;
     private string? _biRefNetPreparedInputPath;
     private string? _biRefNetPreparedInputPhotoPath;
     private int _biRefNetPreparedInputSize;
     private int _biRefNetPreparedInputSharpen;
     private readonly SemaphoreSlim _biRefNetInputPrepareGate = new(1, 1);
+    private readonly SemaphoreSlim _personAlphaCreateGate = new(1, 1);
+    private readonly SemaphoreSlim _backgroundResourcePrepareGate = new(1, 1);
+    private readonly SemaphoreSlim _backgroundRenderGate = new(1, 1);
     private bool _isBiRefNetWarmupStarted;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
+    private bool _isBackgroundDragPreviewRunning;
+    private bool _hasPendingBackgroundDragPreviewRequest;
+    private int _backgroundResourcePrepareVersion;
     private int _backgroundPreviewRenderVersion;
 
     public MediaBrush PreviewSurfaceBackgroundBrush
@@ -83,28 +91,26 @@ public partial class MainWindow
     private void LoadBackgroundSettingsFromConfig()
     {
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
-        BackgroundRetouchTab.BoundaryProbeStrength = ClampBackgroundSliderSetting(settings.BoundaryProbeStrength);
-        BackgroundRetouchTab.BoundaryCleanStrength = ClampBackgroundSliderSetting(settings.BoundaryCleanStrength);
-        BackgroundRetouchTab.EdgeBlurStrength = ClampBackgroundSliderSetting(settings.EdgeBlurStrength);
-        BackgroundRetouchTab.AlphaShrinkStrength = ClampBackgroundSliderSetting(settings.AlphaShrinkStrength);
-        BackgroundRetouchTab.SoftAlphaStrength = ClampBackgroundSliderSetting(settings.SoftAlphaStrength);
-        BackgroundRetouchTab.AlphaGammaStrength = ClampBackgroundSliderSetting(settings.AlphaGammaStrength);
+        ResetBackgroundAdjustmentSliders();
         BackgroundRetouchTab.SetBackgroundImagePaths(
             settings.BackgroundImagePaths.Where(File.Exists),
             settings.SelectedBackgroundImagePath);
     }
 
-    private void SaveBackgroundSettingsFromCurrentSliders()
+    private void ResetBackgroundAdjustmentSliders()
     {
-        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
-        settings.BoundaryProbeStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryProbeStrength);
-        settings.BoundaryCleanStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryCleanStrength);
-        settings.EdgeBlurStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.EdgeBlurStrength);
-        settings.AlphaShrinkStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaShrinkStrength);
-        settings.SoftAlphaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.SoftAlphaStrength);
-        settings.AlphaGammaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaGammaStrength);
-        SaveBackgroundImageSettings(settings);
-        SaveAppConfig();
+        if (BackgroundRetouchTab is null)
+        {
+            return;
+        }
+
+        BackgroundRetouchTab.BoundaryProbeStrength = 0;
+        BackgroundRetouchTab.BoundaryCleanStrength = 0;
+        BackgroundRetouchTab.BackgroundOpacity = 100;
+        BackgroundRetouchTab.EdgeBlurStrength = 0;
+        BackgroundRetouchTab.AlphaShrinkStrength = 0;
+        BackgroundRetouchTab.SoftAlphaStrength = 0;
+        BackgroundRetouchTab.AlphaGammaStrength = 0;
     }
 
     private void SaveBackgroundImageSettings(BackgroundSettings settings)
@@ -117,11 +123,6 @@ public partial class MainWindow
         settings.SelectedBackgroundImagePath = string.IsNullOrWhiteSpace(BackgroundRetouchTab.SelectedBackgroundImagePath)
             ? null
             : BackgroundRetouchTab.SelectedBackgroundImagePath;
-    }
-
-    private static double ClampBackgroundSliderSetting(double value)
-    {
-        return Math.Clamp(Math.Round(value), 0, 100);
     }
 
     private async void BackgroundRetouchTab_BackgroundReplacementRequested(object? sender, EventArgs e)
@@ -236,7 +237,7 @@ public partial class MainWindow
             return;
         }
 
-        await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: true);
+        await PrepareBackgroundReplacementResourcesAsync(targetPhoto, reportStatus: true);
     }
 
     private void StartBiRefNetWarmup()
@@ -359,47 +360,96 @@ public partial class MainWindow
 
     private async Task ApplyBackgroundReplacementDragPreviewAsync()
     {
+        if (_isBackgroundDragPreviewRunning)
+        {
+            _hasPendingBackgroundDragPreviewRequest = true;
+            return;
+        }
+
+        _isBackgroundDragPreviewRunning = true;
+        try
+        {
+            do
+            {
+                _hasPendingBackgroundDragPreviewRequest = false;
+                await ApplyBackgroundReplacementDragPreviewCoreAsync();
+            }
+            while (_hasPendingBackgroundDragPreviewRequest);
+        }
+        finally
+        {
+            _isBackgroundDragPreviewRunning = false;
+        }
+    }
+
+    private async Task ApplyBackgroundReplacementDragPreviewCoreAsync()
+    {
         if (SelectedPhoto is not PhotoItem targetPhoto || BackgroundRetouchTab is null)
         {
             ClearBackgroundPreview();
             return;
         }
 
-        int renderVersion = Interlocked.Increment(ref _backgroundPreviewRenderVersion);
+        int renderVersion = Volatile.Read(ref _backgroundPreviewRenderVersion);
         double boundaryProbeStrength = BackgroundRetouchTab.BoundaryProbeStrength;
         double boundaryCleanStrength = BackgroundRetouchTab.BoundaryCleanStrength;
         double edgeBlurStrength = BackgroundRetouchTab.EdgeBlurStrength;
         double alphaShrinkStrength = BackgroundRetouchTab.AlphaShrinkStrength;
         double softAlphaStrength = BackgroundRetouchTab.SoftAlphaStrength;
         double alphaGammaStrength = BackgroundRetouchTab.AlphaGammaStrength;
+        double backgroundOpacity = BackgroundRetouchTab.BackgroundOpacity;
         (string detailPrefix, string statusName, byte fillB, byte fillG, byte fillR, string? imagePath) = GetActiveBackgroundReplacement();
 
-        string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
-        if (alphaPath is null ||
-            !ReferenceEquals(SelectedPhoto, targetPhoto) ||
-            renderVersion != _backgroundPreviewRenderVersion)
+        if (!IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
+        {
+            _ = PrepareBackgroundReplacementResourcesAsync(targetPhoto, reportStatus: true);
+            MediaPipeStatusText = "Background: preparing alpha...";
+            return;
+        }
+
+        string alphaPath = _personAlphaPath!;
+        if (!TryGetBackgroundDragPreviewSource(targetPhoto, out BitmapSource proxySource, out double frameWidth, out double frameHeight))
+        {
+            MediaPipeStatusText = "Background: preparing 1200 preview...";
+            return;
+        }
+
+        if (!_backgroundRenderGate.Wait(0))
         {
             return;
         }
 
-        BitmapSource baseSource = GetBackgroundReplacementRenderSource(targetPhoto, replaceCurrentBackground: false);
-        BitmapSource proxySource = targetPhoto.PreviewProxy1200 ?? baseSource;
-        BitmapSource safeProxy = CloneBitmapSource(proxySource);
+        BitmapSource safeProxy = proxySource.IsFrozen ? proxySource : CloneBitmapSource(proxySource);
         MediaPipeStatusText = $"Background: {statusName} 1200 preview...";
 
-        BitmapSource preview = await Task.Run(() => BuildBackgroundReplacementPreview(
-            safeProxy,
-            alphaPath,
-            fillB,
-            fillG,
-            fillR,
-            imagePath,
-            boundaryProbeStrength,
-            boundaryCleanStrength,
-            edgeBlurStrength,
-            alphaShrinkStrength,
-            softAlphaStrength,
-            alphaGammaStrength));
+        BitmapSource preview;
+        try
+        {
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                renderVersion != _backgroundPreviewRenderVersion)
+            {
+                return;
+            }
+
+            preview = await Task.Run(() => BuildBackgroundReplacementPreview(
+                safeProxy,
+                alphaPath,
+                fillB,
+                fillG,
+                fillR,
+                imagePath,
+                backgroundOpacity,
+                boundaryProbeStrength,
+                boundaryCleanStrength,
+                edgeBlurStrength,
+                alphaShrinkStrength,
+                softAlphaStrength,
+                alphaGammaStrength));
+        }
+        finally
+        {
+            _backgroundRenderGate.Release();
+        }
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _backgroundPreviewRenderVersion)
@@ -407,7 +457,7 @@ public partial class MainWindow
             return;
         }
 
-        SetBackgroundPreview(targetPhoto, preview, baseSource.PixelWidth, baseSource.PixelHeight);
+        SetBackgroundPreview(targetPhoto, preview, frameWidth, frameHeight);
         MediaPipeStatusText = $"Background: {statusName} 1200 preview";
     }
 
@@ -421,6 +471,7 @@ public partial class MainWindow
         }
 
         _isBackgroundPreviewRunning = true;
+        await _backgroundRenderGate.WaitAsync();
         try
         {
             do
@@ -432,6 +483,7 @@ public partial class MainWindow
         }
         finally
         {
+            _backgroundRenderGate.Release();
             _isBackgroundPreviewRunning = false;
         }
     }
@@ -451,9 +503,11 @@ public partial class MainWindow
         double alphaShrinkStrength = BackgroundRetouchTab?.AlphaShrinkStrength ?? 0;
         double softAlphaStrength = BackgroundRetouchTab?.SoftAlphaStrength ?? 0;
         double alphaGammaStrength = BackgroundRetouchTab?.AlphaGammaStrength ?? 0;
+        double backgroundOpacity = BackgroundRetouchTab?.BackgroundOpacity ?? 100;
         (string detailPrefix, string statusName, byte fillB, byte fillG, byte fillR, string? imagePath) = GetActiveBackgroundReplacement();
         string historyDetail = CreateBackgroundReplacementHistoryDetail(
             detailPrefix,
+            backgroundOpacity,
             boundaryProbeStrength,
             boundaryCleanStrength,
             edgeBlurStrength,
@@ -491,6 +545,7 @@ public partial class MainWindow
                 fillG,
                 fillR,
                 imagePath,
+                backgroundOpacity,
                 boundaryProbeStrength,
                 boundaryCleanStrength,
                 edgeBlurStrength,
@@ -527,34 +582,59 @@ public partial class MainWindow
             return _personAlphaPath;
         }
 
-        string? preparedInputPath = IsCachedBiRefNetPreparedInputValid(targetPhoto)
-            ? _biRefNetPreparedInputPath
-            : await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: false);
-
-        string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
-        BiRefNetMattingRunRequest request = new(
-            _appConfig.MediaPipe.HelperRuntime,
-            Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
-            targetPhoto.Path,
-            preparedInputPath,
-            outputDirectory,
-            "ZhengPeng7/BiRefNet_lite-matting",
-            1024,
-            BiRefNetInputSharpenStrength,
-            "auto");
-
-        BiRefNetMattingRunResult result = await BiRefNetMattingService.RunAsync(
-            request,
-            CancellationToken.None);
-
-        if (!result.Succeeded)
+        if (IsCachedPersonAlphaFailure(targetPhoto))
         {
-            MediaPipeStatusText = result.SummaryText;
+            MediaPipeStatusText = _personAlphaFailureStatus ?? "Background: alpha failed";
             return null;
         }
 
-        CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet, result.RunMode);
-        return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
+        await _personAlphaCreateGate.WaitAsync();
+        try
+        {
+            if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
+            {
+                return _personAlphaPath;
+            }
+
+            if (IsCachedPersonAlphaFailure(targetPhoto))
+            {
+                MediaPipeStatusText = _personAlphaFailureStatus ?? "Background: alpha failed";
+                return null;
+            }
+
+            string? preparedInputPath = IsCachedBiRefNetPreparedInputValid(targetPhoto)
+                ? _biRefNetPreparedInputPath
+                : await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: false);
+
+            string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
+            BiRefNetMattingRunRequest request = new(
+                _appConfig.MediaPipe.HelperRuntime,
+                Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
+                targetPhoto.Path,
+                preparedInputPath,
+                outputDirectory,
+                "ZhengPeng7/BiRefNet_lite-matting",
+                1024,
+                BiRefNetInputSharpenStrength,
+                "auto");
+
+            BiRefNetMattingRunResult result = await BiRefNetMattingService.RunAsync(
+                request,
+                CancellationToken.None);
+
+            if (!result.Succeeded)
+            {
+                CachePersonAlphaFailure(targetPhoto, result.SummaryText);
+                return null;
+            }
+
+            CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet, result.RunMode);
+            return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
+        }
+        finally
+        {
+            _personAlphaCreateGate.Release();
+        }
     }
 
     private async Task<string?> PrepareBiRefNetInputForPhotoAsync(PhotoItem targetPhoto, bool reportStatus)
@@ -635,6 +715,19 @@ public partial class MainWindow
                string.Equals(_personAlphaEngine, requiredEngine, StringComparison.OrdinalIgnoreCase);
     }
 
+    private bool IsCachedPersonAlphaFailure(PhotoItem targetPhoto)
+    {
+        return !string.IsNullOrWhiteSpace(_personAlphaFailurePhotoPath) &&
+               string.Equals(_personAlphaFailurePhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void CachePersonAlphaFailure(PhotoItem targetPhoto, string status)
+    {
+        _personAlphaFailurePhotoPath = targetPhoto.Path;
+        _personAlphaFailureStatus = status;
+        MediaPipeStatusText = status;
+    }
+
     private bool IsCachedBiRefNetPreparedInputValid(PhotoItem targetPhoto)
     {
         return !string.IsNullOrWhiteSpace(_biRefNetPreparedInputPath) &&
@@ -642,6 +735,63 @@ public partial class MainWindow
                string.Equals(_biRefNetPreparedInputPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase) &&
                _biRefNetPreparedInputSize == 1024 &&
                _biRefNetPreparedInputSharpen == BiRefNetInputSharpenStrength;
+    }
+
+    private async Task PrepareBackgroundReplacementResourcesAsync(PhotoItem targetPhoto, bool reportStatus)
+    {
+        int prepareVersion = Interlocked.Increment(ref _backgroundResourcePrepareVersion);
+        if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+        {
+            MediaPipeStatusText = "Background: preparing resources...";
+        }
+
+        await _backgroundResourcePrepareGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                prepareVersion != _backgroundResourcePrepareVersion)
+            {
+                return;
+            }
+
+            QueuePreviewProxy1200Build(targetPhoto);
+            string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+            if (string.IsNullOrWhiteSpace(alphaPath))
+            {
+                if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+                {
+                    MediaPipeStatusText = _personAlphaFailureStatus ?? "Background: alpha not ready";
+                }
+
+                return;
+            }
+
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                prepareVersion != _backgroundResourcePrepareVersion)
+            {
+                return;
+            }
+
+            if (TryGetBackgroundDragPreviewSource(targetPhoto, out BitmapSource previewSource, out _, out _))
+            {
+                _ = GetOrCreateRefinedPersonAlphaMask(alphaPath, previewSource.PixelWidth, previewSource.PixelHeight);
+                if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+                {
+                    MediaPipeStatusText = "Background: preview resources ready";
+                }
+
+                return;
+            }
+
+            if (reportStatus && ReferenceEquals(SelectedPhoto, targetPhoto))
+            {
+                MediaPipeStatusText = "Background: alpha ready | 1200 preview building";
+            }
+        }
+        finally
+        {
+            _backgroundResourcePrepareGate.Release();
+        }
     }
 
     private void CachePersonAlphaArtifact(string outputDirectory, string photoPath, string engine, string? runMode = null)
@@ -668,6 +818,8 @@ public partial class MainWindow
         _personAlphaPhotoPath = photoPath;
         _personAlphaEngine = engine;
         _personAlphaRunMode = runMode;
+        _personAlphaFailurePhotoPath = null;
+        _personAlphaFailureStatus = null;
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
     }
@@ -678,8 +830,33 @@ public partial class MainWindow
         _personAlphaPhotoPath = null;
         _personAlphaEngine = null;
         _personAlphaRunMode = null;
+        _personAlphaFailurePhotoPath = null;
+        _personAlphaFailureStatus = null;
+        Interlocked.Increment(ref _backgroundResourcePrepareVersion);
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
+    }
+
+    private bool TryGetBackgroundDragPreviewSource(PhotoItem photo, out BitmapSource previewSource, out double frameWidth, out double frameHeight)
+    {
+        BitmapSource baseSource = GetBackgroundReplacementRenderSource(photo, replaceCurrentBackground: false);
+        frameWidth = baseSource.PixelWidth;
+        frameHeight = baseSource.PixelHeight;
+        if (Math.Max(baseSource.PixelWidth, baseSource.PixelHeight) <= PhotoItem.PreviewProxyLongSide)
+        {
+            previewSource = baseSource;
+            return true;
+        }
+
+        if (photo.PreviewProxy1200 is BitmapSource proxy)
+        {
+            previewSource = proxy;
+            return true;
+        }
+
+        QueuePreviewProxy1200Build(photo);
+        previewSource = null!;
+        return false;
     }
 
     private void SetBackgroundPreview(PhotoItem photo, BitmapSource preview, double frameWidth, double frameHeight)
@@ -745,6 +922,7 @@ public partial class MainWindow
         byte solidG,
         byte solidR,
         string? imagePath,
+        double backgroundOpacity,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
         double edgeBlurStrength,
@@ -769,6 +947,9 @@ public partial class MainWindow
             sourceStride);
 
         bgraSource.CopyPixels(sourcePixels, sourceStride, 0);
+        double normalizedBackgroundOpacity = Math.Clamp(backgroundOpacity / 100.0, 0.0, 1.0);
+        int backgroundOpacityAlpha = (int)Math.Round(normalizedBackgroundOpacity * 255.0);
+        int inverseBackgroundOpacityAlpha = 255 - backgroundOpacityAlpha;
         (byte backgroundB, byte backgroundG, byte backgroundR) = EstimateBackgroundColorBgra32(
             sourcePixels,
             sourceStride,
@@ -831,9 +1012,13 @@ public partial class MainWindow
                 byte replacementG = backgroundPixels is null ? solidG : backgroundPixels[sourceIndex + 1];
                 byte replacementR = backgroundPixels is null ? solidR : backgroundPixels[sourceIndex + 2];
 
-                resultPixels[sourceIndex] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex], localBackground.B, replacementB, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
-                resultPixels[sourceIndex + 1] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], localBackground.G, replacementG, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
-                resultPixels[sourceIndex + 2] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], localBackground.R, replacementR, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                byte fullReplacementB = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex], localBackground.B, replacementB, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                byte fullReplacementG = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], localBackground.G, replacementG, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                byte fullReplacementR = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], localBackground.R, replacementR, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+
+                resultPixels[sourceIndex] = BlendReplacementWithOriginal(sourcePixels[sourceIndex], fullReplacementB, backgroundOpacityAlpha, inverseBackgroundOpacityAlpha);
+                resultPixels[sourceIndex + 1] = BlendReplacementWithOriginal(sourcePixels[sourceIndex + 1], fullReplacementG, backgroundOpacityAlpha, inverseBackgroundOpacityAlpha);
+                resultPixels[sourceIndex + 2] = BlendReplacementWithOriginal(sourcePixels[sourceIndex + 2], fullReplacementR, backgroundOpacityAlpha, inverseBackgroundOpacityAlpha);
                 resultPixels[sourceIndex + 3] = 255;
             }
         }
@@ -945,7 +1130,7 @@ public partial class MainWindow
     {
         if (BackgroundRetouchTab?.IsGrayBackgroundModeActive == true)
         {
-            return (GrayBackgroundHistoryDetail, "gray", 238, 240, 242, null);
+            return (GrayBackgroundHistoryDetail, "gray", 150, 150, 150, null);
         }
 
         if (BackgroundRetouchTab?.IsColorBackgroundModeActive == true &&
@@ -969,6 +1154,7 @@ public partial class MainWindow
 
     private static string CreateBackgroundReplacementHistoryDetail(
         string detailPrefix,
+        double backgroundOpacity,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
         double edgeBlurStrength,
@@ -976,13 +1162,14 @@ public partial class MainWindow
         double softAlphaStrength,
         double alphaGammaStrength)
     {
+        double opacity = Math.Clamp(Math.Round(backgroundOpacity), 0, 100);
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
         double blur = Math.Clamp(Math.Round(edgeBlurStrength), 0, 100);
         double shrink = Math.Clamp(Math.Round(alphaShrinkStrength), 0, 100);
         double soft = Math.Clamp(Math.Round(softAlphaStrength), 0, 100);
         double gamma = Math.Clamp(Math.Round(alphaGammaStrength), 0, 100);
-        return $"{detailPrefix} | Source Original | Edge {edge:0} | Clean {clean:0} | Blur {blur:0} | Shrink {shrink:0} | Soft {soft:0} | Gamma {gamma:0}";
+        return $"{detailPrefix} | Source Original | Opacity {opacity:0} | Edge {edge:0} | Clean {clean:0} | Blur {blur:0} | Shrink {shrink:0} | Soft {soft:0} | Gamma {gamma:0}";
     }
 
     private static int ApplyAlphaGamma(int alpha, double alphaGammaStrength)
@@ -1789,6 +1976,21 @@ public partial class MainWindow
     private static byte BlendOverSolid(byte channel, byte solidChannel, int alpha, int inverseAlpha)
     {
         return (byte)(((channel * alpha) + (solidChannel * inverseAlpha) + 127) / 255);
+    }
+
+    private static byte BlendReplacementWithOriginal(byte originalChannel, byte replacementChannel, int opacityAlpha, int inverseOpacityAlpha)
+    {
+        if (opacityAlpha <= 0)
+        {
+            return originalChannel;
+        }
+
+        if (opacityAlpha >= 255)
+        {
+            return replacementChannel;
+        }
+
+        return (byte)(((replacementChannel * opacityAlpha) + (originalChannel * inverseOpacityAlpha) + 127) / 255);
     }
 
     private static (byte B, byte G, byte R) EstimateBackgroundColorBgra32(

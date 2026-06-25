@@ -25,18 +25,6 @@ public sealed class AppConfig
 
 public sealed class BackgroundSettings
 {
-    public double BoundaryProbeStrength { get; set; }
-
-    public double BoundaryCleanStrength { get; set; }
-
-    public double EdgeBlurStrength { get; set; }
-
-    public double AlphaShrinkStrength { get; set; }
-
-    public double SoftAlphaStrength { get; set; }
-
-    public double AlphaGammaStrength { get; set; }
-
     public List<string> BackgroundImagePaths { get; set; } = new();
 
     public string? SelectedBackgroundImagePath { get; set; }

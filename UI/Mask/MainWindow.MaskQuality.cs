@@ -8,30 +8,74 @@ public partial class MainWindow
     private const byte PersonMaskForegroundThreshold = 96;
     private const int PersonMaskCloseRadius = 2;
     private const int PersonMaskFeatherRadius = 3;
+    private const int MaxRefinedPersonAlphaMaskCacheEntries = 3;
 
-    private RefinedPersonAlphaMask? _refinedPersonAlphaMask;
+    private readonly object _refinedPersonAlphaMaskSync = new();
+    private readonly List<RefinedPersonAlphaMask> _refinedPersonAlphaMasks = new();
 
     private byte[] GetOrCreateRefinedPersonAlphaMask(string alphaPath, int width, int height)
     {
-        if (_refinedPersonAlphaMask is not null &&
-            _refinedPersonAlphaMask.Width == width &&
-            _refinedPersonAlphaMask.Height == height &&
-            string.Equals(_refinedPersonAlphaMask.AlphaPath, alphaPath, StringComparison.OrdinalIgnoreCase))
+        lock (_refinedPersonAlphaMaskSync)
         {
-            return _refinedPersonAlphaMask.Pixels;
+            RefinedPersonAlphaMask? cachedMask = FindRefinedPersonAlphaMaskNoLock(alphaPath, width, height);
+            if (cachedMask is not null)
+            {
+                return cachedMask.Pixels;
+            }
         }
 
         byte[] rawAlpha = LoadPersonAlphaGray8Pixels(alphaPath, width, height);
         byte[] refinedAlpha = string.Equals(_personAlphaEngine, PersonAlphaEngineBiRefNet, StringComparison.OrdinalIgnoreCase)
             ? (byte[])rawAlpha.Clone()
             : RefinePersonAlphaMask(rawAlpha, width, height);
-        _refinedPersonAlphaMask = new RefinedPersonAlphaMask(alphaPath, width, height, refinedAlpha);
-        return refinedAlpha;
+        lock (_refinedPersonAlphaMaskSync)
+        {
+            RefinedPersonAlphaMask? cachedMask = FindRefinedPersonAlphaMaskNoLock(alphaPath, width, height);
+            if (cachedMask is not null)
+            {
+                return cachedMask.Pixels;
+            }
+
+            _refinedPersonAlphaMasks.Add(new RefinedPersonAlphaMask(alphaPath, width, height, refinedAlpha));
+            while (_refinedPersonAlphaMasks.Count > MaxRefinedPersonAlphaMaskCacheEntries)
+            {
+                _refinedPersonAlphaMasks.RemoveAt(0);
+            }
+
+            return refinedAlpha;
+        }
     }
 
     private void ClearRefinedPersonAlphaCache()
     {
-        _refinedPersonAlphaMask = null;
+        lock (_refinedPersonAlphaMaskSync)
+        {
+            _refinedPersonAlphaMasks.Clear();
+        }
+    }
+
+    private RefinedPersonAlphaMask? FindRefinedPersonAlphaMaskNoLock(string alphaPath, int width, int height)
+    {
+        for (int i = _refinedPersonAlphaMasks.Count - 1; i >= 0; i--)
+        {
+            RefinedPersonAlphaMask mask = _refinedPersonAlphaMasks[i];
+            if (mask.Width != width ||
+                mask.Height != height ||
+                !string.Equals(mask.AlphaPath, alphaPath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (i < _refinedPersonAlphaMasks.Count - 1)
+            {
+                _refinedPersonAlphaMasks.RemoveAt(i);
+                _refinedPersonAlphaMasks.Add(mask);
+            }
+
+            return mask;
+        }
+
+        return null;
     }
 
     private static byte[] LoadPersonAlphaGray8Pixels(string alphaPath, int width, int height)
