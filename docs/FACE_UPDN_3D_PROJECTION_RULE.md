@@ -131,7 +131,8 @@ Program start
 
 Image load or first edit-mode use
 -> run MediaPipe once
--> cache 478 landmarks and relative z values
+-> cache detected landmark X/Y positions
+-> use canonical 468 Z lookup for rigid mask depth
 
 Slider commit
 -> read cached landmarks
@@ -212,8 +213,8 @@ Do not bring from old `Pro`:
 
 Bring from current MediaPipe work:
 
-- 478 detected landmark positions for debug projection and later mesh construction
-- MediaPipe relative z values
+- detected landmark X/Y positions for debug projection and later mesh construction
+- canonical 468 face model Z values for rigid depth
 - actual eye, nose, mouth, face-line locations
 - debug overlay verification
 
@@ -226,15 +227,17 @@ Do not bring from the failed current warp:
 
 ## 9. Depth Rule
 
-MediaPipe z must be used shallowly.
+Photo-detected MediaPipe z must not drive the first rigid `Up/Dn` face mask.
+It changes too much by detector state and made the surface unstable.
 
 Do:
 
-- preserve the sign and relative ordering
-- treat nose as nearest
-- treat eyes and mouth as behind the nose
-- clamp extreme z
-- scale z down before projection
+- use detected MediaPipe X/Y for the current photo
+- use official `canonical_face_model.obj` Z for the half-3D face surface
+- use official `canonical_face_model.obj` face topology for the rigid mask mesh
+- normalize canonical Z to the current face width
+- treat nose tip index 4 as the nearest point
+- exclude the extra iris points from rigid mask geometry
 
 Projection convention:
 
@@ -281,7 +284,7 @@ Required mental model:
 
 ```text
 cut a face mask from the original image
-give the whole mask a shallow synthetic face depth
+pull the face landmarks backward/forward with canonical 468 depth
 keep the landmark surface topology fixed
 rotate/project the mask as one firm shell
 feather only the alpha edge
@@ -290,7 +293,8 @@ feather only the alpha edge
 Required behavior:
 
 - use cached MediaPipe points only
-- use the 478 points as a fixed face surface, not as independent liquify handles
+- use the canonical 468 face points as a fixed face surface, not as independent liquify handles
+- ignore the extra iris points for rigid mask geometry
 - preserve point-to-point structure during projection
 - render source triangles into projected target triangles
 - do not run local RBF, local Gaussian pull, or per-feature displacement inside `Up/Dn`
@@ -299,34 +303,69 @@ Required behavior:
 - keep the face interior firm
 - use soft alpha feather only at the mask boundary
 
+Topology reference images:
+
+```text
+docs/reference_images/relief_mesh/front_topology_reference.jpg
+docs/reference_images/relief_mesh/front_point_topology_reference.jpg
+docs/reference_images/relief_mesh/side_topology_reference.jpg
+```
+
+These images are reference material for a later manual 468-point relief topology pass. They are not the current runtime mesh. Use them to design human-readable flow lines and point groupings after the official MediaPipe canonical topology has been tested.
+
 Boundary attach rule:
 
 ```text
 rigid mask interior: fixed, plate-like
-outside attach band: 10px to 30px from the mask boundary
+outside attach band: 10px to 50px from the mask boundary
 outside movement: follow the projected boundary delta weakly
-outside falloff: strongest near the boundary, fades to 0 at 30px
+outside falloff: strongest near the boundary, fades to 0 at 50px
+upper mask edge alpha feather: 8px
 ```
 
 The attach band must not make the mask interior soft. It is only a small skin-adherence pass to reduce edge separation.
+The attach band must also bridge the source-mask interior gap that appears when the projected rigid mask moves away from the original forehead edge. Skip only pixels already covered by the projected rigid mask, not every pixel inside the original source polygon.
 
 Depth rule:
 
 ```text
-nose tip: highest
-nose bridge: high
-cheeks / forehead / mouth area: medium
-chin: lower
-jaw line / face outline: lowest
+source X/Y: detected MediaPipe image positions
+source Z: official MediaPipe canonical_face_model.obj vertex Z
+source topology: official MediaPipe canonical_face_model.obj face list
+canonical point count: 468
+canonical face count: 898
+extra iris points: excluded from the rigid mask
+nose tip index 4: maximum canonical Z
+side/outline low points: pulled backward
+chin/jaw/mouth/forehead: use their canonical Z, not photo-detected MediaPipe Z
 ```
 
 Current test value:
 
 ```text
-synthetic nose depth max: faceWidth * 0.09
+canonical normalized nose depth max: faceWidth * 0.09
+Up/Dn pitch max: 8.75 degrees at slider 0 or 100
+Up/Dn pitch pivot X/Y: MediaPipe face landmark 8, the brow-center pivot point
+Up/Dn pitch pivot Z: 0.0 on the image plane
+Face Turn yaw pivot X/Y: MediaPipe face landmark 8, shared with Up/Dn
+Face Turn yaw pivot Z: 0.0 on the image plane
 ```
 
-If MediaPipe `z` is unstable, use the approved synthetic oval depth.
+Do not use photo-detected MediaPipe `z` for the first rigid Up/Dn renderer. It is unstable for this task.
+Normalize the official canonical Z range to the current face width, then render the rigid face mask with the official canonical face topology.
+Do not insert a separate under-chin guard band into the face mask polygon. The current test mask extends only the lower half of the face oval downward by `faceHeight * 0.03`, then relies on edge feather and the outside attach band for the join.
+
+Jaw vertical compensation rule:
+
+```text
+jaw band: 400, 377, 152, 148, 176
+measure average source Y and projected Y after rigid pitch projection
+if the projected jaw band rises, move the entire projected mask down by the rise * 0.85
+if the projected jaw band drops, pull back only weakly by the drop * 0.35
+maximum compensation: faceHeight * 0.10
+```
+
+This compensation is a global mask offset, not a local liquify warp. Apply the same Y offset to every projected mask vertex and to the projected mask polygon. Do not move eyes, nose, mouth, cheeks, or jaw independently.
 
 ## 12. Up/Dn First Implementation Scope
 
@@ -336,7 +375,7 @@ First scope:
 
 ```text
 face mask from face-line interior
-include an extended full lower-jaw under-chin band
+extend only the lower half of the face oval downward by faceHeight * 0.03
 exclude hair
 exclude ears
 exclude shoulders
@@ -347,8 +386,8 @@ Implementation steps:
 
 1. build cached source landmark points
 2. calculate projected points with shallow 2.5D pitch
-3. build a rigid mask polygon from the face oval plus extended full lower-jaw band
-4. triangulate source points once for the render request
+3. build a rigid mask polygon from the face oval, with only a small downward lower-half extension
+4. render official canonical face triangles for the 468-point face shell
 5. render projected target triangles by inverse sampling from source triangles
 6. blend with normal edge feather, and use stronger feather on the lower expanded edge
 7. keep the old relief path available for non-`Up/Dn` tools
@@ -361,7 +400,8 @@ First `Up/Dn` rigid mask scope:
 
 ```text
 face-line interior
-+ full lower-jaw under-chin upper-neck mask extension
++ lower-half oval extension only
++ 50px outside attach band
 ```
 
 Excluded in first rigid mask:
@@ -392,10 +432,41 @@ Required:
 - avoid allocating large temporary objects inside tight loops
 - keep preview work bounded to face region
 - use parallel pixel work only after the math path is visually approved
+- at slider center, keep `Up/Dn` on the same rigid render path instead of switching to a raw-source reset path
+- at slider center, keep `Face Turn` on the same live preview route instead of clearing the drag preview
 
 Reject any implementation that makes the slider feel heavy.
 
-## 15. Fallback Rule
+## 15. Face Turn Accepted Lock
+
+`Facial Reshape > Head Pose > Turn` is visually accepted and locked as of the current tuning pass.
+
+Do not change the Turn pivot, direction, projection strength, contour depth rule, central depth shift, or edge behavior without new explicit approval.
+
+The approved Turn behavior is photo-retouch oriented:
+
+- keep the face contour almost stable
+- move the nose and central face area more than the outline
+- avoid full yaw projection that folds the outer face inward
+- preserve the current Evoto-like visual result
+
+Live slider preview must keep the same render route at center value `50`.
+Do not clear the Turn drag preview at `50`; otherwise the preview falls back for one frame and creates a visible center pop.
+
+## 16. Face Tilt Edge Lock
+
+`Facial Reshape > Head Pose > Tilt` is accepted as a small-angle face-line rotation.
+
+Do not increase the Tilt angle just to match a stronger app sample. The current problem class is edge separation, not insufficient rotation.
+
+The approved Tilt behavior is:
+
+- keep max Tilt at `2.5` degrees
+- keep hair and ears outside the Tilt mask
+- use a `28 px` outside feather band to attach the face-line edge visually
+- keep live preview on the same route at center value `50`; do not clear the drag preview at `50`
+
+## 17. Fallback Rule
 
 The engine must always have a safe fallback.
 
@@ -414,7 +485,7 @@ ignore solvePnP and use standard portrait camera
 If MediaPipe z is unstable:
 
 ```text
-use shallow oval face depth
+ignore photo-detected z and use canonical 468 Z
 ```
 
 If projection looks visually wrong:
@@ -432,16 +503,18 @@ cache result
 then continue
 ```
 
-## 16. Current Implementation Checkpoint
+## 17. Current Implementation Checkpoint
 
 Current approved checkpoint:
 
 - MediaPipe worker can stay warm in RAM
-- FaceShape can reuse cached 478 landmarks
+- FaceShape can reuse cached detected landmarks
+- `Up/Dn` uses canonical 468 Z for rigid mask depth
 - `Up/Dn` debug overlays are optional and must not block judgment when disabled
 - `Up/Dn` applies a rigid 2.5D face mask layer, not a soft relief warp
-- the mask includes face-line interior and a small under-chin extension
+- the mask includes face-line interior and a small lower-half oval extension
 - the mask boundary uses feathered alpha only
+- the outside attach band extends to 50px for the current test
 - the face interior remains rigid
 - hair, ears, lower neck, shoulders, clothes, and background are excluded from the first rigid mask
 - the six rigid control anchors are still used to set the initial pivot/camera sanity frame
@@ -455,7 +528,7 @@ then tune depth strength, mask polygon, edge feather, and projection strength
 then move the accepted rigid renderer into common FaceShape pose code
 ```
 
-## 17. Short Version
+## 18. Short Version
 
 Short rule:
 

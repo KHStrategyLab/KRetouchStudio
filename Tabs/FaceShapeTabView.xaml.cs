@@ -32,6 +32,7 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     private double _faceTurnStrength = 50;
     private double _headTiltStrength = 50;
     private double _alignStrength;
+    private bool _isHeadPoseStrengthSliderInteracting;
 
     public FaceShapeTabView()
     {
@@ -108,7 +109,10 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
             OnPropertyChanged();
             SetActiveFaceShapeMode(_activeHeadPoseMode);
-            HeadPoseAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
+            if (_isHeadPoseStrengthSliderInteracting)
+            {
+                HeadPoseAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 
@@ -228,7 +232,13 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void HeadPoseStrengthSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _isHeadPoseStrengthSliderInteracting = false;
         CommitHeadPoseAdjustment();
+    }
+
+    private void HeadPoseStrengthSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isHeadPoseStrengthSliderInteracting = true;
     }
 
     private void HeadPoseStrengthSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)

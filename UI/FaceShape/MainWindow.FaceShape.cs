@@ -29,18 +29,17 @@ public partial class MainWindow
     private const string FaceShapeFaceTiltHistoryTitle = "Face F-Tilt";
     private const string FaceShapeFaceTiltHistoryDetail = "F-Tilt";
     private const double FaceShapeFaceTiltMaxDegrees = 2.5;
+    private const double FaceShapeFaceTiltOutsideFeatherPx = 28.0;
     private const string FaceShapeFaceTurnHistoryTitle = "Face Turn";
     private const string FaceShapeFaceTurnHistoryDetail = "Turn";
     private const double FaceShapeFaceTurnMaxShiftRatio = 0.065;
-    private const double FaceShapeFaceTurnProjectionMaxDegrees = 12.0;
-    private const double FaceShapeFaceTurnProjectionZScale = 0.35;
-    private const double FaceShapeFaceTurnProjectionPivotDepthRatio = 0.10;
+    private const double FaceShapeFaceTurnProjectionMaxDegrees = 24.0;
     private const double FaceShapeFaceTurnContourDepthRatio = 0.05;
     private const double FaceShapeFaceTurnVerticalProjectionRatio = 0.03;
     private const double FaceShapeHeadPoseBaseFocalLengthMm = 50.0;
     private const double FaceShapeHeadPoseBaseCameraDistanceMm = 1500.0;
-    private const double FaceShapeHeadPoseCameraFocalLengthMm = 70.0;
-    private const double FaceShapeHeadPoseCameraDistanceMm = 2000.0;
+    private const double FaceShapeHeadPoseCameraFocalLengthMm = 50.0;
+    private const double FaceShapeHeadPoseCameraDistanceMm = 1500.0;
     private const double FaceShapeHeadPoseCameraFocalLengthRatio =
         2.8 * FaceShapeHeadPoseCameraFocalLengthMm / FaceShapeHeadPoseBaseFocalLengthMm;
     private const double FaceShapeHeadPoseCameraDistanceRatio =
@@ -48,17 +47,21 @@ public partial class MainWindow
     private const string FaceShapeHeadTiltHistoryTitle = "Face Up/Dn";
     private const string FaceShapeHeadTiltHistoryDetail = "Up/Dn";
     private const double FaceShapeHeadTiltMaxShiftRatio = 0.060;
-    private const double FaceShapeHeadTiltProjectionMaxDegrees = 25.0;
+    private const double FaceShapeHeadTiltProjectionMaxDegrees = 8.75;
     private const double FaceShapeHeadTiltProjectionZScale = 0.35;
     private const double FaceShapeHeadTiltProjectionPivotDepthRatio = 0.10;
     private const double FaceShapeHeadTiltMaskLiftDepthRatio = 0.12;
-    private const double FaceShapeHeadTiltSyntheticDepthRatio = 0.09;
-    private const double FaceShapeHeadTiltSyntheticDepthYRadiusRatio = 0.55;
-    private const double FaceShapeHeadTiltRigidEdgeFeatherPx = 4.0;
+    private const double FaceShapeHeadTiltCanonicalDepthRatio = 0.09;
+    private const double FaceShapeHeadTiltCanonicalMinZ = -2.435867;
+    private const double FaceShapeHeadTiltCanonicalNoseTipZ = 7.586580;
+    private const double FaceShapeHeadTiltLowerMaskExtensionRatio = 0.03;
+    private const double FaceShapeHeadTiltRigidEdgeFeatherPx = 8.0;
     private const double FaceShapeHeadTiltLowerEdgeFeatherPx = 10.0;
     private const double FaceShapeHeadTiltAttachBandInnerPx = 10.0;
-    private const double FaceShapeHeadTiltAttachBandOuterPx = 30.0;
+    private const double FaceShapeHeadTiltAttachBandOuterPx = 50.0;
     private const double FaceShapeHeadTiltAttachBandStrength = 0.45;
+    private const double FaceShapeHeadTiltJawRiseCompensationStrength = 0.85;
+    private const double FaceShapeHeadTiltJawDropCompensationStrength = 0.35;
     private const double FaceShapeHeadTiltReliefFeatherPx = 15.0;
     private const double FaceShapeHeadTiltOutsideFeatherPx = 28.0;
     private const double FaceShapeHeadTiltOutsideFeatherStrength = 0.60;
@@ -66,8 +69,74 @@ public partial class MainWindow
     private const int FaceShapeHeadPoseDragPreviewLongSide = PhotoItem.PreviewProxyLongSide;
     private const double FaceShapeHeadPoseDragPreviewUnsharpAmount = 1.0;
 
+    private static readonly int[] FaceShapeHeadTiltJawCompensationIndices = [400, 377, 152, 148, 176];
+
+    private static readonly double[] FaceShapeHeadTiltCanonicalZ =
+    [
+        5.979507, 7.475604, 6.058267, 6.633583, 7.586580, 7.242870, 5.788627, 3.279702,
+        5.284764, 5.385258, 4.481535, 5.864924, 5.569430, 5.219482, 5.404754, 5.529457,
+        5.601448, 5.535441, 5.071372, 7.112196, 6.447657, 0.099620, 3.848121, 3.796952,
+        3.646194, 3.155168, 3.851822, 4.115822, 4.092203, 3.972409, 3.719554, 2.776093,
+        4.389812, 3.173422, 0.073150, 2.204059, 4.433130, 5.877044, 5.444923, 5.496189,
+        5.028930, 5.189648, 4.842263, 4.188483, 7.360529, 7.440358, 3.363159, 4.558359,
+        5.814193, 5.581319, 3.534632, 7.101013, 4.550454, 4.048484, 1.425850, 5.106035,
+        4.000575, 4.095905, -1.745401, 5.737747, 5.833208, 4.283884, 4.162499, 3.751977,
+        5.456949, 4.921559, 5.015990, 3.729163, 2.724259, 4.529981, 2.830852, 1.591691,
+        5.737804, 5.417779, 5.000579, 5.662455, 4.258156, 4.520883, 4.038093, 6.512274,
+        4.604908, 4.926693, 5.138202, 4.985883, 5.448304, 5.509612, 5.449371, 5.339869,
+        4.745470, 4.813632, 4.854463, 4.823737, 4.868096, -2.431321, 6.601390, 4.399021,
+        4.497052, 5.866456, 5.241087, 5.863759, 4.294303, 4.113860, 5.273355, 2.660442,
+        3.683424, 4.466315, 4.455874, 5.316032, 4.921106, 4.274997, 3.375099, 2.431726,
+        3.843181, 3.083858, 4.831091, 6.415959, 1.689873, 2.974312, 3.522615, 3.872784,
+        4.039035, 4.224124, 5.566789, 1.881175, 2.687839, 7.071491, 4.895421, -2.005167,
+        4.448999, 4.850470, 3.084075, 6.097047, -2.252455, 3.757904, 6.671944, 1.892523,
+        0.714711, -0.072044, 0.924091, 0.724695, 4.119213, 6.573301, 4.566119, 1.560843,
+        3.635230, 3.775704, 4.479786, 1.663542, 4.094063, 2.802001, 1.925119, 5.027311,
+        4.264492, 3.777151, 3.697603, 3.689148, 2.038516, 3.775031, 3.871767, 3.876973,
+        3.724325, 3.482983, -0.991917, 3.440898, 5.932265, 5.213116, 5.952465, 5.815343,
+        5.236015, 2.671970, 3.382963, 4.702456, -0.631468, 3.744030, 5.754256, 4.891441,
+        3.609070, -0.131163, 5.120727, 5.189564, 5.237051, 5.205010, 4.757893, 4.431713,
+        4.555096, 4.582438, 4.484994, 2.861224, 5.196779, 4.231404, 3.881555, 4.247264,
+        2.109852, 4.861453, 4.521085, 6.774605, 6.148363, 6.316750, 5.681036, 5.181173,
+        5.153478, 4.979576, 3.795752, 4.590085, 4.096152, 4.137731, 4.440943, 3.643886,
+        4.969286, 5.201008, 3.311079, 3.814195, 3.726453, 1.473482, 2.983221, 0.070268,
+        4.130198, 5.307551, 6.538785, 5.905127, 7.003423, 4.327696, 4.364629, 4.309028,
+        4.076063, 3.646321, 2.670867, -0.048769, 3.109532, 3.476944, 3.731945, 3.865444,
+        3.961782, 4.084996, -2.435867, 5.630378, 6.233232, 7.077932, 6.787447, 6.798303,
+        5.480490, 6.957705, 6.508676, 3.863736, 4.203800, 4.615849, 3.315305, 3.339685,
+        6.633583, 3.279702, 6.447657, 0.099620, 3.848121, 3.796952, 3.646194, 3.155168,
+        3.851822, 4.115822, 4.092203, 3.972409, 3.719554, 2.776093, 4.389812, 3.173422,
+        0.073150, 2.204059, 4.433130, 5.877044, 5.444923, 5.496189, 5.028930, 5.189648,
+        4.842263, 4.188483, 7.360529, 7.440358, 3.363159, 4.558359, 5.814193, 5.581319,
+        3.534632, 7.101013, 4.550454, 4.048484, 1.425850, 5.106035, 4.000575, 4.095905,
+        -1.745401, 5.737747, 5.833208, 4.283884, 4.162499, 3.751977, 5.456949, 4.921559,
+        5.015990, 3.729163, 2.724259, 4.529981, 2.830852, 1.591691, 5.737804, 5.417779,
+        5.000579, 5.662455, 4.258156, 4.520883, 4.038093, 6.512274, 4.604908, 4.926693,
+        5.138202, 4.985883, 5.448304, 5.509612, 5.449371, 5.339869, 4.745470, 4.813632,
+        4.854463, 4.823737, 4.868096, -2.431321, 4.399021, 4.497052, 5.866456, 5.241087,
+        5.863759, 4.294303, 4.113860, 5.273355, 2.660442, 3.683424, 4.466315, 4.455874,
+        5.316032, 4.921106, 4.274997, 3.375099, 2.431726, 3.843181, 3.083858, 4.831091,
+        6.415959, 1.689873, 2.974312, 3.522615, 3.872784, 4.039035, 4.224124, 5.566789,
+        1.881175, 2.687839, 7.071491, 4.895421, -2.005167, 4.448999, 4.850470, 3.084075,
+        6.097047, -2.252455, 3.757904, 6.671944, 1.892523, 0.714711, -0.072044, 0.924091,
+        0.724695, 4.119213, 6.573301, 4.566119, 1.560843, 3.635230, 3.775704, 4.479786,
+        1.663542, 4.094063, 2.802001, 1.925119, 3.777151, 3.697603, 3.689148, 2.038516,
+        3.775031, 3.871767, 3.876973, 3.724325, 3.482983, -0.991917, 3.440898, 5.213116,
+        5.952465, 5.815343, 2.671970, 3.382963, 4.702456, -0.631468, 3.744030, 5.754256,
+        3.609070, -0.131163, 5.120727, 5.189564, 5.237051, 5.205010, 4.757893, 4.431713,
+        4.555096, 4.582438, 4.484994, 2.861224, 5.196779, 4.231404, 3.881555, 4.247264,
+        2.109852, 4.861453, 4.521085, 6.148363, 5.681036, 4.979576, 3.795752, 4.590085,
+        4.096152, 4.137731, 4.440943, 3.643886, 4.969286, 5.201008, 3.311079, 3.814195,
+        3.726453, 1.473482, 2.983221, 0.070268, 4.130198, 5.307551, 6.538785, 5.905127,
+        7.003423, 4.327696, 4.364629, 4.309028, 4.076063, 3.646321, 2.670867, -0.048769,
+        3.109532, 3.476944, 3.731945, 3.865444, 3.961782, 4.084996, -2.435867, 5.630378,
+        6.233232, 7.077932, 6.787447, 6.798303, 5.480490, 6.957705, 6.508676, 3.863736,
+        4.203800, 4.615849, 3.315305, 3.339685,
+    ];
+
     private static readonly int[] FaceShapeHeadTiltLeftEyeOuterCornerIndices = [33];
     private static readonly int[] FaceShapeHeadTiltRightEyeOuterCornerIndices = [263];
+    private static readonly int[] FaceShapeHeadPoseBrowCenterPivotIndices = [8];
     private static readonly int[] FaceShapeHeadTiltNoseTipIndices = [4];
     private static readonly int[] FaceShapeHeadTiltChinTipIndices = [152];
     private static readonly int[] FaceShapeHeadTiltLeftMouthCornerIndices = [61];
@@ -807,7 +876,8 @@ public partial class MainWindow
                 safeBase,
                 reliefControls,
                 facePolygon,
-                () => renderVersion != _faceShapeSymmetryRenderVersion));
+                () => renderVersion != _faceShapeSymmetryRenderVersion,
+                outsideFeather: FaceShapeFaceTiltOutsideFeatherPx));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -866,31 +936,33 @@ public partial class MainWindow
         }
 
         HideMediaPipeFeatureOverlayForFaceShapeDebug();
-        if (!TryBuildFaceShapeFaceTurnProjectionDebugPoints(
+        FaceShapePointArray landmarkPoints = GetOrCreateFaceShapePointArray(
+            targetPhoto,
             landmarks,
             baseSource.PixelWidth,
-            baseSource.PixelHeight,
-            strength,
-            out List<Point> sourcePoints,
-            out List<Point> projectedPoints,
-            out List<IReadOnlyList<Point>> meshPaths,
-            out List<FaceShapeControlPoint> reliefControls,
-            out List<Point> facePolygon))
+            baseSource.PixelHeight);
+        if (!TryBuildFaceShapeFaceTurnRigidMaskPlan(
+                landmarkPoints,
+                baseSource.PixelWidth,
+                baseSource.PixelHeight,
+                strength,
+                out int projectedPointCount,
+                out FaceShapeRigidMaskPlan? rigidMaskPlan))
         {
             ClearFaceShapeHeadPoseDragPreview();
             ClearFaceShapeProjectionDebugOverlay();
-            MediaPipeStatusText = "Face Turn: projection points unavailable";
+            MediaPipeStatusText = "Face Turn: rigid mask unavailable";
             return;
         }
 
+        FaceShapeRigidMaskPlan committedRigidMaskPlan = rigidMaskPlan!;
         BitmapSource safeBase = CloneBitmapSource(baseSource);
-        MediaPipeStatusText = $"Face Turn: relief warp {strength:0}...";
+        MediaPipeStatusText = $"Face Turn: rigid mask {strength:0}...";
 
         BitmapSource preview = await Task.Run(() =>
-            BuildFaceShapeHeadTiltReliefPreview(
+            BuildFaceShapeHeadTiltRigidMaskPreview(
                 safeBase,
-                reliefControls,
-                facePolygon,
+                committedRigidMaskPlan,
                 () => renderVersion != _faceShapeSymmetryRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
@@ -903,7 +975,7 @@ public partial class MainWindow
         PushOrReplaceFaceShapeFaceTurnHistory(targetPhoto, strength);
         ClearFaceShapeProjectionDebugOverlay();
         UpdatePreviewLayout();
-        MediaPipeStatusText = $"Face Turn: relief {projectedPoints.Count:0} pts | lines {meshPaths.Count:0} | {strength:0}";
+        MediaPipeStatusText = $"Face Turn: rigid {projectedPointCount:0} pts | mesh {committedRigidMaskPlan.Triangles.Count:0} | {strength:0}";
     }
 
     private async Task ApplyFaceShapeHeadTiltPreviewAsync()
@@ -923,16 +995,6 @@ public partial class MainWindow
         {
             ClearFaceShapeHeadPoseDragPreview();
             MediaPipeStatusText = "Face Up/Dn: original-size image only";
-            return;
-        }
-
-        if (Math.Abs(sliderStrength - 50) <= 0.001)
-        {
-            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
-            ClearFaceShapeProjectionDebugOverlay();
-            PushOrReplaceFaceShapeHeadTiltHistory(targetPhoto, sliderStrength);
-            UpdatePreviewLayout();
-            MediaPipeStatusText = "Face Up/Dn: reset";
             return;
         }
 
@@ -1015,7 +1077,7 @@ public partial class MainWindow
             : isFaceTurn
                 ? Math.Clamp(Math.Round(FaceShapeRetouchTab.FaceTurnFaceShapeStrength), 0, 100)
                 : Math.Clamp(Math.Round(FaceShapeRetouchTab.HeadTiltFaceShapeStrength), 0, 100);
-        if (Math.Abs(sliderStrength - 50) <= 0.001)
+        if (Math.Abs(sliderStrength - 50) <= 0.001 && !isHeadTilt && !isFaceTurn && !isFaceTilt)
         {
             ClearFaceShapeHeadPoseDragPreview();
             return;
@@ -1072,14 +1134,13 @@ public partial class MainWindow
         }
         else if (isFaceTurn)
         {
-            hasPlan = TryBuildFaceShapeFaceTurnDragPreviewPlan(
+            hasPlan = TryBuildFaceShapeFaceTurnRigidMaskPlan(
                 landmarkPoints,
                 proxySource.PixelWidth,
                 proxySource.PixelHeight,
                 sliderStrength,
                 out projectedPointCount,
-                out reliefControls,
-                out facePolygon);
+                out rigidMaskPlan);
         }
         else
         {
@@ -1101,17 +1162,17 @@ public partial class MainWindow
 
         BitmapSource safeProxy = CloneBitmapSource(proxySource);
         MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {sliderStrength:0}...";
-        BitmapSource preview = await Task.Run(() => isHeadTilt
+        BitmapSource preview = await Task.Run(() => rigidMaskPlan is not null
             ? BuildFaceShapeHeadTiltRigidMaskPreview(
                 safeProxy,
-                rigidMaskPlan!,
+                rigidMaskPlan,
                 () => renderVersion != _faceShapeSymmetryRenderVersion)
             : BuildFaceShapeHeadTiltReliefPreview(
                 safeProxy,
                 reliefControls,
                 facePolygon,
                 () => renderVersion != _faceShapeSymmetryRenderVersion,
-                outsideFeather: 0.0));
+                outsideFeather: isFaceTilt ? FaceShapeFaceTiltOutsideFeatherPx : 0.0));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -1848,22 +1909,35 @@ public partial class MainWindow
         return -normalized * FaceShapeHeadTiltProjectionMaxDegrees * Math.PI / 180.0;
     }
 
-    private static double GetFaceShapeHeadTiltSyntheticDepth(
-        double imageX,
-        double imageY,
-        FaceShapeProjectionSample nose,
-        double faceWidth,
-        double faceHeight)
+    private static bool IsFaceShapeHeadTiltCanonicalIndex(int index)
     {
-        double dx = (imageX - nose.X) / Math.Max(1.0, faceWidth * 0.5);
-        double dy = (imageY - nose.Y) / Math.Max(1.0, faceHeight * FaceShapeHeadTiltSyntheticDepthYRadiusRatio);
-        double distance2 = (dx * dx) + (dy * dy);
-        if (distance2 >= 1.0)
+        return index >= 0 && index < FaceShapeHeadTiltCanonicalZ.Length;
+    }
+
+    private static double GetFaceShapeHeadTiltCanonicalDepth(int index, double faceWidth)
+    {
+        if (!IsFaceShapeHeadTiltCanonicalIndex(index))
         {
             return 0.0;
         }
 
-        return Math.Sqrt(1.0 - distance2) * faceWidth * FaceShapeHeadTiltSyntheticDepthRatio;
+        double range = Math.Max(0.0001, FaceShapeHeadTiltCanonicalNoseTipZ - FaceShapeHeadTiltCanonicalMinZ);
+        double normalized = Math.Clamp(
+            (FaceShapeHeadTiltCanonicalZ[index] - FaceShapeHeadTiltCanonicalMinZ) / range,
+            0.0,
+            1.0);
+        return normalized * faceWidth * FaceShapeHeadTiltCanonicalDepthRatio;
+    }
+
+    private static double GetFaceShapeFaceTurnCanonicalDepth(int index, double faceWidth)
+    {
+        double depth = GetFaceShapeHeadTiltCanonicalDepth(index, faceWidth);
+        if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, index))
+        {
+            return depth * FaceShapeFaceTurnContourDepthRatio;
+        }
+
+        return depth;
     }
 
     private static bool TryBuildFaceShapeHeadTiltProjectionDebugPoints(
@@ -1883,26 +1957,6 @@ public partial class MainWindow
         reliefControls = [];
         facePolygon = [];
         if (landmarks.Count == 0 || width <= 0 || height <= 0)
-        {
-            return false;
-        }
-
-        if (!TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample leftEyeOuter))
-        {
-            return false;
-        }
-
-        if (!TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightEyeOuterCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample rightEyeOuter))
         {
             return false;
         }
@@ -1953,28 +2007,26 @@ public partial class MainWindow
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
         double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
         double pivotX = nose.X;
-        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
-        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
-        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
-        double pivotZ = faceWidth * FaceShapeHeadTiltProjectionPivotDepthRatio;
+        double pivotY = nose.Y;
+        double pivotZ = 0.0;
         double maskLiftZ = faceWidth * FaceShapeHeadTiltMaskLiftDepthRatio;
         Dictionary<int, Point> sourcePointMap = new(landmarks.Count);
         Dictionary<int, Point> projectedPointMap = new(landmarks.Count);
 
         foreach (MediaPipeLandmarkPoint landmark in landmarks)
         {
+            if (!IsFaceShapeHeadTiltCanonicalIndex(landmark.Index))
+            {
+                continue;
+            }
+
             FaceShapeProjectionSample sample = new(
                 landmark.X * width,
                 landmark.Y * height,
                 landmark.Z);
             Point sourcePoint = new(sample.X, sample.Y);
             sourcePoints.Add(sourcePoint);
-            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltSyntheticDepth(
-                sample.X,
-                sample.Y,
-                nose,
-                faceWidth,
-                faceHeight);
+            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltCanonicalDepth(landmark.Index, faceWidth);
             projectedPoints.Add(ProjectFaceShapeHeadTiltPoint(
                 sample.X,
                 sample.Y,
@@ -2021,48 +2073,10 @@ public partial class MainWindow
 
         if (!TryGetFaceShapeProjectionAverage(
                 landmarks,
-                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample leftEyeOuter))
-        {
-            return false;
-        }
-
-        if (!TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightEyeOuterCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample rightEyeOuter))
-        {
-            return false;
-        }
-
-        if (!TryGetFaceShapeProjectionAverage(
-                landmarks,
                 FaceShapeHeadTiltNoseTipIndices,
                 width,
                 height,
-                out FaceShapeProjectionSample nose) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltChinTipIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample chin) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltLeftMouthCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample leftMouth) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightMouthCornerIndices,
-                width,
-                height,
-                out FaceShapeProjectionSample rightMouth))
+                out FaceShapeProjectionSample turnPivot))
         {
             return false;
         }
@@ -2082,34 +2096,30 @@ public partial class MainWindow
         double faceWidth = Math.Max(1.0, bounds.Width);
         double faceHeight = Math.Max(1.0, bounds.Height);
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
-        double yawRadians = -normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
+        double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
         double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
-        double pivotX = nose.X;
-        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
-        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
-        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
-        double pivotZ = faceWidth * FaceShapeFaceTurnProjectionPivotDepthRatio;
-        HashSet<int> contourDepthIndices = new(FaceShapeHeadTiltFaceOvalIndices);
+        double pivotX = turnPivot.X;
+        double pivotY = turnPivot.Y;
+        double pivotZ = 0.0;
+        double maskLiftZ = 0.0;
         Dictionary<int, Point> sourcePointMap = new(landmarks.Count);
         Dictionary<int, Point> projectedPointMap = new(landmarks.Count);
 
         foreach (MediaPipeLandmarkPoint landmark in landmarks)
         {
+            if (!IsFaceShapeHeadTiltCanonicalIndex(landmark.Index))
+            {
+                continue;
+            }
+
             FaceShapeProjectionSample sample = new(
                 landmark.X * width,
                 landmark.Y * height,
                 landmark.Z);
             Point sourcePoint = new(sample.X, sample.Y);
             sourcePoints.Add(sourcePoint);
-            double correctedZ = Math.Clamp(
-                (sample.Z - nose.Z) * faceWidth * FaceShapeFaceTurnProjectionZScale,
-                -faceWidth * 0.045,
-                faceWidth * 0.11);
-            if (contourDepthIndices.Contains(landmark.Index))
-            {
-                correctedZ = faceWidth * FaceShapeFaceTurnContourDepthRatio;
-            }
+            double correctedZ = maskLiftZ + GetFaceShapeFaceTurnCanonicalDepth(landmark.Index, faceWidth);
 
             projectedPoints.Add(ProjectFaceShapeFaceTurnPoint(
                 sample.X,
@@ -2126,7 +2136,7 @@ public partial class MainWindow
         }
 
         meshPaths = BuildFaceShapeHeadTiltProjectedGuidePaths(projectedPointMap);
-        reliefControls = BuildFaceShapeHeadTiltReliefControls(sourcePointMap, projectedPointMap);
+        reliefControls = BuildFaceShapeFaceTurnReliefControls(sourcePointMap, projectedPointMap, width, height);
         facePolygon = BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
         return sourcePoints.Count > 0 &&
                projectedPoints.Count == sourcePoints.Count &&
@@ -2217,14 +2227,6 @@ public partial class MainWindow
 
         if (!TryGetFaceShapeProjectionAverage(
                 landmarks,
-                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
-                out FaceShapeProjectionSample leftEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightEyeOuterCornerIndices,
-                out FaceShapeProjectionSample rightEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
                 FaceShapeHeadTiltNoseTipIndices,
                 out FaceShapeProjectionSample nose) ||
             !TryGetFaceShapeProjectionAverage(
@@ -2255,14 +2257,13 @@ public partial class MainWindow
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
         double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
         double pivotX = nose.X;
-        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
-        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
-        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
-        double pivotZ = faceWidth * FaceShapeHeadTiltProjectionPivotDepthRatio;
+        double pivotY = nose.Y;
+        double pivotZ = 0.0;
         double maskLiftZ = faceWidth * FaceShapeHeadTiltMaskLiftDepthRatio;
         Point[] projectedPoints = new Point[landmarks.Points.Length];
 
-        for (int index = 0; index < landmarks.Points.Length; index++)
+        int canonicalPointCount = Math.Min(landmarks.Points.Length, FaceShapeHeadTiltCanonicalZ.Length);
+        for (int index = 0; index < canonicalPointCount; index++)
         {
             if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
             {
@@ -2270,12 +2271,7 @@ public partial class MainWindow
             }
 
             Point sourcePoint = landmarks.Points[index];
-            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltSyntheticDepth(
-                sourcePoint.X,
-                sourcePoint.Y,
-                nose,
-                faceWidth,
-                faceHeight);
+            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltCanonicalDepth(index, faceWidth);
             projectedPoints[index] = ProjectFaceShapeHeadTiltPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
@@ -2313,14 +2309,6 @@ public partial class MainWindow
 
         if (!TryGetFaceShapeProjectionAverage(
                 landmarks,
-                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
-                out FaceShapeProjectionSample leftEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightEyeOuterCornerIndices,
-                out FaceShapeProjectionSample rightEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
                 FaceShapeHeadTiltNoseTipIndices,
                 out FaceShapeProjectionSample nose) ||
             !TryGetFaceShapeProjectionAverage(
@@ -2357,29 +2345,50 @@ public partial class MainWindow
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
         double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
         double pivotX = nose.X;
-        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
-        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
-        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
-        double pivotZ = faceWidth * FaceShapeHeadTiltProjectionPivotDepthRatio;
+        double pivotY = nose.Y;
+        double pivotZ = 0.0;
         double maskLiftZ = faceWidth * FaceShapeHeadTiltMaskLiftDepthRatio;
-        List<Point> sourceVertices = new(landmarks.Count + sourcePolygon.Count);
-        List<Point> projectedVertices = new(landmarks.Count + sourcePolygon.Count);
+        int canonicalPointCount = Math.Min(landmarks.Points.Length, FaceShapeHeadTiltCanonicalZ.Length);
+        if (canonicalPointCount < FaceShapeHeadTiltCanonicalZ.Length)
+        {
+            return false;
+        }
+
+        List<Point> sourceVertices = new(canonicalPointCount + sourcePolygon.Count);
+        List<Point> projectedVertices = new(canonicalPointCount + sourcePolygon.Count);
         List<Point> projectedPolygon = new(sourcePolygon.Count);
 
-        for (int index = 0; index < landmarks.Points.Length; index++)
+        Point[] projectedCanonicalPoints = new Point[canonicalPointCount];
+        bool[] hasProjectedCanonicalPoint = new bool[canonicalPointCount];
+        for (int index = 0; index < canonicalPointCount; index++)
         {
             if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
             {
-                continue;
+                return false;
             }
 
             Point sourcePoint = landmarks.Points[index];
-            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltSyntheticDepth(
+            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltCanonicalDepth(index, faceWidth);
+            Point projectedPoint = ProjectFaceShapeHeadTiltPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
-                nose,
-                faceWidth,
-                faceHeight);
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                pitchRadians,
+                focalLength,
+                cameraDistance);
+            sourceVertices.Add(sourcePoint);
+            projectedVertices.Add(projectedPoint);
+            projectedCanonicalPoints[index] = projectedPoint;
+            hasProjectedCanonicalPoint[index] = true;
+            projectedPointCount++;
+        }
+
+        foreach (Point sourcePoint in sourcePolygon)
+        {
+            double correctedZ = maskLiftZ;
             Point projectedPoint = ProjectFaceShapeHeadTiltPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
@@ -2391,25 +2400,129 @@ public partial class MainWindow
                 focalLength,
                 cameraDistance);
             AddFaceShapeRigidMaskVertex(sourceVertices, projectedVertices, sourcePoint, projectedPoint);
-            projectedPointCount++;
+            projectedPolygon.Add(projectedPoint);
         }
 
-        foreach (Point sourcePoint in sourcePolygon)
+        double verticalCompensationY = CalculateFaceShapeHeadTiltJawCompensationY(
+            landmarks,
+            projectedCanonicalPoints,
+            hasProjectedCanonicalPoint,
+            faceHeight);
+        if (Math.Abs(verticalCompensationY) > 0.001)
         {
-            double correctedZ = maskLiftZ + GetFaceShapeHeadTiltSyntheticDepth(
-                sourcePoint.X,
-                sourcePoint.Y,
-                nose,
-                faceWidth,
-                faceHeight);
-            Point projectedPoint = ProjectFaceShapeHeadTiltPoint(
+            OffsetFaceShapePointsY(projectedVertices, verticalCompensationY);
+            OffsetFaceShapePointsY(projectedPolygon, verticalCompensationY);
+        }
+
+        List<FaceShapeRigidTriangle> triangles = BuildFaceShapeRigidMaskTriangles(
+            sourceVertices,
+            sourcePolygon,
+            width,
+            height);
+        if (sourceVertices.Count < 12 || triangles.Count == 0)
+        {
+            return false;
+        }
+
+        plan = new FaceShapeRigidMaskPlan(
+            sourceVertices.ToArray(),
+            projectedVertices.ToArray(),
+            triangles,
+            sourcePolygon,
+            projectedPolygon);
+        return true;
+    }
+
+    private static bool TryBuildFaceShapeFaceTurnRigidMaskPlan(
+        FaceShapePointArray landmarks,
+        int width,
+        int height,
+        double strength,
+        out int projectedPointCount,
+        out FaceShapeRigidMaskPlan? plan)
+    {
+        projectedPointCount = 0;
+        plan = null;
+        if (landmarks.Count == 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeProjectionAverage(
+                landmarks,
+                FaceShapeHeadTiltNoseTipIndices,
+                out FaceShapeProjectionSample turnPivot))
+        {
+            return false;
+        }
+
+        Rect bounds = BuildFaceShapeLandmarkBounds(landmarks, width, height);
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        List<Point> sourcePolygon = BuildFaceShapeHeadTiltChinMaskPolygon(landmarks, width, height);
+        if (sourcePolygon.Count < 12)
+        {
+            return false;
+        }
+
+        double faceWidth = Math.Max(1.0, bounds.Width);
+        double faceHeight = Math.Max(1.0, bounds.Height);
+        double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
+        double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
+        double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
+        double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
+        double pivotX = turnPivot.X;
+        double pivotY = turnPivot.Y;
+        double pivotZ = 0.0;
+        double maskLiftZ = 0.0;
+        int canonicalPointCount = Math.Min(landmarks.Points.Length, FaceShapeHeadTiltCanonicalZ.Length);
+        if (canonicalPointCount < FaceShapeHeadTiltCanonicalZ.Length)
+        {
+            return false;
+        }
+
+        List<Point> sourceVertices = new(canonicalPointCount + sourcePolygon.Count);
+        List<Point> projectedVertices = new(canonicalPointCount + sourcePolygon.Count);
+        List<Point> projectedPolygon = new(sourcePolygon.Count);
+
+        for (int index = 0; index < canonicalPointCount; index++)
+        {
+            if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
+            {
+                return false;
+            }
+
+            Point sourcePoint = landmarks.Points[index];
+            double correctedZ = maskLiftZ + GetFaceShapeFaceTurnCanonicalDepth(index, faceWidth);
+            Point projectedPoint = ProjectFaceShapeFaceTurnPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
                 correctedZ,
                 pivotX,
                 pivotY,
                 pivotZ,
-                pitchRadians,
+                yawRadians,
+                focalLength,
+                cameraDistance);
+            sourceVertices.Add(sourcePoint);
+            projectedVertices.Add(projectedPoint);
+            projectedPointCount++;
+        }
+
+        foreach (Point sourcePoint in sourcePolygon)
+        {
+            double correctedZ = maskLiftZ;
+            Point projectedPoint = ProjectFaceShapeFaceTurnPoint(
+                sourcePoint.X,
+                sourcePoint.Y,
+                correctedZ,
+                pivotX,
+                pivotY,
+                pivotZ,
+                yawRadians,
                 focalLength,
                 cameraDistance);
             AddFaceShapeRigidMaskVertex(sourceVertices, projectedVertices, sourcePoint, projectedPoint);
@@ -2454,28 +2567,8 @@ public partial class MainWindow
 
         if (!TryGetFaceShapeProjectionAverage(
                 landmarks,
-                FaceShapeHeadTiltLeftEyeOuterCornerIndices,
-                out FaceShapeProjectionSample leftEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightEyeOuterCornerIndices,
-                out FaceShapeProjectionSample rightEyeOuter) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
                 FaceShapeHeadTiltNoseTipIndices,
-                out FaceShapeProjectionSample nose) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltChinTipIndices,
-                out FaceShapeProjectionSample chin) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltLeftMouthCornerIndices,
-                out FaceShapeProjectionSample leftMouth) ||
-            !TryGetFaceShapeProjectionAverage(
-                landmarks,
-                FaceShapeHeadTiltRightMouthCornerIndices,
-                out FaceShapeProjectionSample rightMouth))
+                out FaceShapeProjectionSample turnPivot))
         {
             return false;
         }
@@ -2489,17 +2582,17 @@ public partial class MainWindow
         double faceWidth = Math.Max(1.0, bounds.Width);
         double faceHeight = Math.Max(1.0, bounds.Height);
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
-        double yawRadians = -normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
+        double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
         double cameraDistance = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraDistanceRatio;
-        double pivotX = nose.X;
-        double eyeMidY = (leftEyeOuter.Y + rightEyeOuter.Y) * 0.5;
-        double mouthMidY = (leftMouth.Y + rightMouth.Y) * 0.5;
-        double pivotY = (eyeMidY * 0.20) + (nose.Y * 0.48) + (mouthMidY * 0.22) + (chin.Y * 0.10);
-        double pivotZ = faceWidth * FaceShapeFaceTurnProjectionPivotDepthRatio;
+        double pivotX = turnPivot.X;
+        double pivotY = turnPivot.Y;
+        double pivotZ = 0.0;
+        double maskLiftZ = 0.0;
         Point[] projectedPoints = new Point[landmarks.Points.Length];
 
-        for (int index = 0; index < landmarks.Points.Length; index++)
+        int canonicalPointCount = Math.Min(landmarks.Points.Length, FaceShapeHeadTiltCanonicalZ.Length);
+        for (int index = 0; index < canonicalPointCount; index++)
         {
             if (index >= landmarks.HasPoint.Length || !landmarks.HasPoint[index])
             {
@@ -2507,14 +2600,7 @@ public partial class MainWindow
             }
 
             Point sourcePoint = landmarks.Points[index];
-            double correctedZ = Math.Clamp(
-                (landmarks.ZValues[index] - nose.Z) * faceWidth * FaceShapeFaceTurnProjectionZScale,
-                -faceWidth * 0.045,
-                faceWidth * 0.11);
-            if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, index))
-            {
-                correctedZ = faceWidth * FaceShapeFaceTurnContourDepthRatio;
-            }
+            double correctedZ = maskLiftZ + GetFaceShapeFaceTurnCanonicalDepth(index, faceWidth);
 
             projectedPoints[index] = ProjectFaceShapeFaceTurnPoint(
                 sourcePoint.X,
@@ -2529,7 +2615,7 @@ public partial class MainWindow
             projectedPointCount++;
         }
 
-        reliefControls = BuildFaceShapeHeadTiltReliefControls(landmarks, projectedPoints);
+        reliefControls = BuildFaceShapeFaceTurnReliefControls(landmarks, projectedPoints, width, height);
         facePolygon = BuildFaceShapeHeadTiltFacePolygon(landmarks);
         return projectedPointCount > 0 &&
                reliefControls.Count >= 8 &&
@@ -2614,11 +2700,6 @@ public partial class MainWindow
 
             double dx = (projected.X - source.X) * strength;
             double dy = (projected.Y - source.Y) * strength;
-            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
-            {
-                return;
-            }
-
             controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
         }
 
@@ -2673,10 +2754,6 @@ public partial class MainWindow
 
             double dx = (projected.X - source.X) * strength;
             double dy = (projected.Y - source.Y) * strength;
-            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
-            {
-                return;
-            }
 
             controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
         }
@@ -2805,56 +2882,10 @@ public partial class MainWindow
         int width,
         int height)
     {
-        List<Point> polygon = [];
-        Rect bounds = BuildFaceShapeLandmarkBounds(sourcePointMap.Values, width, height);
-
-        if (!sourcePointMap.TryGetValue(400, out Point rightLowerJaw) ||
-            !sourcePointMap.TryGetValue(377, out Point rightJaw) ||
-            !sourcePointMap.TryGetValue(152, out Point chin) ||
-            !sourcePointMap.TryGetValue(148, out Point leftJaw) ||
-            !sourcePointMap.TryGetValue(176, out Point leftLowerJaw))
-        {
-            return BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
-        }
-
-        double extension = Math.Clamp(bounds.Height * 0.12, 12.0, Math.Max(16.0, bounds.Height * 0.17));
-        List<Point> lowerJawBand = BuildFaceShapeHeadTiltLowerJawBand(
-            rightLowerJaw,
-            rightJaw,
-            chin,
-            leftJaw,
-            leftLowerJaw,
-            extension,
+        return ExtendFaceShapeHeadTiltLowerMaskPolygon(
+            BuildFaceShapeHeadTiltFacePolygon(sourcePointMap),
+            width,
             height);
-
-        bool lowerJawBandAdded = false;
-        for (int i = 0; i < FaceShapeHeadTiltFaceOvalIndices.Length; i++)
-        {
-            int index = FaceShapeHeadTiltFaceOvalIndices[i];
-            if (index == 400)
-            {
-                polygon.Add(rightLowerJaw);
-                polygon.AddRange(lowerJawBand);
-                polygon.Add(leftLowerJaw);
-                lowerJawBandAdded = true;
-                continue;
-            }
-
-            if (lowerJawBandAdded &&
-                (index == 377 || index == 152 || index == 148 || index == 176))
-            {
-                continue;
-            }
-
-            if (!sourcePointMap.TryGetValue(index, out Point point))
-            {
-                return [];
-            }
-
-            polygon.Add(point);
-        }
-
-        return polygon;
     }
 
     private static List<FaceShapeControlPoint> BuildFaceShapeHeadTiltReliefControls(
@@ -2880,11 +2911,6 @@ public partial class MainWindow
             Point projected = projectedPointMap[index];
             double dx = (projected.X - source.X) * strength;
             double dy = (projected.Y - source.Y) * strength;
-            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
-            {
-                return;
-            }
-
             controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
         }
 
@@ -2906,7 +2932,9 @@ public partial class MainWindow
         Point[] projectedPointMap)
     {
         List<FaceShapeControlPoint> controls = [];
-        int count = Math.Min(sourcePointMap.Points.Length, projectedPointMap.Length);
+        int count = Math.Min(
+            Math.Min(sourcePointMap.Points.Length, projectedPointMap.Length),
+            FaceShapeHeadTiltCanonicalZ.Length);
         for (int index = 0; index < count; index++)
         {
             if (!sourcePointMap.HasPoint[index])
@@ -2949,10 +2977,6 @@ public partial class MainWindow
             Point projected = projectedPointMap[index];
             double dx = (projected.X - source.X) * strength;
             double dy = (projected.Y - source.Y) * strength;
-            if (Math.Abs(dx) < 0.005 && Math.Abs(dy) < 0.005)
-            {
-                return;
-            }
 
             controls.Add(new FaceShapeControlPoint(source.X, source.Y, dx, dy));
         }
@@ -3071,94 +3095,47 @@ public partial class MainWindow
         int width,
         int height)
     {
-        if (!TryGetFaceShapePoint(sourcePointMap, 400, out Point rightLowerJaw) ||
-            !TryGetFaceShapePoint(sourcePointMap, 377, out Point rightJaw) ||
-            !TryGetFaceShapePoint(sourcePointMap, 152, out Point chin) ||
-            !TryGetFaceShapePoint(sourcePointMap, 148, out Point leftJaw) ||
-            !TryGetFaceShapePoint(sourcePointMap, 176, out Point leftLowerJaw))
-        {
-            return BuildFaceShapeHeadTiltFacePolygon(sourcePointMap);
-        }
-
-        Rect bounds = BuildFaceShapeLandmarkBounds(sourcePointMap, width, height);
-        double extension = Math.Clamp(bounds.Height * 0.12, 12.0, Math.Max(16.0, bounds.Height * 0.17));
-        List<Point> lowerJawBand = BuildFaceShapeHeadTiltLowerJawBand(
-            rightLowerJaw,
-            rightJaw,
-            chin,
-            leftJaw,
-            leftLowerJaw,
-            extension,
+        return ExtendFaceShapeHeadTiltLowerMaskPolygon(
+            BuildFaceShapeHeadTiltFacePolygon(sourcePointMap),
+            width,
             height);
-        List<Point> polygon = [];
-        bool lowerJawBandAdded = false;
-        for (int i = 0; i < FaceShapeHeadTiltFaceOvalIndices.Length; i++)
-        {
-            int index = FaceShapeHeadTiltFaceOvalIndices[i];
-            if (index == 400)
-            {
-                polygon.Add(rightLowerJaw);
-                polygon.AddRange(lowerJawBand);
-                polygon.Add(leftLowerJaw);
-                lowerJawBandAdded = true;
-                continue;
-            }
-
-            if (lowerJawBandAdded &&
-                (index == 377 || index == 152 || index == 148 || index == 176))
-            {
-                continue;
-            }
-
-            if (!TryGetFaceShapePoint(sourcePointMap, index, out Point point))
-            {
-                return [];
-            }
-
-            polygon.Add(point);
-        }
-
-        return polygon;
     }
 
-    private static List<Point> BuildFaceShapeHeadTiltLowerJawBand(
-        Point rightLowerJaw,
-        Point rightJaw,
-        Point chin,
-        Point leftJaw,
-        Point leftLowerJaw,
-        double extension,
+    private static List<Point> ExtendFaceShapeHeadTiltLowerMaskPolygon(
+        List<Point> polygon,
+        int width,
         int height)
     {
-        double rightSideDrop = extension * 0.82;
-        double jawDrop = extension * 1.18;
-        double centerDrop = extension * 1.46;
-        double leftSideDrop = extension * 0.82;
+        if (polygon.Count < 3)
+        {
+            return polygon;
+        }
 
-        return
-        [
-            OffsetFaceShapePointY(rightLowerJaw, rightSideDrop, height),
-            OffsetFaceShapePointY(LerpFaceShapePoint(rightLowerJaw, rightJaw, 0.55), extension * 0.98, height),
-            OffsetFaceShapePointY(rightJaw, jawDrop, height),
-            OffsetFaceShapePointY(LerpFaceShapePoint(rightJaw, chin, 0.52), extension * 1.34, height),
-            OffsetFaceShapePointY(chin, centerDrop, height),
-            OffsetFaceShapePointY(LerpFaceShapePoint(leftJaw, chin, 0.52), extension * 1.34, height),
-            OffsetFaceShapePointY(leftJaw, jawDrop, height),
-            OffsetFaceShapePointY(LerpFaceShapePoint(leftLowerJaw, leftJaw, 0.55), extension * 0.98, height),
-            OffsetFaceShapePointY(leftLowerJaw, leftSideDrop, height)
-        ];
-    }
+        Rect bounds = BuildFaceShapeLandmarkBounds(polygon, width, height);
+        if (bounds.IsEmpty || bounds.Height < 2)
+        {
+            return polygon;
+        }
 
-    private static Point LerpFaceShapePoint(Point from, Point to, double amount)
-    {
-        return new Point(
-            from.X + ((to.X - from.X) * amount),
-            from.Y + ((to.Y - from.Y) * amount));
-    }
+        double centerY = bounds.Top + (bounds.Height * 0.5);
+        double lowerRange = Math.Max(1.0, bounds.Bottom - centerY);
+        double maxDrop = Math.Max(1.0, bounds.Height * FaceShapeHeadTiltLowerMaskExtensionRatio);
+        List<Point> extended = new(polygon.Count);
+        foreach (Point point in polygon)
+        {
+            if (point.Y <= centerY)
+            {
+                extended.Add(point);
+                continue;
+            }
 
-    private static Point OffsetFaceShapePointY(Point point, double offsetY, int height)
-    {
-        return new Point(point.X, Math.Min(height - 1, point.Y + offsetY));
+            double lowerWeight = SmoothStep01((point.Y - centerY) / lowerRange);
+            extended.Add(new Point(
+                point.X,
+                Math.Min(height - 1, point.Y + (maxDrop * lowerWeight))));
+        }
+
+        return extended;
     }
 
     private static List<IReadOnlyList<Point>> BuildFaceShapeHeadTiltProjectedGuidePaths(
@@ -3301,6 +3278,56 @@ public partial class MainWindow
             pivotY + (rotatedY * focalLength / projectedDepth));
     }
 
+    private static double CalculateFaceShapeHeadTiltJawCompensationY(
+        FaceShapePointArray landmarks,
+        IReadOnlyList<Point> projectedCanonicalPoints,
+        IReadOnlyList<bool> hasProjectedCanonicalPoint,
+        double faceHeight)
+    {
+        double sourceY = 0.0;
+        double projectedY = 0.0;
+        int count = 0;
+
+        foreach (int index in FaceShapeHeadTiltJawCompensationIndices)
+        {
+            if (index < 0 ||
+                index >= landmarks.Points.Length ||
+                index >= landmarks.HasPoint.Length ||
+                index >= projectedCanonicalPoints.Count ||
+                index >= hasProjectedCanonicalPoint.Count ||
+                !landmarks.HasPoint[index] ||
+                !hasProjectedCanonicalPoint[index])
+            {
+                continue;
+            }
+
+            sourceY += landmarks.Points[index].Y;
+            projectedY += projectedCanonicalPoints[index].Y;
+            count++;
+        }
+
+        if (count < 3)
+        {
+            return 0.0;
+        }
+
+        double jawDeltaY = (projectedY / count) - (sourceY / count);
+        double compensationY = jawDeltaY < 0.0
+            ? -jawDeltaY * FaceShapeHeadTiltJawRiseCompensationStrength
+            : -jawDeltaY * FaceShapeHeadTiltJawDropCompensationStrength;
+        double maxCompensationY = Math.Max(2.0, faceHeight * 0.10);
+        return Math.Clamp(compensationY, -maxCompensationY, maxCompensationY);
+    }
+
+    private static void OffsetFaceShapePointsY(List<Point> points, double offsetY)
+    {
+        for (int index = 0; index < points.Count; index++)
+        {
+            Point point = points[index];
+            points[index] = new Point(point.X, point.Y + offsetY);
+        }
+    }
+
     private static Point ProjectFaceShapeFaceTurnPoint(
         double imageX,
         double imageY,
@@ -3312,19 +3339,24 @@ public partial class MainWindow
         double focalLength,
         double cameraDistance)
     {
-        double z = correctedZ - pivotZ;
-        double depth = Math.Max(1.0, cameraDistance + z);
-        double x3 = (imageX - pivotX) * depth / focalLength;
-        double y3 = (imageY - pivotY) * depth / focalLength;
-        double sin = Math.Sin(yawRadians);
-        double cos = Math.Cos(yawRadians);
-        double rotatedX = (x3 * cos) + (z * sin);
-        double rotatedZ = (-x3 * sin) + (z * cos);
-        double projectedDepth = Math.Max(1.0, cameraDistance + rotatedZ);
-        double projectedY = pivotY + (y3 * focalLength / projectedDepth);
+        _ = cameraDistance;
+
+        double referenceLength = Math.Max(1.0, focalLength / FaceShapeHeadPoseCameraFocalLengthRatio);
+        double maxDepth = Math.Max(1.0, referenceLength * FaceShapeHeadTiltCanonicalDepthRatio);
+        double depthWeight = Math.Clamp((correctedZ - pivotZ) / maxDepth, 0.0, 1.0);
+        depthWeight = SmoothStep01(depthWeight);
+        double turnShiftX = Math.Sin(yawRadians) *
+            referenceLength *
+            FaceShapeFaceTurnMaxShiftRatio *
+            depthWeight;
+        double turnShiftY = (imageY - pivotY) *
+            FaceShapeFaceTurnVerticalProjectionRatio *
+            depthWeight *
+            Math.Abs(Math.Sin(yawRadians));
+
         return new Point(
-            pivotX + (rotatedX * focalLength / projectedDepth),
-            imageY + ((projectedY - imageY) * FaceShapeFaceTurnVerticalProjectionRatio));
+            imageX + turnShiftX,
+            imageY + turnShiftY);
     }
 
     private static void AddFaceShapeRigidMaskVertex(
@@ -3368,9 +3400,25 @@ public partial class MainWindow
         int height)
     {
         List<FaceShapeRigidTriangle> result = [];
+        HashSet<FaceShapeRigidTriangle> added = [];
         if (sourcePoints.Count < 3 || facePolygon.Count < 3)
         {
             return result;
+        }
+
+        int canonicalPointCount = Math.Min(sourcePoints.Count, FaceShapeHeadTiltCanonicalZ.Length);
+        bool useCanonicalTopology = canonicalPointCount == FaceShapeHeadTiltCanonicalZ.Length;
+        if (useCanonicalTopology)
+        {
+            foreach (FaceShapeRigidTriangle triangle in FaceShapeHeadTiltCanonicalTriangles)
+            {
+                if (!IsFaceShapeRigidTriangleInsideMask(triangle, sourcePoints, facePolygon))
+                {
+                    continue;
+                }
+
+                AddFaceShapeRigidTriangle(result, added, triangle);
+            }
         }
 
         Rect bounds = BuildFaceShapeLandmarkBounds(sourcePoints, width, height);
@@ -3437,15 +3485,30 @@ public partial class MainWindow
             if (triangle.A >= originalCount ||
                 triangle.B >= originalCount ||
                 triangle.C >= originalCount ||
+                (useCanonicalTopology &&
+                    triangle.A < canonicalPointCount &&
+                    triangle.B < canonicalPointCount &&
+                    triangle.C < canonicalPointCount) ||
                 !IsFaceShapeRigidTriangleInsideMask(triangle, sourcePoints, facePolygon))
             {
                 continue;
             }
 
-            result.Add(new FaceShapeRigidTriangle(triangle.A, triangle.B, triangle.C));
+            AddFaceShapeRigidTriangle(result, added, new FaceShapeRigidTriangle(triangle.A, triangle.B, triangle.C));
         }
 
         return result;
+    }
+
+    private static void AddFaceShapeRigidTriangle(
+        List<FaceShapeRigidTriangle> triangles,
+        HashSet<FaceShapeRigidTriangle> added,
+        FaceShapeRigidTriangle triangle)
+    {
+        if (added.Add(triangle))
+        {
+            triangles.Add(triangle);
+        }
     }
 
     private static bool TryCreateFaceShapeDelaunayTriangle(
@@ -3545,9 +3608,44 @@ public partial class MainWindow
         IReadOnlyList<Point> points,
         IReadOnlyList<Point> facePolygon)
     {
-        Point a = points[triangle.A];
-        Point b = points[triangle.B];
-        Point c = points[triangle.C];
+        return IsFaceShapeRigidTriangleInsideMask(triangle.A, triangle.B, triangle.C, points, facePolygon);
+    }
+
+    private static bool IsFaceShapeRigidTriangleInsideMask(
+        FaceShapeRigidTriangle triangle,
+        IReadOnlyList<Point> points,
+        IReadOnlyList<Point> facePolygon)
+    {
+        return IsFaceShapeRigidTriangleInsideMask(triangle.A, triangle.B, triangle.C, points, facePolygon);
+    }
+
+    private static bool IsFaceShapeRigidTriangleInsideMask(
+        int indexA,
+        int indexB,
+        int indexC,
+        IReadOnlyList<Point> points,
+        IReadOnlyList<Point> facePolygon)
+    {
+        if (indexA < 0 ||
+            indexB < 0 ||
+            indexC < 0 ||
+            indexA >= points.Count ||
+            indexB >= points.Count ||
+            indexC >= points.Count)
+        {
+            return false;
+        }
+
+        Point a = points[indexA];
+        Point b = points[indexB];
+        Point c = points[indexC];
+        if (!IsFiniteFaceShapePoint(a) ||
+            !IsFiniteFaceShapePoint(b) ||
+            !IsFiniteFaceShapePoint(c))
+        {
+            return false;
+        }
+
         double centerX = (a.X + b.X + c.X) / 3.0;
         double centerY = (a.Y + b.Y + c.Y) / 3.0;
         return IsPointInsideFaceShapePolygon(centerX, centerY, facePolygon);
@@ -3789,8 +3887,7 @@ public partial class MainWindow
             {
                 double pixelX = x + 0.5;
                 double pixelY = y + 0.5;
-                if (IsPointInsideFaceShapePolygon(pixelX, pixelY, plan.SourcePolygon) ||
-                    IsPointInsideFaceShapePolygon(pixelX, pixelY, plan.ProjectedPolygon))
+                if (IsPointInsideFaceShapePolygon(pixelX, pixelY, plan.ProjectedPolygon))
                 {
                     continue;
                 }
