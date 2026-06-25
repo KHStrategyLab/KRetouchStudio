@@ -27,11 +27,14 @@ public partial class MainWindow
     private static readonly MediaBrush FaceShapeProjectionMeshDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(70, 225, 255), 0.62);
     private static readonly MediaBrush FaceShapeProjectionDebugStroke = CreateFrozenBrush(MediaColor.FromRgb(20, 24, 30), 0.92);
     private static readonly MediaBrush FaceShapeProjectionDebugFill = CreateFrozenBrush(MediaColor.FromRgb(57, 255, 139), 0.9);
+    private static readonly bool ShowMediaPipePreviewOverlays = true;
+    private static readonly bool ShowFaceShapeProjectionDebugOverlays = true;
 
     private string _mediaPipeStatusText = "MediaPipe: ready";
     private bool _isMediaPipeWarmupStarted;
     private bool _isMediaPipeConnectionRunning;
     private bool _showMediaPipeAllPointDebugLayer;
+    private bool _suppressMediaPipePreviewOverlayForFaceShapeRetouch;
     private string? _mediaPipeOverlayPhotoPath;
     private List<MediaPipeFaceBox> _mediaPipeFaceBoxes = [];
     private List<MediaPipeFeaturePath> _mediaPipeFeaturePaths = [];
@@ -54,6 +57,8 @@ public partial class MainWindow
     public ObservableCollection<PreviewDebugPolylineOverlay> FaceShapeProjectionDebugPathOverlays { get; } = new();
 
     public Visibility MediaPipePreviewOverlayVisibility =>
+        ShowMediaPipePreviewOverlays &&
+        !_suppressMediaPipePreviewOverlayForFaceShapeRetouch &&
         SelectedPreviewPhotos.Count == 1 &&
         (MediaPipeFaceBoxOverlays.Count > 0 ||
          MediaPipeFeaturePathOverlays.Count > 0 ||
@@ -62,6 +67,8 @@ public partial class MainWindow
             : Visibility.Collapsed;
 
     public Visibility MediaPipeAllPointDebugOverlayVisibility =>
+        ShowMediaPipePreviewOverlays &&
+        !_suppressMediaPipePreviewOverlayForFaceShapeRetouch &&
         SelectedPreviewPhotos.Count == 1 &&
         _showMediaPipeAllPointDebugLayer &&
         MediaPipeAllPointDebugOverlays.Count > 0
@@ -69,6 +76,7 @@ public partial class MainWindow
             : Visibility.Collapsed;
 
     public Visibility FaceShapeProjectionDebugOverlayVisibility =>
+        ShowFaceShapeProjectionDebugOverlays &&
         SelectedPreviewPhotos.Count == 1 &&
         (FaceShapeProjectionDebugPointOverlays.Count > 0 ||
          FaceShapeProjectionDebugPathOverlays.Count > 0)
@@ -95,6 +103,7 @@ public partial class MainWindow
 
     private async void MediaPipeTestButton_Click(object sender, RoutedEventArgs e)
     {
+        _suppressMediaPipePreviewOverlayForFaceShapeRetouch = false;
         await RunMediaPipePreviewAsync();
     }
 
@@ -141,6 +150,21 @@ public partial class MainWindow
 
     private async void MediaPipeAllPointDebugButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_suppressMediaPipePreviewOverlayForFaceShapeRetouch)
+        {
+            _suppressMediaPipePreviewOverlayForFaceShapeRetouch = false;
+            _showMediaPipeAllPointDebugLayer = true;
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugButtonText));
+            if (_mediaPipeAllLandmarkPoints.Count == 0)
+            {
+                await RunMediaPipePreviewAsync();
+                return;
+            }
+
+            UpdateMediaPipePreviewOverlay();
+            return;
+        }
+
         _showMediaPipeAllPointDebugLayer = !_showMediaPipeAllPointDebugLayer;
         OnPropertyChanged(nameof(MediaPipeAllPointDebugButtonText));
 
@@ -230,6 +254,7 @@ public partial class MainWindow
 
     private void ClearMediaPipePreviewOverlay()
     {
+        _suppressMediaPipePreviewOverlayForFaceShapeRetouch = false;
         _mediaPipeOverlayPhotoPath = null;
         _mediaPipeFaceBoxes.Clear();
         _mediaPipeFeaturePaths.Clear();
@@ -250,18 +275,11 @@ public partial class MainWindow
 
     private void HideMediaPipeFeatureOverlayForFaceShapeDebug()
     {
-        _mediaPipeFaceBoxes.Clear();
-        _mediaPipeFeaturePaths.Clear();
+        _suppressMediaPipePreviewOverlayForFaceShapeRetouch = true;
         MediaPipeFaceBoxOverlays.Clear();
         MediaPipeFeaturePathOverlays.Clear();
         MediaPipeFeaturePointOverlays.Clear();
         MediaPipeAllPointDebugOverlays.Clear();
-        if (_showMediaPipeAllPointDebugLayer)
-        {
-            _showMediaPipeAllPointDebugLayer = false;
-            OnPropertyChanged(nameof(MediaPipeAllPointDebugButtonText));
-        }
-
         OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
         OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
     }
@@ -294,6 +312,12 @@ public partial class MainWindow
     {
         FaceShapeProjectionDebugPathOverlays.Clear();
         FaceShapeProjectionDebugPointOverlays.Clear();
+        if (!ShowFaceShapeProjectionDebugOverlays)
+        {
+            OnPropertyChanged(nameof(FaceShapeProjectionDebugOverlayVisibility));
+            return;
+        }
+
         if (SelectedPhoto is null ||
             SelectedPreviewPhotos.Count != 1 ||
             string.IsNullOrWhiteSpace(_faceShapeProjectionDebugPhotoPath) ||
@@ -372,6 +396,19 @@ public partial class MainWindow
         MediaPipeFeaturePathOverlays.Clear();
         MediaPipeFeaturePointOverlays.Clear();
         MediaPipeAllPointDebugOverlays.Clear();
+        if (_suppressMediaPipePreviewOverlayForFaceShapeRetouch)
+        {
+            OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
+            return;
+        }
+
+        if (!ShowMediaPipePreviewOverlays)
+        {
+            OnPropertyChanged(nameof(MediaPipePreviewOverlayVisibility));
+            OnPropertyChanged(nameof(MediaPipeAllPointDebugOverlayVisibility));
+            return;
+        }
 
         if (SelectedPhoto is null ||
             SelectedPreviewPhotos.Count != 1 ||

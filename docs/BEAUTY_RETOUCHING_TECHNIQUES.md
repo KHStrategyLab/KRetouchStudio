@@ -170,7 +170,31 @@ Working rule:
 - First reduce bright skin visibility.
 - Then restore believable strand texture.
 
-## 11. Implementation Routing
+## 11. AI Auto Line / Target Oval
+
+`AI Auto Line` is the practical studio face-line correction target.
+
+It should not mean a sharp V-chin operation.
+It should mean a natural oval-line cleanup.
+
+Preferred direction:
+
+- Place one ideal target oval over the face, raised across the forehead-to-chin line.
+- Pull only outer landmark points that sit outside that target oval.
+- Leave each point alone when it is already on or inside the target oval.
+- Pull each protruding point only up to the target oval boundary.
+- Use distance from the target oval as the movement strength.
+- Move landmark points independently; do not drag a continuous face line.
+- Treat cheekbone and square-jaw excess as the primary targets.
+- Let the chin tool refine the endpoint separately.
+
+Working rule:
+
+- Make the face line smaller and smoother only where it actually protrudes.
+- Avoid moving a face that already fits the oval target.
+- Prefer a natural oval face line over an obvious cosmetic V-line.
+
+## 12. Implementation Routing
 
 Before turning any technique into code:
 

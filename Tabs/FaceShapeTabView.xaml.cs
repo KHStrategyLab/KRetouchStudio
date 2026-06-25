@@ -102,15 +102,7 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
             SetActiveFaceShapeMode(_activeFaceShapeControlMode);
             OnPropertyChanged();
 
-            double previewStrength = Math.Clamp(Math.Round(value), 0, 100);
-            if (_isFaceShapeControlStrengthSliderInteracting &&
-                (_lastFaceShapeControlPreviewMode != _activeFaceShapeControlMode ||
-                 Math.Abs(_lastFaceShapeControlPreviewStrength - previewStrength) > 0.001))
-            {
-                _lastFaceShapeControlPreviewMode = _activeFaceShapeControlMode;
-                _lastFaceShapeControlPreviewStrength = previewStrength;
-                FaceShapeControlAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
-            }
+            RaiseFaceShapeControlPreviewIfNeeded(value);
         }
     }
 
@@ -298,8 +290,31 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     private void FaceShapeControlStrengthSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _isFaceShapeControlStrengthSliderInteracting = true;
-        _lastFaceShapeControlPreviewMode = _activeFaceShapeControlMode;
-        _lastFaceShapeControlPreviewStrength = double.NaN;
+        ResetFaceShapeControlPreviewTracking();
+    }
+
+    private void FaceShapeControlStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not System.Windows.Controls.Slider slider ||
+            (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isFaceShapeControlStrengthSliderInteracting)
+        {
+            _isFaceShapeControlStrengthSliderInteracting = true;
+            ResetFaceShapeControlPreviewTracking();
+        }
+
+        bool changed = SetFaceShapeStrength(_activeFaceShapeControlMode, e.NewValue);
+        SetActiveFaceShapeMode(_activeFaceShapeControlMode);
+        if (changed)
+        {
+            OnPropertyChanged(nameof(ActiveFaceShapeControlStrength));
+        }
+
+        RaiseFaceShapeControlPreviewIfNeeded(e.NewValue);
     }
 
     private void FaceShapeControlStrengthSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -347,6 +362,27 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     {
         SetActiveFaceShapeMode(_activeSymmetrizeMode);
         FaceShapeAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ResetFaceShapeControlPreviewTracking()
+    {
+        _lastFaceShapeControlPreviewMode = _activeFaceShapeControlMode;
+        _lastFaceShapeControlPreviewStrength = double.NaN;
+    }
+
+    private void RaiseFaceShapeControlPreviewIfNeeded(double value)
+    {
+        double previewStrength = Math.Clamp(Math.Round(value), 0, 100);
+        if (!_isFaceShapeControlStrengthSliderInteracting ||
+            (_lastFaceShapeControlPreviewMode == _activeFaceShapeControlMode &&
+             Math.Abs(_lastFaceShapeControlPreviewStrength - previewStrength) <= 0.001))
+        {
+            return;
+        }
+
+        _lastFaceShapeControlPreviewMode = _activeFaceShapeControlMode;
+        _lastFaceShapeControlPreviewStrength = previewStrength;
+        FaceShapeControlAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void CommitHeadPoseAdjustment()

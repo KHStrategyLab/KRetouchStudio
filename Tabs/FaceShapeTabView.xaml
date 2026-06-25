@@ -162,6 +162,7 @@
                     TickFrequency="1"
                     Margin="0,0,0,8"
                     Value="{Binding ElementName=Root, Path=ActiveFaceShapeControlStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    ValueChanged="FaceShapeControlStrengthSlider_ValueChanged"
                     PreviewMouseLeftButtonDown="FaceShapeControlStrengthSlider_PreviewMouseLeftButtonDown"
                     PreviewMouseLeftButtonUp="FaceShapeControlStrengthSlider_PreviewMouseLeftButtonUp"
                     KeyUp="FaceShapeControlStrengthSlider_KeyUp"/>

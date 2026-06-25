@@ -21,7 +21,7 @@ public partial class MainWindow
     private const double FaceShapeBoneMaxInwardRatio = 0.065;
     private const string FaceShapeJawHistoryTitle = "Face Jaw";
     private const string FaceShapeJawHistoryDetail = "Jaw";
-    private const double FaceShapeJawMaxInwardRatio = 0.09;
+    private const double FaceShapeJawMaxInwardRatio = 0.085;
     private const string FaceShapeChinHistoryTitle = "Face Chin";
     private const string FaceShapeChinHistoryDetail = "Chin";
     private const double FaceShapeChinMaxInwardRatio = 0.075;
@@ -208,16 +208,16 @@ public partial class MainWindow
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeJawPairs =
     [
-        (234, 454, 0.20),
-        (93, 323, 0.42),
+        (234, 454, 0.35),
+        (93, 323, 0.46),
         (132, 361, 0.58),
-        (58, 288, 0.62),
+        (58, 288, 0.74),
         (172, 397, 0.82),
-        (136, 365, 1.00),
-        (150, 379, 1.00),
-        (149, 378, 0.88),
-        (176, 400, 0.62),
-        (148, 377, 0.32)
+        (136, 365, 0.78),
+        (150, 379, 0.68),
+        (149, 378, 0.52),
+        (176, 400, 0.34),
+        (148, 377, 0.18)
     ];
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeChinPairs =
@@ -236,32 +236,32 @@ public partial class MainWindow
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeCheekPairs =
     [
-        (234, 454, 0.35),
-        (93, 323, 0.55),
-        (132, 361, 0.45),
-        (50, 280, 0.35),
-        (101, 330, 0.52),
-        (118, 347, 0.78),
-        (123, 352, 1.00),
-        (187, 411, 0.82),
+        (234, 454, 0.12),
+        (93, 323, 0.22),
+        (132, 361, 0.25),
+        (50, 280, 0.40),
+        (101, 330, 0.55),
+        (118, 347, 0.80),
+        (123, 352, 0.92),
+        (187, 411, 0.90),
         (205, 425, 1.00),
-        (206, 426, 0.86),
-        (207, 427, 0.64),
-        (213, 433, 0.44)
+        (206, 426, 0.88),
+        (207, 427, 0.68),
+        (213, 433, 0.48)
     ];
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeBonePairs =
     [
-        (127, 356, 0.50),
-        (234, 454, 0.86),
-        (93, 323, 1.00),
-        (132, 361, 0.56),
-        (50, 280, 0.40),
-        (101, 330, 0.55),
-        (118, 347, 0.84),
-        (123, 352, 0.92),
-        (187, 411, 0.58),
-        (205, 425, 0.45)
+        (127, 356, 0.65),
+        (234, 454, 1.00),
+        (93, 323, 0.92),
+        (132, 361, 0.40),
+        (50, 280, 0.36),
+        (101, 330, 0.48),
+        (118, 347, 0.45),
+        (123, 352, 0.35),
+        (187, 411, 0.20),
+        (205, 425, 0.16)
     ];
 
     private static readonly int[] FaceShapeJawAnchorIndices =
@@ -1945,6 +1945,7 @@ public partial class MainWindow
     {
         if (TryGetFaceShapeLandmarkCache(targetPhoto, out List<MediaPipeLandmarkPoint> cachedLandmarks))
         {
+            HideMediaPipeFeatureOverlayForFaceShapeDebug();
             return cachedLandmarks;
         }
 
@@ -1953,6 +1954,7 @@ public partial class MainWindow
         {
             if (TryGetFaceShapeLandmarkCache(targetPhoto, out cachedLandmarks))
             {
+                HideMediaPipeFeatureOverlayForFaceShapeDebug();
                 return cachedLandmarks;
             }
 
@@ -1961,6 +1963,7 @@ public partial class MainWindow
                 string.Equals(_mediaPipeOverlayPhotoPath, targetPhoto.Path, StringComparison.OrdinalIgnoreCase))
             {
                 StoreFaceShapeLandmarkCache(targetPhoto, _mediaPipeAllLandmarkPoints);
+                HideMediaPipeFeatureOverlayForFaceShapeDebug();
                 return _faceShapeLandmarkCache;
             }
 
@@ -2000,6 +2003,7 @@ public partial class MainWindow
                     return [];
                 }
 
+                HideMediaPipeFeatureOverlayForFaceShapeDebug();
                 LoadMediaPipePreviewOverlay(outputDirectory, targetPhoto.Path);
                 StoreFaceShapeLandmarkCache(targetPhoto, _mediaPipeAllLandmarkPoints);
                 return _faceShapeLandmarkCache;
@@ -5276,6 +5280,9 @@ public partial class MainWindow
             return false;
         }
 
+        double upperStartY = bounds.Top + (bounds.Height * 0.18);
+        double peakY = bounds.Top + (bounds.Height * 0.39);
+        double lowerEndY = bounds.Top + (bounds.Height * 0.61);
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeBoneMaxInwardRatio;
@@ -5295,9 +5302,29 @@ public partial class MainWindow
                 (left, right) = (right, left);
             }
 
-            double pairAmount = amount * Math.Clamp(weight, 0.0, 1.0);
-            controls.Add(new FaceShapeControlPoint(left.X, left.Y, pairAmount, 0));
-            controls.Add(new FaceShapeControlPoint(right.X, right.Y, -pairAmount, 0));
+            double pairMaxAmount = amount * Math.Clamp(weight, 0.0, 1.0);
+            double leftAmount = GetFaceShapeTargetOvalPointPullAmount(
+                left,
+                centerX,
+                bounds,
+                pairMaxAmount,
+                toleranceRatio: 0.02,
+                excessRangeRatio: 0.14,
+                ovalWidthRatio: 0.76,
+                ovalTopInsetRatio: 0.02,
+                ovalBottomInsetRatio: 0.02);
+            double rightAmount = GetFaceShapeTargetOvalPointPullAmount(
+                right,
+                centerX,
+                bounds,
+                pairMaxAmount,
+                toleranceRatio: 0.02,
+                excessRangeRatio: 0.14,
+                ovalWidthRatio: 0.76,
+                ovalTopInsetRatio: 0.02,
+                ovalBottomInsetRatio: 0.02);
+            controls.Add(new FaceShapeControlPoint(left.X, left.Y, leftAmount, 0));
+            controls.Add(new FaceShapeControlPoint(right.X, right.Y, -rightAmount, 0));
         }
 
         foreach (int index in FaceShapeBoneAnchorIndices)
@@ -5315,9 +5342,6 @@ public partial class MainWindow
             return false;
         }
 
-        double upperStartY = bounds.Top + (bounds.Height * 0.18);
-        double peakY = bounds.Top + (bounds.Height * 0.39);
-        double lowerEndY = bounds.Top + (bounds.Height * 0.61);
         Rect boneBounds = new(
             bounds.Left,
             upperStartY - (bounds.Height * 0.10),
@@ -5352,25 +5376,16 @@ public partial class MainWindow
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeJawMaxInwardRatio;
+        double liftAmount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
+            bounds.Width *
+            0.030;
         List<FaceShapeControlPoint> controls = new(
             (FaceShapeJawPairs.Length * 2) + FaceShapeJawAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeJawPairs)
         {
-            if (!landmarks.TryGetValue(leftIndex, out Point left) ||
-                !landmarks.TryGetValue(rightIndex, out Point right))
-            {
-                continue;
-            }
-
-            if (left.X > right.X)
-            {
-                (left, right) = (right, left);
-            }
-
-            double pairAmount = amount * Math.Clamp(weight, 0.0, 1.0);
-            controls.Add(new FaceShapeControlPoint(left.X, left.Y, pairAmount, 0));
-            controls.Add(new FaceShapeControlPoint(right.X, right.Y, -pairAmount, 0));
+            AddFaceShapeJawDirectionalControl(landmarks, leftIndex, centerX, amount, liftAmount, weight, controls);
+            AddFaceShapeJawDirectionalControl(landmarks, rightIndex, centerX, amount, liftAmount, weight, controls);
         }
 
         foreach (int index in FaceShapeJawAnchorIndices)
@@ -5400,6 +5415,82 @@ public partial class MainWindow
 
         plan = new FaceShapeJawPlan(jawBounds, centerX, lowerStartY, fullEffectY, controls);
         return true;
+    }
+
+    private static void AddFaceShapeJawDirectionalControl(
+        IReadOnlyDictionary<int, Point> landmarks,
+        int index,
+        double centerX,
+        double amount,
+        double liftAmount,
+        double weight,
+        List<FaceShapeControlPoint> controls)
+    {
+        if (!landmarks.TryGetValue(index, out Point point))
+        {
+            return;
+        }
+
+        double direction = Math.Sign(centerX - point.X);
+        if (Math.Abs(direction) < 0.001)
+        {
+            return;
+        }
+
+        double dx = direction * amount * Math.Clamp(weight, 0.0, 1.0);
+        double dy = -liftAmount * GetFaceShapeJawLiftWeight(index);
+        controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, dy));
+    }
+
+    private static double GetFaceShapeJawLiftWeight(int index)
+    {
+        return index switch
+        {
+            58 or 288 => 0.10,
+            172 or 397 => 0.20,
+            136 or 365 => 0.35,
+            150 or 379 => 0.50,
+            149 or 378 => 0.70,
+            176 or 400 => 0.90,
+            148 or 377 => 1.00,
+            _ => 0.0
+        };
+    }
+
+    private static double GetFaceShapeTargetOvalPointPullAmount(
+        Point point,
+        double centerX,
+        Rect bounds,
+        double maxPullAmount,
+        double toleranceRatio,
+        double excessRangeRatio,
+        double ovalWidthRatio,
+        double ovalTopInsetRatio,
+        double ovalBottomInsetRatio)
+    {
+        double faceHalfWidth = Math.Max(1.0, bounds.Width * 0.5);
+        double ovalTop = bounds.Top + (bounds.Height * ovalTopInsetRatio);
+        double ovalBottom = bounds.Bottom - (bounds.Height * ovalBottomInsetRatio);
+        double ovalCenterY = (ovalTop + ovalBottom) * 0.5;
+        double ovalRadiusY = Math.Max(1.0, (ovalBottom - ovalTop) * 0.5);
+        double normalizedY = (point.Y - ovalCenterY) / ovalRadiusY;
+        if (normalizedY <= -1.0 || normalizedY >= 1.0)
+        {
+            return 0.0;
+        }
+
+        double ovalRadiusX = faceHalfWidth * ovalWidthRatio;
+        double targetHalfWidth = ovalRadiusX * Math.Sqrt(Math.Max(0.0, 1.0 - (normalizedY * normalizedY)));
+        double actualHalfWidth = Math.Abs(point.X - centerX);
+        double tolerance = faceHalfWidth * toleranceRatio;
+        double excess = actualHalfWidth - targetHalfWidth - tolerance;
+        if (excess <= 0.0)
+        {
+            return 0.0;
+        }
+
+        double excessWeight = SmoothStep01(excess / Math.Max(1.0, faceHalfWidth * excessRangeRatio));
+        return Math.Min(Math.Max(0.0, maxPullAmount) * excessWeight, excess);
     }
 
     private static bool TryBuildFaceShapeChinControls(

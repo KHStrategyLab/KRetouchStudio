@@ -49,7 +49,37 @@ Runtime owner: `FaceShapeHeadTiltFaceOvalIndices`.
 
 Use this as a face-outline routing path, not as the final visible cutout edge.
 
-## 4. Symmetry
+## 4. Target Oval / AI Auto Line
+
+`Target Oval` is the practical face-line goal used by `AI Auto Line`.
+
+It is not the current detected face outline.
+It is an ideal inner oval guide used to decide whether an outer face point should move.
+
+Working rule:
+
+- Place one soft oval target over the face, raised like a studio guide over the forehead-to-chin line.
+- Compare each selected outer landmark point against that target oval independently.
+- If a point is already on or inside the target oval, do not move it.
+- If a point sits outside the target oval, pull that point inward only until the target oval boundary.
+- Farther point excess should receive stronger movement; small point excess should receive weaker movement.
+- This is point-wise landmark movement, not dragging a continuous line.
+- The result should be an oval face line, not a sharp chin or obvious cosmetic-surgery V shape.
+
+Tool ownership:
+
+- `Bone`: upper / middle outer face line toward the target oval.
+- `Jaw` / `V-Line`: lower outer face line and square-jaw corner toward the target oval.
+- `Chin`: chin-tip shape and endpoint refinement.
+- `Cheek`: inner cheek fullness, not the main outer oval line.
+
+Runtime note:
+
+- Current source has target-oval point pull calculation in `GetFaceShapeTargetOvalPointPullAmount(...)`.
+- The current implementation applies that calculation to `Jaw` and `Bone`.
+- `Cheek` and `Chin` remain separate local shape controls.
+
+## 5. Symmetry
 
 Runtime owner: `FaceShapeSymmetryMidlineIndices`.
 
@@ -66,14 +96,22 @@ Runtime owner: `FaceShapeSymmetryPairs`.
 (136,365), (150,379), (149,378), (176,400), (148,377)
 ```
 
-## 5. V-Line / Jaw
+## 6. V-Line / Jaw
+
+Studio V-Line rule:
+
+- Treat V-Line as the broad lower-face contour key, not as a chin-only tool.
+- Reduce the square-jaw corner first.
+- Then pull the connected line from under the ear toward the chin into a softer rounded path.
+- Keep the chin tip mostly owned by `Chin`; V-Line should connect into it rather than crush it.
+- This is the lower-face part of `AI Auto Line`, not a separate sharp V-chin target.
 
 Runtime owner: `FaceShapeJawPairs`.
 
 ```text
-(234,454,0.20), (93,323,0.42), (132,361,0.58), (58,288,0.62),
-(172,397,0.82), (136,365,1.00), (150,379,1.00),
-(149,378,0.88), (176,400,0.62), (148,377,0.32)
+(234,454,0.08), (93,323,0.22), (132,361,0.42), (58,288,0.66),
+(172,397,0.92), (136,365,1.00), (150,379,0.94),
+(149,378,0.72), (176,400,0.46), (148,377,0.24)
 ```
 
 Runtime owner: `FaceShapeJawAnchorIndices`.
@@ -82,7 +120,7 @@ Runtime owner: `FaceShapeJawAnchorIndices`.
 1, 4, 5, 6, 13, 14, 17, 78, 308, 152, 199, 200
 ```
 
-## 6. Chin
+## 7. Chin
 
 Runtime owner: `FaceShapeChinPairs`.
 
@@ -104,15 +142,15 @@ Runtime owner: `FaceShapeChinAnchorIndices`.
 288, 291, 308, 323, 361, 397, 454
 ```
 
-## 7. Cheek
+## 8. Cheek
 
 Runtime owner: `FaceShapeCheekPairs`.
 
 ```text
-(234,454,0.35), (93,323,0.55), (132,361,0.45), (50,280,0.35),
-(101,330,0.52), (118,347,0.78), (123,352,1.00),
-(187,411,0.82), (205,425,1.00), (206,426,0.86),
-(207,427,0.64), (213,433,0.44)
+(234,454,0.12), (93,323,0.22), (132,361,0.25), (50,280,0.40),
+(101,330,0.55), (118,347,0.80), (123,352,0.92),
+(187,411,0.90), (205,425,1.00), (206,426,0.88),
+(207,427,0.68), (213,433,0.48)
 ```
 
 Runtime owner: `FaceShapeCheekAnchorIndices`.
@@ -122,14 +160,14 @@ Runtime owner: `FaceShapeCheekAnchorIndices`.
 159, 168, 263, 291, 308, 362, 386
 ```
 
-## 8. Bone / Cheekbone
+## 9. Bone / Cheekbone
 
 Runtime owner: `FaceShapeBonePairs`.
 
 ```text
-(127,356,0.50), (234,454,0.86), (93,323,1.00), (132,361,0.56),
-(50,280,0.40), (101,330,0.55), (118,347,0.84),
-(123,352,0.92), (187,411,0.58), (205,425,0.45)
+(127,356,0.65), (234,454,1.00), (93,323,0.92), (132,361,0.40),
+(50,280,0.36), (101,330,0.48), (118,347,0.45),
+(123,352,0.35), (187,411,0.20), (205,425,0.16)
 ```
 
 Runtime owner: `FaceShapeBoneAnchorIndices`.
@@ -139,7 +177,7 @@ Runtime owner: `FaceShapeBoneAnchorIndices`.
 152, 159, 168, 199, 263, 291, 308, 362, 386
 ```
 
-## 9. Face Turn / Tilt Support
+## 10. Face Turn / Tilt Support
 
 Runtime owner: `FaceShapeFaceTurnCentralIndices`.
 
@@ -175,7 +213,7 @@ Runtime owner: `FaceShapeFaceTiltAnchorIndices`.
 361, 365, 377, 378, 379, 389, 397, 400, 454
 ```
 
-## 10. Retouch Planning References
+## 11. Retouch Planning References
 
 These are planning references from the retouch note. They are not automatically runtime Face Shape ownership unless a tool explicitly adopts them.
 
@@ -186,7 +224,7 @@ These are planning references from the retouch note. They are not automatically 
 | Upper temple / side hair guide | `109`, `338` | Use as outside-hair routing references, not face-mask anchors. |
 | Hairline correction | `10`, `109`, `338` | Pull hairline only after face/forehead safety is confirmed. |
 
-## 11. Working Rule
+## 12. Working Rule
 
 When designing new Face Shape or beauty-retouch tools:
 
