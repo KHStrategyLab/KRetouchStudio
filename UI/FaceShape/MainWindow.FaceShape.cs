@@ -13,6 +13,8 @@ public partial class MainWindow
     private const string FaceShapeSymmetryHistoryTitle = "Face Sym";
     private const string FaceShapeSymmetryHistoryDetail = "Sym";
     private const double FaceShapeSymmetryMaxCorrection = 1.0;
+    private const string FaceShapeUpperHistoryTitle = "Face Upper";
+    private const string FaceShapeUpperHistoryDetail = "Upper";
     private const string FaceShapeCheekHistoryTitle = "Face Cheek";
     private const string FaceShapeCheekHistoryDetail = "Cheek";
     private const double FaceShapeCheekMaxInwardRatio = 0.075;
@@ -308,6 +310,8 @@ public partial class MainWindow
 
     private PhotoItem? _faceShapeSymmetrySessionPhoto;
     private BitmapSource? _faceShapeSymmetrySessionBaseImage;
+    private PhotoItem? _faceShapeUpperSessionPhoto;
+    private BitmapSource? _faceShapeUpperSessionBaseImage;
     private PhotoItem? _faceShapeCheekSessionPhoto;
     private BitmapSource? _faceShapeCheekSessionBaseImage;
     private PhotoItem? _faceShapeBoneSessionPhoto;
@@ -468,7 +472,7 @@ public partial class MainWindow
 
         if (FaceShapeRetouchTab.IsAlignFaceShapeModeSelected)
         {
-            MediaPipeStatusText = "Upper: body landmarks needed";
+            await ApplyFaceShapeUpperPreviewAsync();
             return;
         }
 
@@ -541,6 +545,89 @@ public partial class MainWindow
         PushOrReplaceFaceShapeSymmetryHistory(targetPhoto, strength);
         UpdatePreviewLayout();
         MediaPipeStatusText = $"Face Sym: applied {strength:0}";
+    }
+
+    private async Task ApplyFaceShapeUpperPreviewAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto)
+        {
+            MediaPipeStatusText = "Face Upper: load photo first";
+            return;
+        }
+
+        double strength = Math.Clamp(Math.Round(FaceShapeRetouchTab.AlignFaceShapeStrength), 0, 100);
+        int renderVersion = Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+        BitmapSource baseSource = GetFaceShapeUpperRenderSource(targetPhoto);
+        if (baseSource.PixelWidth != targetPhoto.BaseImage.PixelWidth ||
+            baseSource.PixelHeight != targetPhoto.BaseImage.PixelHeight)
+        {
+            MediaPipeStatusText = "Face Upper: original-size image only";
+            return;
+        }
+
+        if (strength <= 0.001)
+        {
+            targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
+            PushOrReplaceFaceShapeUpperHistory(targetPhoto, strength);
+            UpdatePreviewLayout();
+            MediaPipeStatusText = "Face Upper: reset";
+            return;
+        }
+
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, "Face Upper");
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        if (landmarks.Count == 0)
+        {
+            MediaPipeStatusText = "Face Upper: no landmarks";
+            return;
+        }
+
+        string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(alphaPath))
+        {
+            MediaPipeStatusText = "Face Upper: no person mask";
+            return;
+        }
+
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            baseSource.PixelWidth,
+            baseSource.PixelHeight);
+        byte[] alphaPixels = GetOrCreateRefinedPersonAlphaMask(alphaPath, baseSource.PixelWidth, baseSource.PixelHeight);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
+        double renderStrength = strength;
+        MediaPipeStatusText = $"Face Upper: rendering {strength:0}...";
+
+        BitmapSource preview = await Task.Run(() =>
+            BuildFaceShapeUpperPreview(
+                safeBase,
+                landmarkPoints,
+                alphaPixels,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
+
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(preview);
+        PushOrReplaceFaceShapeUpperHistory(targetPhoto, strength);
+        UpdatePreviewLayout();
+        MediaPipeStatusText = $"Face Upper: applied {strength:0}";
     }
 
     private async Task ApplyFaceShapeCheekPreviewAsync()
@@ -1622,6 +1709,51 @@ public partial class MainWindow
         }
 
         PushEditorHistorySnapshot(FaceShapeSymmetryHistoryTitle, detail);
+    }
+
+    private BitmapSource GetFaceShapeUpperRenderSource(PhotoItem photo)
+    {
+        if (ReferenceEquals(_faceShapeUpperSessionPhoto, photo) &&
+            _faceShapeUpperSessionBaseImage is not null)
+        {
+            return _faceShapeUpperSessionBaseImage;
+        }
+
+        BitmapSource source;
+        if (IsCurrentHistoryFaceShapeUpper() && _editorUndoHistory.Count >= 2)
+        {
+            EditorHistoryState previous = _editorUndoHistory[^2];
+            source = previous.AdjustedImage ?? photo.BaseImage;
+        }
+        else
+        {
+            source = GetCurrentDisplayBitmapSource(photo);
+        }
+
+        _faceShapeUpperSessionPhoto = photo;
+        _faceShapeUpperSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
+        return _faceShapeUpperSessionBaseImage;
+    }
+
+    private bool IsCurrentHistoryFaceShapeUpper()
+    {
+        return _editorUndoHistory.Count > 0 &&
+               string.Equals(_editorUndoHistory[^1].Title, FaceShapeUpperHistoryTitle, StringComparison.Ordinal) &&
+               _editorUndoHistory[^1].Detail.StartsWith(FaceShapeUpperHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private void PushOrReplaceFaceShapeUpperHistory(PhotoItem photo, double strength)
+    {
+        string detail = $"{FaceShapeUpperHistoryDetail} {Math.Clamp(Math.Round(strength), 0, 100):0}";
+        if (IsCurrentHistoryFaceShapeUpper())
+        {
+            _editorUndoHistory[^1] = CaptureEditorHistoryState(photo, FaceShapeUpperHistoryTitle, detail);
+            RefreshEditorHistoryPanel();
+            StoreCurrentEditorHistorySession(photo, persistToDisk: false);
+            return;
+        }
+
+        PushEditorHistorySnapshot(FaceShapeUpperHistoryTitle, detail);
     }
 
     private BitmapSource GetFaceShapeCheekRenderSource(PhotoItem photo)
@@ -4570,6 +4702,36 @@ public partial class MainWindow
             shouldCancel);
     }
 
+    private static BitmapSource BuildFaceShapeUpperPreview(
+        BitmapSource source,
+        IReadOnlyDictionary<int, Point> landmarks,
+        byte[] alphaPixels,
+        double strength,
+        Func<bool>? shouldCancel = null)
+    {
+        BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
+        int width = bgraSource.PixelWidth;
+        int height = bgraSource.PixelHeight;
+        if (width < 2 || height < 2 || alphaPixels.Length < width * height)
+        {
+            return CloneBitmapSource(bgraSource);
+        }
+
+        if (landmarks.Count < 32 ||
+            !TryBuildFaceShapeUpperControls(landmarks, alphaPixels, width, height, strength, out FaceShapePosePlan plan))
+        {
+            return CloneBitmapSource(bgraSource);
+        }
+
+        double sigma = Math.Max(24.0, Math.Max(plan.Bounds.Width, plan.Bounds.Height) * 0.16);
+        return BuildFaceShapeControlWarpPreview(
+            bgraSource,
+            plan.Controls,
+            sigma,
+            CreateFaceShapePoseWeightProfile(plan),
+            shouldCancel);
+    }
+
     private static BitmapSource BuildFaceShapeCheekPreview(
         BitmapSource source,
         IReadOnlyDictionary<int, Point> landmarks,
@@ -5118,14 +5280,34 @@ public partial class MainWindow
             return false;
         }
 
-        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
+        if (!landmarks.TryGetValue(168, out Point bridge) ||
+            !landmarks.TryGetValue(4, out Point nose) ||
+            !landmarks.TryGetValue(152, out Point chin))
         {
             return false;
         }
 
-        double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) * FaceShapeSymmetryMaxCorrection;
-        List<FaceShapeControlPoint> controls = new(
-            (FaceShapeSymmetryPairs.Length * 2) + FaceShapeSymmetryMidlineIndices.Length);
+        double centerX = (bridge.X + nose.X + chin.X) / 3.0;
+        double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
+            FaceShapeSymmetryMaxCorrection *
+            1.45;
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas = [];
+
+        void AddDelta(int index, double dx, double dy)
+        {
+            if (!landmarks.TryGetValue(index, out Point point))
+            {
+                return;
+            }
+
+            if (controlDeltas.TryGetValue(index, out (Point Point, double Dx, double Dy) existing))
+            {
+                controlDeltas[index] = (existing.Point, existing.Dx + dx, existing.Dy + dy);
+                return;
+            }
+
+            controlDeltas[index] = (point, dx, dy);
+        }
 
         foreach ((int leftIndex, int rightIndex) in FaceShapeSymmetryPairs)
         {
@@ -5148,44 +5330,688 @@ public partial class MainWindow
             }
 
             double balancedDistance = (leftDistance + rightDistance) * 0.5;
-            controls.Add(new FaceShapeControlPoint(
-                left.X,
-                left.Y,
-                ((centerX - balancedDistance) - left.X) * amount,
-                0));
-            controls.Add(new FaceShapeControlPoint(
-                right.X,
-                right.Y,
-                ((centerX + balancedDistance) - right.X) * amount,
-                0));
+            AddDelta(leftIndex, ((centerX - balancedDistance) - left.X) * amount, 0);
+            AddDelta(rightIndex, ((centerX + balancedDistance) - right.X) * amount, 0);
         }
 
-        foreach (int index in FaceShapeSymmetryMidlineIndices)
+        int[] noseMidline =
+        [
+            168, 6, 197, 195, 5, 4, 1, 2
+        ];
+        foreach (int index in noseMidline)
         {
             if (!landmarks.TryGetValue(index, out Point point))
             {
                 continue;
             }
 
-            controls.Add(new FaceShapeControlPoint(
-                point.X,
-                point.Y,
-                (centerX - point.X) * amount * 0.85,
-                0));
+            AddDelta(index, (centerX - point.X) * amount, 0);
         }
+
+        AddFaceShapeHorizontalTiltDeltas(
+            landmarks,
+            controlDeltas,
+            [33, 133, 159, 145, 468, 130, 246, 161, 160, 158, 157, 173, 153, 144, 163, 7],
+            [263, 362, 386, 374, 473, 359, 466, 388, 387, 385, 384, 398, 380, 373, 390, 249],
+            33,
+            263,
+            amount);
+        AddFaceShapeHorizontalTiltDeltas(
+            landmarks,
+            controlDeltas,
+            [46, 53, 52, 65, 55, 70, 63, 105, 66, 107],
+            [276, 283, 282, 295, 285, 300, 293, 334, 296, 336],
+            46,
+            276,
+            amount);
+        AddFaceShapeHorizontalTiltDeltas(
+            landmarks,
+            controlDeltas,
+            [61, 146, 91, 181, 84, 37, 39, 40],
+            [291, 375, 321, 405, 314, 267, 269, 270],
+            61,
+            291,
+            amount);
+        AddFaceShapeHorizontalTiltDeltas(
+            landmarks,
+            controlDeltas,
+            [58, 172, 136, 150, 149, 176, 148],
+            [288, 397, 365, 379, 378, 400, 377],
+            136,
+            365,
+            amount * 0.55);
+        AddFaceShapeHorizontalTiltDeltas(
+            landmarks,
+            controlDeltas,
+            [67, 109],
+            [297, 338],
+            109,
+            338,
+            amount * 0.22);
+
+        AddFaceShapeForeheadBalanceDeltas(landmarks, controlDeltas, centerX, amount);
+
+        int[] anchorIndices =
+        [
+            1, 4, 5, 6, 33, 263, 61, 291, 152
+        ];
+        foreach (int index in anchorIndices)
+        {
+            if (!landmarks.TryGetValue(index, out Point point))
+            {
+                continue;
+            }
+
+            controlDeltas[index] = (point, 0, 0);
+        }
+
+        List<FaceShapeControlPoint> controls = new(controlDeltas.Count);
+        double upperFollowDx = GetFaceShapeAverageDeltaX(controlDeltas, bounds.Top + (bounds.Height * 0.55));
+        double upperFollowDy = GetFaceShapeAverageDeltaY(controlDeltas, bounds.Top + (bounds.Height * 0.55));
+        foreach ((Point point, double dx, double dy) in controlDeltas.Values)
+        {
+            controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, dy));
+        }
+        AddFaceShapeHairBalanceControls(controls, bounds, centerX, width, height, amount, upperFollowDx, upperFollowDy);
 
         if (controls.Count < 8)
         {
             return false;
         }
 
+        Rect controlBounds = BuildFaceShapeLandmarkBounds(
+            controls.Select(control => new Point(control.X, control.Y)),
+            width,
+            height);
+        if (!controlBounds.IsEmpty)
+        {
+            bounds.Union(controlBounds);
+        }
+
         double expansionX = bounds.Width * 0.18;
-        double expansionY = bounds.Height * 0.18;
-        bounds.Inflate(expansionX, expansionY);
+        double expansionTop = bounds.Height * 0.30;
+        double expansionBottom = bounds.Height * 0.18;
+        bounds = new Rect(
+            bounds.Left - expansionX,
+            bounds.Top - expansionTop,
+            bounds.Width + (expansionX * 2.0),
+            bounds.Height + expansionTop + expansionBottom);
         bounds.Intersect(new Rect(0, 0, width, height));
 
         plan = new FaceShapeSymmetryPlan(bounds, centerX, controls);
         return true;
+    }
+
+    private static bool TryBuildFaceShapeUpperControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        byte[] alphaPixels,
+        int width,
+        int height,
+        double strength,
+        out FaceShapePosePlan plan)
+    {
+        plan = default;
+        Rect faceBounds = BuildFaceShapeLandmarkBounds(landmarks.Values, width, height);
+        if (faceBounds.Width < 20 || faceBounds.Height < 20)
+        {
+            return false;
+        }
+
+        if (!TryGetFaceShapeCenterX(landmarks, out double centerX))
+        {
+            return false;
+        }
+
+        if (!landmarks.TryGetValue(152, out Point chin))
+        {
+            return false;
+        }
+
+        double faceWidth = faceBounds.Width;
+        double faceHeight = faceBounds.Height;
+        if (!TryFindFaceShapeUpperShoulderLineFromAlpha(
+            alphaPixels,
+            width,
+            height,
+            centerX,
+            chin,
+            faceBounds,
+            out FaceShapeUpperShoulderLine shoulderLine))
+        {
+            return false;
+        }
+
+        double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) * 1.25;
+        Point leftShoulder = shoulderLine.Left;
+        Point rightShoulder = shoulderLine.Right;
+        double targetY = (leftShoulder.Y + rightShoulder.Y) * 0.5;
+        double leftDy = (targetY - leftShoulder.Y) * amount;
+        double rightDy = (targetY - rightShoulder.Y) * amount;
+        bool hasShoulderLeveling = Math.Abs(leftDy) >= 0.05 || Math.Abs(rightDy) >= 0.05;
+
+        double shoulderBottomY = Math.Min(height - 1, Math.Max(leftShoulder.Y, rightShoulder.Y) + (faceHeight * 0.85));
+        List<FaceShapeControlPoint> controls =
+        [
+            new(leftShoulder.X, leftShoulder.Y, 0, leftDy),
+            new(leftShoulder.X, shoulderBottomY, 0, leftDy * 0.82),
+            new(shoulderLine.NeckLeft.X, shoulderLine.NeckLeft.Y, 0, leftDy * 0.35),
+            new(rightShoulder.X, rightShoulder.Y, 0, rightDy),
+            new(rightShoulder.X, shoulderBottomY, 0, rightDy * 0.82),
+            new(shoulderLine.NeckRight.X, shoulderLine.NeckRight.Y, 0, rightDy * 0.35)
+        ];
+
+        AddFaceShapeUpperHeadBlockControls(
+            controls,
+            landmarks,
+            alphaPixels,
+            width,
+            height,
+            centerX,
+            chin,
+            faceBounds,
+            amount,
+            out Rect headBounds,
+            out double maxHeadOffset);
+
+        if (!hasShoulderLeveling && maxHeadOffset < 0.05)
+        {
+            return false;
+        }
+
+        Rect bounds = new(
+            Math.Max(0, Math.Min(leftShoulder.X, rightShoulder.X) - (faceWidth * 0.35)),
+            Math.Max(0, shoulderLine.NeckY - (faceHeight * 0.15)),
+            Math.Min(width, Math.Abs(rightShoulder.X - leftShoulder.X) + (faceWidth * 0.70)),
+            Math.Min(height, shoulderBottomY - (shoulderLine.NeckY - (faceHeight * 0.15)) + (faceHeight * 0.20)));
+        if (!headBounds.IsEmpty)
+        {
+            bounds.Union(headBounds);
+        }
+
+        bounds.Intersect(new Rect(0, 0, width, height));
+        if (bounds.Width < 20 || bounds.Height < 20)
+        {
+            return false;
+        }
+
+        plan = new FaceShapePosePlan(bounds, centerX, bounds.Top + (bounds.Height * 0.55), controls);
+        return true;
+    }
+
+    private static void AddFaceShapeUpperHeadBlockControls(
+        List<FaceShapeControlPoint> controls,
+        IReadOnlyDictionary<int, Point> landmarks,
+        byte[] alphaPixels,
+        int width,
+        int height,
+        double centerX,
+        Point chin,
+        Rect faceBounds,
+        double amount,
+        out Rect bounds,
+        out double maxOffset)
+    {
+        bounds = Rect.Empty;
+        maxOffset = 0;
+        double faceWidth = faceBounds.Width;
+        double faceHeight = faceBounds.Height;
+        int top = Math.Clamp((int)Math.Round(faceBounds.Top - (faceHeight * 0.65)), 0, Math.Max(0, height - 1));
+        int bottom = Math.Clamp((int)Math.Round(chin.Y + (faceHeight * 0.14)), 0, Math.Max(0, height - 1));
+        int leftLimit = Math.Clamp((int)Math.Round(centerX - (faceWidth * 1.45)), 0, Math.Max(0, width - 1));
+        int rightLimit = Math.Clamp((int)Math.Round(centerX + (faceWidth * 1.45)), 0, Math.Max(0, width - 1));
+        if (leftLimit >= rightLimit || top >= bottom)
+        {
+            return;
+        }
+
+        List<FaceShapeAlphaContourRow> rows = [];
+        for (int y = top; y <= bottom; y++)
+        {
+            if (!TryGetFaceShapeAlphaContourRow(alphaPixels, width, y, leftLimit, rightLimit, out FaceShapeAlphaContourRow row))
+            {
+                continue;
+            }
+
+            if (row.Width < faceWidth * 0.28)
+            {
+                continue;
+            }
+
+            rows.Add(row);
+        }
+
+        if (rows.Count < 6)
+        {
+            return;
+        }
+
+        foreach (FaceShapeAlphaContourRow row in rows)
+        {
+            Rect rowBounds = new(row.Left, row.Y, Math.Max(1, row.Right - row.Left), 1);
+            if (bounds.IsEmpty)
+            {
+                bounds = rowBounds;
+            }
+            else
+            {
+                bounds.Union(rowBounds);
+            }
+        }
+
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+
+        double headCenterX = bounds.Left + (bounds.Width * 0.5);
+        double centerShift = (centerX - headCenterX) * amount * 0.28;
+        double correctionRadians = 0;
+        if (landmarks.TryGetValue(33, out Point leftEye) &&
+            landmarks.TryGetValue(263, out Point rightEye) &&
+            Math.Abs(rightEye.X - leftEye.X) > 1)
+        {
+            double currentRadians = Math.Atan2(rightEye.Y - leftEye.Y, rightEye.X - leftEye.X);
+            double maxRadians = 7.0 * Math.PI / 180.0;
+            correctionRadians = Math.Clamp(-currentRadians * amount, -maxRadians, maxRadians);
+        }
+
+        double pivotX = centerX;
+        double pivotY = chin.Y + (faceHeight * 0.08);
+        double[][] blockPoints =
+        [
+            [bounds.Left, bounds.Top],
+            [bounds.Left + (bounds.Width * 0.5), bounds.Top],
+            [bounds.Right, bounds.Top],
+            [bounds.Left, bounds.Top + (bounds.Height * 0.45)],
+            [bounds.Right, bounds.Top + (bounds.Height * 0.45)],
+            [bounds.Left, bounds.Bottom],
+            [bounds.Left + (bounds.Width * 0.5), bounds.Bottom],
+            [bounds.Right, bounds.Bottom]
+        ];
+
+        foreach (double[] blockPoint in blockPoints)
+        {
+            double x = Math.Clamp(blockPoint[0], 0, Math.Max(0, width - 1));
+            double y = Math.Clamp(blockPoint[1], 0, Math.Max(0, height - 1));
+            RotateFaceShapePoint(x, y, pivotX, pivotY, correctionRadians, out double rotatedX, out double rotatedY);
+            double dx = (rotatedX - x) + centerShift;
+            double dy = rotatedY - y;
+            controls.Add(new FaceShapeControlPoint(x, y, dx, dy));
+            maxOffset = Math.Max(maxOffset, Math.Max(Math.Abs(dx), Math.Abs(dy)));
+        }
+
+        bounds.Inflate(faceWidth * 0.18, faceHeight * 0.10);
+    }
+
+    private static void RotateFaceShapePoint(
+        double x,
+        double y,
+        double pivotX,
+        double pivotY,
+        double radians,
+        out double rotatedX,
+        out double rotatedY)
+    {
+        double cos = Math.Cos(radians);
+        double sin = Math.Sin(radians);
+        double offsetX = x - pivotX;
+        double offsetY = y - pivotY;
+        rotatedX = pivotX + (offsetX * cos) - (offsetY * sin);
+        rotatedY = pivotY + (offsetX * sin) + (offsetY * cos);
+    }
+
+    private static void AddFaceShapeHorizontalTiltDeltas(
+        IReadOnlyDictionary<int, Point> landmarks,
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas,
+        IReadOnlyList<int> leftIndices,
+        IReadOnlyList<int> rightIndices,
+        int leftAnchorIndex,
+        int rightAnchorIndex,
+        double amount)
+    {
+        if (!landmarks.TryGetValue(leftAnchorIndex, out Point leftAnchor) ||
+            !landmarks.TryGetValue(rightAnchorIndex, out Point rightAnchor))
+        {
+            return;
+        }
+
+        double averageY = (leftAnchor.Y + rightAnchor.Y) * 0.5;
+        double leftDy = (averageY - leftAnchor.Y) * amount;
+        double rightDy = (averageY - rightAnchor.Y) * amount;
+
+        foreach (int index in leftIndices)
+        {
+            AddFaceShapeDelta(landmarks, controlDeltas, index, 0, leftDy);
+        }
+
+        foreach (int index in rightIndices)
+        {
+            AddFaceShapeDelta(landmarks, controlDeltas, index, 0, rightDy);
+        }
+    }
+
+    private static void AddFaceShapeDelta(
+        IReadOnlyDictionary<int, Point> landmarks,
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas,
+        int index,
+        double dx,
+        double dy)
+    {
+        if (!landmarks.TryGetValue(index, out Point point))
+        {
+            return;
+        }
+
+        if (controlDeltas.TryGetValue(index, out (Point Point, double Dx, double Dy) existing))
+        {
+            controlDeltas[index] = (existing.Point, existing.Dx + dx, existing.Dy + dy);
+            return;
+        }
+
+        controlDeltas[index] = (point, dx, dy);
+    }
+
+    private static void AddFaceShapeHairBalanceControls(
+        List<FaceShapeControlPoint> controls,
+        Rect faceBounds,
+        double centerX,
+        int width,
+        int height,
+        double amount,
+        double followDx,
+        double followDy)
+    {
+        double topY = faceBounds.Top - (faceBounds.Height * 0.12);
+        double upperY = faceBounds.Top + (faceBounds.Height * 0.04);
+        double sideUpperY = faceBounds.Top + (faceBounds.Height * 0.20);
+        double sideLowerY = faceBounds.Top + (faceBounds.Height * 0.54);
+        double leftOuterX = faceBounds.Left - (faceBounds.Width * 0.10);
+        double leftInnerX = faceBounds.Left + (faceBounds.Width * 0.04);
+        double rightInnerX = faceBounds.Right - (faceBounds.Width * 0.04);
+        double rightOuterX = faceBounds.Right + (faceBounds.Width * 0.10);
+        double faceCenterOffset = (centerX - (faceBounds.Left + (faceBounds.Width * 0.5))) * amount * 0.45;
+        double hairFollowDx = (followDx * 0.85) + faceCenterOffset;
+        double hairFollowDy = followDy * 0.55;
+        AddFaceShapeStaticBalanceControlPair(controls, leftOuterX, rightOuterX, topY, centerX, width, height, amount * 0.18, hairFollowDx, hairFollowDy);
+        AddFaceShapeStaticBalanceControlPair(
+            controls,
+            faceBounds.Left + (faceBounds.Width * 0.24),
+            faceBounds.Right - (faceBounds.Width * 0.24),
+            upperY,
+            centerX,
+            width,
+            height,
+            amount * 0.22,
+            hairFollowDx,
+            hairFollowDy);
+        AddFaceShapeStaticBalanceControlPair(controls, leftOuterX, rightOuterX, sideUpperY, centerX, width, height, amount * 0.35, hairFollowDx, hairFollowDy);
+        AddFaceShapeStaticBalanceControlPair(controls, leftInnerX, rightInnerX, sideUpperY, centerX, width, height, amount * 0.28, hairFollowDx, hairFollowDy);
+        AddFaceShapeStaticBalanceControlPair(controls, leftOuterX, rightOuterX, sideLowerY, centerX, width, height, amount * 0.30, hairFollowDx * 0.65, hairFollowDy * 0.45);
+    }
+
+    private static void AddFaceShapeStaticBalanceControlPair(
+        List<FaceShapeControlPoint> controls,
+        double leftX,
+        double rightX,
+        double y,
+        double centerX,
+        int width,
+        int height,
+        double amount,
+        double followDx,
+        double followDy)
+    {
+        double clampedY = Math.Clamp(y, 0, Math.Max(0, height - 1));
+        double leftDistance = centerX - leftX;
+        double rightDistance = rightX - centerX;
+        if (leftDistance <= 1 || rightDistance <= 1)
+        {
+            return;
+        }
+
+        double balancedDistance = (leftDistance + rightDistance) * 0.5;
+        double targetLeftX = centerX - balancedDistance;
+        double targetRightX = centerX + balancedDistance;
+        double clampedLeftX = Math.Clamp(leftX, 0, Math.Max(0, width - 1));
+        double clampedRightX = Math.Clamp(rightX, 0, Math.Max(0, width - 1));
+        controls.Add(new FaceShapeControlPoint(clampedLeftX, clampedY, ((targetLeftX - leftX) * amount) + followDx, followDy));
+        controls.Add(new FaceShapeControlPoint(clampedRightX, clampedY, ((targetRightX - rightX) * amount) + followDx, followDy));
+    }
+
+    private static double GetFaceShapeAverageDeltaX(
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas,
+        double maxY)
+    {
+        double total = 0;
+        int count = 0;
+        foreach ((Point point, double dx, _) in controlDeltas.Values)
+        {
+            if (point.Y > maxY)
+            {
+                continue;
+            }
+
+            total += dx;
+            count++;
+        }
+
+        return count > 0 ? total / count : 0;
+    }
+
+    private static double GetFaceShapeAverageDeltaY(
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas,
+        double maxY)
+    {
+        double total = 0;
+        int count = 0;
+        foreach ((Point point, _, double dy) in controlDeltas.Values)
+        {
+            if (point.Y > maxY)
+            {
+                continue;
+            }
+
+            total += dy;
+            count++;
+        }
+
+        return count > 0 ? total / count : 0;
+    }
+
+    private static bool TryFindFaceShapeUpperShoulderLineFromAlpha(
+        byte[] alphaPixels,
+        int width,
+        int height,
+        double centerX,
+        Point chin,
+        Rect faceBounds,
+        out FaceShapeUpperShoulderLine shoulderLine)
+    {
+        shoulderLine = default;
+        double faceWidth = faceBounds.Width;
+        double faceHeight = faceBounds.Height;
+        int top = Math.Clamp((int)Math.Round(chin.Y + (faceHeight * 0.04)), 0, Math.Max(0, height - 1));
+        int bottom = Math.Clamp((int)Math.Round(chin.Y + (faceHeight * 1.45)), 0, Math.Max(0, height - 1));
+        int leftLimit = Math.Clamp((int)Math.Round(centerX - (faceWidth * 1.70)), 0, Math.Max(0, width - 1));
+        int rightLimit = Math.Clamp((int)Math.Round(centerX + (faceWidth * 1.70)), 0, Math.Max(0, width - 1));
+        if (leftLimit >= rightLimit || top >= bottom)
+        {
+            return false;
+        }
+
+        List<FaceShapeAlphaContourRow> rows = [];
+        for (int y = top; y <= bottom; y++)
+        {
+            if (TryGetFaceShapeAlphaContourRow(alphaPixels, width, y, leftLimit, rightLimit, out FaceShapeAlphaContourRow row))
+            {
+                rows.Add(row);
+            }
+        }
+
+        if (rows.Count < 8)
+        {
+            return false;
+        }
+
+        int neckCandidateLimit = Math.Min(rows.Count, Math.Max(6, (int)Math.Round(faceHeight * 0.20)));
+        FaceShapeAlphaContourRow neckRow = rows[0];
+        double narrowestWidth = double.MaxValue;
+        for (int i = 0; i < neckCandidateLimit; i++)
+        {
+            FaceShapeAlphaContourRow row = rows[i];
+            if (row.Width < faceWidth * 0.18)
+            {
+                continue;
+            }
+
+            if (row.Width < narrowestWidth)
+            {
+                narrowestWidth = row.Width;
+                neckRow = row;
+            }
+        }
+
+        double maxLeftExtension = 0;
+        double maxRightExtension = 0;
+        foreach (FaceShapeAlphaContourRow row in rows)
+        {
+            maxLeftExtension = Math.Max(maxLeftExtension, neckRow.Left - row.Left);
+            maxRightExtension = Math.Max(maxRightExtension, row.Right - neckRow.Right);
+        }
+
+        if (maxLeftExtension < faceWidth * 0.12 || maxRightExtension < faceWidth * 0.12)
+        {
+            return false;
+        }
+
+        double leftTargetExtension = maxLeftExtension * 0.52;
+        double rightTargetExtension = maxRightExtension * 0.52;
+        Point leftShoulder = default;
+        Point rightShoulder = default;
+        bool hasLeftShoulder = false;
+        bool hasRightShoulder = false;
+
+        foreach (FaceShapeAlphaContourRow row in rows)
+        {
+            if (!hasLeftShoulder && neckRow.Left - row.Left >= leftTargetExtension)
+            {
+                leftShoulder = new Point(row.Left, row.Y);
+                hasLeftShoulder = true;
+            }
+
+            if (!hasRightShoulder && row.Right - neckRow.Right >= rightTargetExtension)
+            {
+                rightShoulder = new Point(row.Right, row.Y);
+                hasRightShoulder = true;
+            }
+
+            if (hasLeftShoulder && hasRightShoulder)
+            {
+                break;
+            }
+        }
+
+        if (!hasLeftShoulder || !hasRightShoulder)
+        {
+            return false;
+        }
+
+        shoulderLine = new FaceShapeUpperShoulderLine(
+            leftShoulder,
+            rightShoulder,
+            new Point(neckRow.Left, neckRow.Y),
+            new Point(neckRow.Right, neckRow.Y),
+            neckRow.Y);
+        return true;
+    }
+
+    private static bool TryGetFaceShapeAlphaContourRow(
+        byte[] alphaPixels,
+        int width,
+        int y,
+        int leftLimit,
+        int rightLimit,
+        out FaceShapeAlphaContourRow row)
+    {
+        row = default;
+        int rowOffset = y * width;
+        int left = -1;
+        int right = -1;
+        for (int x = leftLimit; x <= rightLimit; x++)
+        {
+            if (alphaPixels[rowOffset + x] < 96)
+            {
+                continue;
+            }
+
+            left = x;
+            break;
+        }
+
+        if (left < 0)
+        {
+            return false;
+        }
+
+        for (int x = rightLimit; x >= left; x--)
+        {
+            if (alphaPixels[rowOffset + x] < 96)
+            {
+                continue;
+            }
+
+            right = x;
+            break;
+        }
+
+        if (right <= left)
+        {
+            return false;
+        }
+
+        row = new FaceShapeAlphaContourRow(y, left, right);
+        return true;
+    }
+
+    private static void AddFaceShapeForeheadBalanceDeltas(
+        IReadOnlyDictionary<int, Point> landmarks,
+        Dictionary<int, (Point Point, double Dx, double Dy)> controlDeltas,
+        double centerX,
+        double amount)
+    {
+        foreach ((int leftIndex, int rightIndex) in new (int Left, int Right)[]
+        {
+            (67, 297),
+            (109, 338)
+        })
+        {
+            if (!landmarks.TryGetValue(leftIndex, out Point left) ||
+                !landmarks.TryGetValue(rightIndex, out Point right))
+            {
+                continue;
+            }
+
+            double leftDistance = centerX - left.X;
+            double rightDistance = right.X - centerX;
+            if (leftDistance <= 1 || rightDistance <= 1)
+            {
+                continue;
+            }
+
+            double balancedDistance = (leftDistance + rightDistance) * 0.5;
+            AddFaceShapeDelta(landmarks, controlDeltas, leftIndex, ((centerX - balancedDistance) - left.X) * amount * 0.25, 0);
+            AddFaceShapeDelta(landmarks, controlDeltas, rightIndex, ((centerX + balancedDistance) - right.X) * amount * 0.25, 0);
+        }
+
+        foreach (int index in new[] { 10, 168 })
+        {
+            if (!landmarks.TryGetValue(index, out Point point))
+            {
+                continue;
+            }
+
+            AddFaceShapeDelta(landmarks, controlDeltas, index, (centerX - point.X) * amount * 0.20, 0);
+        }
     }
 
     private static bool TryBuildFaceShapeCheekControls(
@@ -6168,6 +6994,18 @@ public partial class MainWindow
         double SolidRadius);
 
     private readonly record struct FaceShapeControlPoint(double X, double Y, double Dx, double Dy);
+
+    private readonly record struct FaceShapeAlphaContourRow(int Y, int Left, int Right)
+    {
+        public int Width => Right - Left;
+    }
+
+    private readonly record struct FaceShapeUpperShoulderLine(
+        Point Left,
+        Point Right,
+        Point NeckLeft,
+        Point NeckRight,
+        double NeckY);
 
     private readonly record struct FaceShapeProjectionSample(double X, double Y, double Z);
 

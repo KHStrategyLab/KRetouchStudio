@@ -20,7 +20,7 @@
 
 ## CORE Documents
 
-- [공식](공식.md) - core formula constitution.
+- [Core Formulas](CORE_FORMULAS.md) - core formula constitution.
 - [CORE Formula Companion](CORE_FORMULA_COMPANION.md) - core detection policy, zone-mask explanation, and rationale archive.
 - [CORE 2D Render Tricks](CORE_2D_RENDER_TRICKS.md) - lightweight final-render upgrade tricks.
 - [Detection Pipeline Contract](DETECTION_PIPELINE_CONTRACT.md) - shared detection-first analysis order and original-remap rule.

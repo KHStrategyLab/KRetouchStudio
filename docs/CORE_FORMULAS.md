@@ -1,4 +1,4 @@
-﻿# 공식
+﻿# Core Formulas
 
 모든 픽셀 색상과 마스크 값은 `0.0 ~ 1.0` 정규화 기준을 따른다.
 
@@ -7,9 +7,9 @@
 - [CORE Formula Companion](CORE_FORMULA_COMPANION.md)
 - [CORE 2D Render Tricks](CORE_2D_RENDER_TRICKS.md)
 
-## 공통 규칙
+## Core Rules
 
-### 숫자 1의 의미
+### Meaning Of `1`
 
 그래픽 프로그래밍에서 `1`은 단순한 숫자 1이 아니라 `100%(전체 이미지)`를 뜻하는 기준값이다.
 
@@ -19,7 +19,7 @@
 
 즉, 모든 마스크 연산은 기본적으로 `1`이라는 전체 기준판 안에서 정의된다.
 
-### `1 - Mask`의 의미
+### Meaning Of `1 - Mask`
 
 `1 - Mask`는 현재 마스크를 뒤집는 `Invert` 또는 `반대쪽 영역 선택`을 뜻한다.
 
@@ -33,7 +33,7 @@ BackgroundMask = 1.0 - PersonMask
 
 이 식은 의미상 `전체 공간에서 현재 선택된 마스크를 빼라`는 뜻이다.
 
-### 픽셀 해석 예시
+### Pixel Interpretation Examples
 
 - 사람 중심 픽셀: `PersonMask = 1.0` 이면 `1.0 - 1.0 = 0.0`
 - 배경 픽셀: `PersonMask = 0.0` 이면 `1.0 - 0.0 = 1.0`
@@ -41,7 +41,7 @@ BackgroundMask = 1.0 - PersonMask
 
 즉, 경계에서는 사람과 배경이 부드럽게 섞인다.
 
-### 합성 기본식
+### Base Compositing Formula
 
 조건문 대신 마스크 산술식으로 바로 합성한다.
 
@@ -51,7 +51,7 @@ Result = Mask \cdot Foreground + (1.0 - Mask) \cdot Background
 
 이 방식은 `if / else` 분기 없이 사람 쪽과 배경 쪽을 동시에 계산하므로 픽셀 튐을 줄이고 렌더링 파이프라인에 자연스럽게 연결된다.
 
-### 부연
+### Notes
 
 #### 1. 컴퓨터 그래픽스에서 `1` = `100% (전체)`다
 
@@ -84,7 +84,7 @@ Result = Mask \cdot Foreground + (1.0 - Mask) \cdot Background
 
 이 방식을 쓰면 픽셀마다 `if` 분기를 거는 대신 연속적인 산술식으로 합성할 수 있어서, CPU/GPU 렌더링 파이프라인에 더 자연스럽고 효율적으로 연결된다.
 
-## 1부: 공간 분할 및 마스크
+## Part 1: Space Partition And Masks
 
 01. 사람 마스크  
 정의: 배경과 사람을 분리하는 절대 기준 마스크.  
@@ -132,7 +132,49 @@ Damping(x, y) =
 \end{cases}
 \]
 
-## 2부: 기하학적 왜곡
+07A. Upper Head Block And Shoulder Detection Rule  
+Definition: Upper-body symmetry must use the existing background alpha/person alpha mask as the primary source for the large visible person silhouette. This includes the full head, hair mass, neck, shoulders, and upper body. FaceMesh proportions are only a fallback when alpha data is missing.
+
+Primary flow:
+
+1. Use FaceMesh only for `Chin`, jawline, face bounds, and `CenterX`.
+2. Scan the alpha foreground silhouette from the head/hair region through the shoulder region.
+3. Extract left and right foreground boundaries from the alpha contour.
+4. Treat the head/hair region as one frozen block and correct large head tilt as a block transform.
+5. Start below the chin and find the neck row from the narrowest valid foreground width.
+6. Find `ShoulderLeft` and `ShoulderRight` where the contour expands outward from the neck toward the body boundary.
+7. Derive `ShoulderLine` from `ShoulderLeft` and `ShoulderRight`.
+8. Use the head block controls plus the shoulder line for the `Upper` button's large silhouette balance.
+
+\[
+Foreground(x, y) = Alpha_{person}(x, y) > T
+\]
+
+\[
+ContourRow(y) = [X_{left}(y), X_{right}(y)]
+\]
+
+\[
+NeckRow = \arg\min_y (X_{right}(y) - X_{left}(y)),\quad y > Chin_Y
+\]
+
+\[
+ShoulderLeft =
+FirstRowWhere(X_{left}^{neck} - X_{left}(y) \ge k \cdot MaxLeftExtension)
+\]
+
+\[
+ShoulderRight =
+FirstRowWhere(X_{right}(y) - X_{right}^{neck} \ge k \cdot MaxRightExtension)
+\]
+
+\[
+HeadBlock' = Rotate(HeadBlock,\ Pivot_{neck},\ -HeadTilt) + CenterShift
+\]
+
+Neck anchors should later be refined from jawline, face centerline, skin-tone continuity, and clothing boundary inside the alpha foreground. This refinement is separate from the first shoulder-line extraction step.
+
+## Part 2: Geometric Warp
 
 08. 2D 로컬 회전  
 정의: 기준축을 중심으로 얼굴 또는 부위를 국소 회전한다.  
@@ -185,7 +227,7 @@ Y_{new} = Y_{old} + \Delta Y_{feature} \cdot Mask_{face} \cdot (1.0 - Damping)
 Color(x, y) = \sum_{i=0}^{1}\sum_{j=0}^{1} Color(\lfloor x \rfloor + i,\lfloor y \rfloor + j) \cdot W(i, j)
 \]
 
-## 3부: 톤, 색상, 그리고 조명
+## Part 3: Tone, Color, And Light
 
 16. 명도 추출  
 정의: RGB를 시각 가중 명도로 변환한다.  
@@ -241,7 +283,7 @@ Color_{blur} = \frac{\sum (Color_i \cdot Kernel_i)}{\sum Kernel_i}
 Result_{RGB} = Original_{RGB} + (Original_{RGB} - Blur_{RGB}) \cdot SharpenAmount
 \]
 
-## 4부: 전문 보정 및 합성
+## Part 4: Retouching And Compositing
 
 25. 배경 교체 합성  
 정의: 인물은 유지하고 배경만 대체 색상 또는 이미지로 치환한다.  
@@ -283,7 +325,7 @@ Final = Original + (Filtered - Original) \cdot Mask_{local}(x, y)
 Output = \max(0.0, \min(1.0, Result))
 \]
 
-## 5부: 하이엔드 피부 보정
+## Part 5: High-End Skin Retouching
 
 31. 저주파 톤  
 정의: 피부의 큰 얼룩과 색 흐름만 남기는 저주파 분리식.  
@@ -303,7 +345,7 @@ High = Original - Low + 0.5
 Result = Low_{edited} + High_{edited} - 0.5
 \]
 
-## 6부: 잡티 제거 및 픽셀 복제
+## Part 6: Blemish Removal And Pixel Clone
 
 34. 포아송 복제  
 정의: 마스크 내부를 주변 조명과 이어지게 심리스하게 복제한다.  
@@ -317,7 +359,7 @@ Result = Low_{edited} + High_{edited} - 0.5
 Result = Source_{patch} \cdot Alpha + Target_{patch} \cdot (1.0 - Alpha)
 \]
 
-## 7부: 입체감 조명
+## Part 7: Dimensional Light
 
 36. 닷지  
 정의: 명부를 끌어올려 하이라이트를 강조한다.  
@@ -331,7 +373,7 @@ Result = \min(1.0, \frac{Original}{1.0 - Mask_{dodge}})
 Result = \max(0.0, 1.0 - \frac{1.0 - Original}{Mask_{burn}})
 \]
 
-## 8부: 국소 부위 미백
+## Part 8: Local Whitening
 
 38. 치아/흰자위 미백  
 정의: 채도는 낮추고 명도는 올려 국소 미백을 만든다.  
@@ -354,7 +396,7 @@ Result = (Original - Mean_{Iris}) \cdot ContrastFactor + Mean_{Iris}
 R_{new} = \min\left(R, \frac{G + B}{2}\right)
 \]
 
-## 9부: 디지털 메이크업
+## Part 9: Digital Makeup
 
 41. 곱하기 혼합  
 정의: 립이나 섀도우를 피부 톤에 자연스럽게 곱해 물들인다.  
@@ -374,7 +416,7 @@ Result = 1.0 - (1.0 - Original) \cdot (1.0 - Color_{Makeup})
 Result_{LCH} = (L_{Original}, C_{Makeup}, H_{Makeup})
 \]
 
-## 10부: 최종 마감
+## Part 10: Final Finishing
 
 44. 비네팅  
 정의: 외곽을 어둡게 눌러 시선을 중심으로 모은다.  
