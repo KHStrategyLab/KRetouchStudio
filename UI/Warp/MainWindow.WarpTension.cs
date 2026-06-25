@@ -35,6 +35,30 @@ public partial class MainWindow
         return true;
     }
 
+    private bool TryEnsureCachedLiquifyTensionMap(PhotoItem photo, int width, int height)
+    {
+        if (_liquifyTensionMap is not null &&
+            _liquifyTensionMap.Width == width &&
+            _liquifyTensionMap.Height == height &&
+            string.Equals(_liquifyTensionPhotoPath, photo.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!IsCachedPersonAlphaValid(photo, PersonAlphaEngineBiRefNet) ||
+            string.IsNullOrWhiteSpace(_personAlphaPath) ||
+            !File.Exists(_personAlphaPath))
+        {
+            _liquifyTensionMap = null;
+            _liquifyTensionPhotoPath = null;
+            return false;
+        }
+
+        _liquifyTensionMap = BuildWarpTensionMap(_personAlphaPath, width, height);
+        _liquifyTensionPhotoPath = photo.Path;
+        return true;
+    }
+
     private void ClearLiquifyTensionCache()
     {
         _liquifyTensionMap = null;

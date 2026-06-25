@@ -151,7 +151,7 @@ public partial class MainWindow
             : Visibility.Collapsed;
     }
 
-    private async void StartLiquifyStroke(System.Windows.Point previewPoint)
+    private void StartLiquifyStroke(System.Windows.Point previewPoint)
     {
         if (!EnsureLiquifyWorkingBitmap() ||
             !TryPreviewPointToImagePixel(previewPoint, out int pixelX, out int pixelY))
@@ -160,21 +160,14 @@ public partial class MainWindow
         }
 
         PhotoItem? targetPhoto = SelectedPhoto;
+        bool hasTensionMap = targetPhoto is not null &&
+                             _liquifyWorkingBitmap is not null &&
+                             TryEnsureCachedLiquifyTensionMap(
+                                 targetPhoto,
+                                 _liquifyWorkingBitmap.PixelWidth,
+                                 _liquifyWorkingBitmap.PixelHeight);
         if (targetPhoto is not null && _liquifyWorkingBitmap is not null)
         {
-            LiquifyStatusText = "Liquify tension map...";
-            bool hasTensionMap = await EnsureLiquifyTensionMapAsync(
-                targetPhoto,
-                _liquifyWorkingBitmap.PixelWidth,
-                _liquifyWorkingBitmap.PixelHeight);
-            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
-                _liquifyWorkingBitmap is null ||
-                Mouse.LeftButton != MouseButtonState.Pressed)
-            {
-                LiquifyStatusText = "Liquify ready";
-                return;
-            }
-
             LiquifyStatusText = hasTensionMap
                 ? "Liquify ready | tension"
                 : "Liquify ready | no mask";
@@ -233,6 +226,7 @@ public partial class MainWindow
 
         if (ReferenceEquals(_liquifySessionPhoto, photo) && _liquifyWorkingBitmap is not null)
         {
+            EnsureLiquifyWarpState();
             return true;
         }
 
@@ -240,6 +234,7 @@ public partial class MainWindow
         _liquifySessionBaseImage = CloneBitmapSource(currentSource);
         _liquifyWorkingBitmap = new WriteableBitmap(_liquifySessionBaseImage);
         _liquifySessionPhoto = photo;
+        InitializeLiquifyWarpState(_liquifySessionBaseImage);
         photo.SetAdjustedImage(_liquifyWorkingBitmap);
         LiquifyStatusText = "Liquify ready";
         return true;
@@ -259,6 +254,7 @@ public partial class MainWindow
         }
 
         _liquifyWorkingBitmap = new WriteableBitmap(_liquifySessionBaseImage);
+        InitializeLiquifyWarpState(_liquifySessionBaseImage);
         photo.SetAdjustedImage(_liquifyWorkingBitmap);
         LiquifyStatusText = "Liquify reset";
         PushEditorHistorySnapshot("Liquify", LiquifyStatusText);
@@ -276,6 +272,10 @@ public partial class MainWindow
         _liquifySessionPhoto = null;
         _liquifySessionBaseImage = null;
         _liquifyWorkingBitmap = null;
+        _liquifyBasePixels = null;
+        _liquifyBaseStride = 0;
+        _liquifyMapX = null;
+        _liquifyMapY = null;
         ClearLiquifyTensionCache();
         LiquifyStatusText = "Ready";
         LiquifyCircleVisibility = Visibility.Collapsed;
@@ -298,7 +298,8 @@ public partial class MainWindow
 
     private void ApplyLiquifyStrokeSegment(System.Windows.Point fromImagePoint, System.Windows.Point toImagePoint)
     {
-        if (_liquifyWorkingBitmap is null)
+        if (_liquifyWorkingBitmap is null ||
+            !EnsureLiquifyWarpState())
         {
             return;
         }
@@ -329,6 +330,13 @@ public partial class MainWindow
 
     private void ApplyLiquifyWarpDab(WriteableBitmap target, double centerX, double centerY, double dragX, double dragY)
     {
+        if (_liquifyBasePixels is null ||
+            _liquifyMapX is null ||
+            _liquifyMapY is null)
+        {
+            return;
+        }
+
         double strengthScale = LiquifyStrength / 100.0;
         double appliedDx = dragX * strengthScale;
         double appliedDy = dragY * strengthScale;
@@ -353,9 +361,11 @@ public partial class MainWindow
 
         Int32Rect roi = new(left, top, right - left + 1, bottom - top + 1);
         int stride = roi.Width * 4;
-        byte[] sourcePixels = new byte[stride * roi.Height];
-        target.CopyPixels(roi, sourcePixels, stride, 0);
-        byte[] resultPixels = (byte[])sourcePixels.Clone();
+        byte[] resultPixels = new byte[stride * roi.Height];
+        float[] sourceMapX = CopyLiquifyMapRoi(_liquifyMapX, target.PixelWidth, roi);
+        float[] sourceMapY = CopyLiquifyMapRoi(_liquifyMapY, target.PixelWidth, roi);
+        float[] resultMapX = (float[])sourceMapX.Clone();
+        float[] resultMapY = (float[])sourceMapY.Clone();
 
         double localCenterX = centerX - left;
         double localCenterY = centerY - top;
@@ -384,7 +394,7 @@ public partial class MainWindow
                 }
 
                 double tensionWeight = GetLiquifyTensionWeight(left + x, top + y, target.PixelWidth, target.PixelHeight);
-                double finalWeight = weight * tensionWeight;
+                double finalWeight = weight * Math.Clamp(tensionWeight, 0.35, 1.0);
                 if (finalWeight <= 0.001)
                 {
                     continue;
@@ -392,17 +402,160 @@ public partial class MainWindow
 
                 double sampleX = x - (appliedDx * finalWeight);
                 double sampleY = y - (appliedDy * finalWeight);
-                SampleBilinearBgra32(sourcePixels, roi.Width, roi.Height, stride, sampleX, sampleY, out byte b, out byte g, out byte r, out byte a);
+                int mapIndex = (y * roi.Width) + x;
+                SampleBilinearMap(sourceMapX, sourceMapY, roi.Width, roi.Height, sampleX, sampleY, out float mappedX, out float mappedY);
+                resultMapX[mapIndex] = mappedX;
+                resultMapY[mapIndex] = mappedY;
+            }
+        }
 
-                int offset = (y * stride) + (x * 4);
+        WriteLiquifyMapRoi(_liquifyMapX, target.PixelWidth, roi, resultMapX);
+        WriteLiquifyMapRoi(_liquifyMapY, target.PixelWidth, roi, resultMapY);
+        RenderLiquifyRoiFromBase(target, roi, resultPixels, stride);
+        target.WritePixels(roi, resultPixels, stride, 0);
+    }
+
+    private void InitializeLiquifyWarpState(BitmapSource baseImage)
+    {
+        int width = baseImage.PixelWidth;
+        int height = baseImage.PixelHeight;
+        _liquifyBaseStride = width * 4;
+        _liquifyBasePixels = new byte[_liquifyBaseStride * height];
+        baseImage.CopyPixels(_liquifyBasePixels, _liquifyBaseStride, 0);
+        InitializeIdentityLiquifyMap(width, height, out _liquifyMapX, out _liquifyMapY);
+    }
+
+    private bool EnsureLiquifyWarpState()
+    {
+        if (_liquifyWorkingBitmap is null || _liquifySessionBaseImage is null)
+        {
+            return false;
+        }
+
+        int width = _liquifyWorkingBitmap.PixelWidth;
+        int height = _liquifyWorkingBitmap.PixelHeight;
+        int pixelCount = width * height;
+        if (_liquifyBasePixels is not null &&
+            _liquifyBaseStride == width * 4 &&
+            _liquifyMapX?.Length == pixelCount &&
+            _liquifyMapY?.Length == pixelCount)
+        {
+            return true;
+        }
+
+        InitializeLiquifyWarpState(_liquifySessionBaseImage);
+        return true;
+    }
+
+    private static void InitializeIdentityLiquifyMap(int width, int height, out float[] mapX, out float[] mapY)
+    {
+        mapX = new float[width * height];
+        mapY = new float[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            int row = y * width;
+            for (int x = 0; x < width; x++)
+            {
+                int index = row + x;
+                mapX[index] = x;
+                mapY[index] = y;
+            }
+        }
+    }
+
+    private static float[] CopyLiquifyMapRoi(float[] source, int sourceWidth, Int32Rect roi)
+    {
+        float[] result = new float[roi.Width * roi.Height];
+        for (int y = 0; y < roi.Height; y++)
+        {
+            int sourceIndex = ((roi.Y + y) * sourceWidth) + roi.X;
+            int targetIndex = y * roi.Width;
+            Array.Copy(source, sourceIndex, result, targetIndex, roi.Width);
+        }
+
+        return result;
+    }
+
+    private static void WriteLiquifyMapRoi(float[] target, int targetWidth, Int32Rect roi, float[] source)
+    {
+        for (int y = 0; y < roi.Height; y++)
+        {
+            int sourceIndex = y * roi.Width;
+            int targetIndex = ((roi.Y + y) * targetWidth) + roi.X;
+            Array.Copy(source, sourceIndex, target, targetIndex, roi.Width);
+        }
+    }
+
+    private void RenderLiquifyRoiFromBase(WriteableBitmap target, Int32Rect roi, byte[] resultPixels, int stride)
+    {
+        if (_liquifyBasePixels is null ||
+            _liquifyMapX is null ||
+            _liquifyMapY is null ||
+            _liquifyBaseStride <= 0)
+        {
+            return;
+        }
+
+        for (int y = 0; y < roi.Height; y++)
+        {
+            int targetRow = y * stride;
+            int mapRow = (roi.Y + y) * target.PixelWidth;
+            for (int x = 0; x < roi.Width; x++)
+            {
+                int mapIndex = mapRow + roi.X + x;
+                SampleBilinearBgra32(
+                    _liquifyBasePixels,
+                    target.PixelWidth,
+                    target.PixelHeight,
+                    _liquifyBaseStride,
+                    _liquifyMapX[mapIndex],
+                    _liquifyMapY[mapIndex],
+                    out byte b,
+                    out byte g,
+                    out byte r,
+                    out byte a);
+
+                int offset = targetRow + (x * 4);
                 resultPixels[offset] = b;
                 resultPixels[offset + 1] = g;
                 resultPixels[offset + 2] = r;
                 resultPixels[offset + 3] = a;
             }
         }
+    }
 
-        target.WritePixels(roi, resultPixels, stride, 0);
+    private static void SampleBilinearMap(
+        float[] mapX,
+        float[] mapY,
+        int width,
+        int height,
+        double x,
+        double y,
+        out float mappedX,
+        out float mappedY)
+    {
+        double clampedX = Math.Clamp(x, 0, Math.Max(0, width - 1));
+        double clampedY = Math.Clamp(y, 0, Math.Max(0, height - 1));
+
+        int x0 = (int)Math.Floor(clampedX);
+        int y0 = (int)Math.Floor(clampedY);
+        int x1 = Math.Min(width - 1, x0 + 1);
+        int y1 = Math.Min(height - 1, y0 + 1);
+        double fx = clampedX - x0;
+        double fy = clampedY - y0;
+
+        int i00 = (y0 * width) + x0;
+        int i10 = (y0 * width) + x1;
+        int i01 = (y1 * width) + x0;
+        int i11 = (y1 * width) + x1;
+
+        double w00 = (1.0 - fx) * (1.0 - fy);
+        double w10 = fx * (1.0 - fy);
+        double w01 = (1.0 - fx) * fy;
+        double w11 = fx * fy;
+
+        mappedX = (float)((mapX[i00] * w00) + (mapX[i10] * w10) + (mapX[i01] * w01) + (mapX[i11] * w11));
+        mappedY = (float)((mapY[i00] * w00) + (mapY[i10] * w10) + (mapY[i01] * w01) + (mapY[i11] * w11));
     }
 
     private static void SampleBilinearBgra32(byte[] pixels, int width, int height, int stride, double x, double y, out byte b, out byte g, out byte r, out byte a)

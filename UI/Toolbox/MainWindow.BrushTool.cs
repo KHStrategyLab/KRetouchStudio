@@ -367,7 +367,7 @@ public partial class MainWindow
         return changed;
     }
 
-    private static bool ApplySourceCopyDab(
+    private bool ApplySourceCopyDab(
         System.Windows.Media.Imaging.WriteableBitmap target,
         System.Windows.Media.Imaging.BitmapSource sourceBitmap,
         System.Windows.Point targetCenter,
@@ -382,6 +382,7 @@ public partial class MainWindow
         int width = target.PixelWidth;
         int height = target.PixelHeight;
         bool changed = false;
+        bool useStrokeBase = IsSourceCopyStrokeBaseValid(target);
 
         ForEachDabPixel(width, height, targetCenter, size, softness, false, opacity, (x, y, alpha) =>
         {
@@ -394,9 +395,28 @@ public partial class MainWindow
 
             int index = y * stride + x * 4;
             int sourceIndex = sourceY * sourceStride + sourceX * 4;
-            pixels[index + 0] = BlendByte(pixels[index + 0], sourcePixels[sourceIndex + 0], alpha);
-            pixels[index + 1] = BlendByte(pixels[index + 1], sourcePixels[sourceIndex + 1], alpha);
-            pixels[index + 2] = BlendByte(pixels[index + 2], sourcePixels[sourceIndex + 2], alpha);
+            int coverageIndex = y * width + x;
+            byte coverage = (byte)Math.Clamp((int)Math.Round(alpha * 255.0), 0, 255);
+            if (useStrokeBase &&
+                _sourceCopyStrokeCoverage is not null &&
+                coverage + 1 < _sourceCopyStrokeCoverage[coverageIndex])
+            {
+                return;
+            }
+
+            if (useStrokeBase && _sourceCopyStrokeCoverage is not null)
+            {
+                _sourceCopyStrokeCoverage[coverageIndex] = Math.Max(_sourceCopyStrokeCoverage[coverageIndex], coverage);
+            }
+
+            int baseIndex = useStrokeBase ? y * _sourceCopyStrokeStride + x * 4 : index;
+            byte baseB = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 0] : pixels[index + 0];
+            byte baseG = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 1] : pixels[index + 1];
+            byte baseR = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 2] : pixels[index + 2];
+
+            pixels[index + 0] = BlendByte(baseB, sourcePixels[sourceIndex + 0], alpha);
+            pixels[index + 1] = BlendByte(baseG, sourcePixels[sourceIndex + 1], alpha);
+            pixels[index + 2] = BlendByte(baseR, sourcePixels[sourceIndex + 2], alpha);
             pixels[index + 3] = 255;
             changed = true;
         });
@@ -407,6 +427,35 @@ public partial class MainWindow
         }
 
         return changed;
+    }
+
+    private void BeginSourceCopyStroke(System.Windows.Media.Imaging.WriteableBitmap target)
+    {
+        CopyBgraPixels(target, out _sourceCopyStrokeBasePixels, out _sourceCopyStrokeStride);
+        _sourceCopyStrokeWidth = target.PixelWidth;
+        _sourceCopyStrokeHeight = target.PixelHeight;
+        _sourceCopyStrokeCoverage = new byte[target.PixelWidth * target.PixelHeight];
+    }
+
+    private void EndSourceCopyStroke()
+    {
+        _sourceCopyStrokeBasePixels = null;
+        _sourceCopyStrokeCoverage = null;
+        _sourceCopyStrokeStride = 0;
+        _sourceCopyStrokeWidth = 0;
+        _sourceCopyStrokeHeight = 0;
+    }
+
+    private bool IsSourceCopyStrokeBaseValid(System.Windows.Media.Imaging.WriteableBitmap target)
+    {
+        int pixelCount = target.PixelWidth * target.PixelHeight;
+        return _sourceCopyStrokeBasePixels is not null &&
+               _sourceCopyStrokeCoverage is not null &&
+               _sourceCopyStrokeStride == target.PixelWidth * 4 &&
+               _sourceCopyStrokeWidth == target.PixelWidth &&
+               _sourceCopyStrokeHeight == target.PixelHeight &&
+               _sourceCopyStrokeCoverage.Length == pixelCount &&
+               _sourceCopyStrokeBasePixels.Length == _sourceCopyStrokeStride * target.PixelHeight;
     }
 
     private static bool ApplyBlurSharpDab(

@@ -142,6 +142,7 @@ public partial class MainWindow
         _isStampDragging = true;
         _stampStrokeStartSourcePoint = _stampSourceImagePoint;
         _stampStrokeStartTargetPoint = imagePoint;
+        BeginSourceCopyStroke(target);
         ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, _stampStrokeStartSourcePoint, StampSize, StampSoftness, 1.0);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
@@ -171,6 +172,7 @@ public partial class MainWindow
 
         _isStampDragging = false;
         System.Windows.Input.Mouse.Capture(null);
+        EndSourceCopyStroke();
         PushEditorHistorySnapshot("Stamp", $"{StampSize:0}px");
     }
 

@@ -200,6 +200,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private System.Windows.Point _stampStrokeStartSourcePoint;
     private System.Windows.Point _stampStrokeStartTargetPoint;
     private BitmapSource? _stampSourceBitmap;
+    private byte[]? _sourceCopyStrokeBasePixels;
+    private byte[]? _sourceCopyStrokeCoverage;
+    private int _sourceCopyStrokeStride;
+    private int _sourceCopyStrokeWidth;
+    private int _sourceCopyStrokeHeight;
     private double _healingSize = 80;
     private double _healingSoftness = 50;
     private double _healingStrength = 50;
@@ -297,6 +302,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private PhotoItem? _liquifySessionPhoto;
     private BitmapSource? _liquifySessionBaseImage;
     private WriteableBitmap? _liquifyWorkingBitmap;
+    private byte[]? _liquifyBasePixels;
+    private int _liquifyBaseStride;
+    private float[]? _liquifyMapX;
+    private float[]? _liquifyMapY;
     private const int MaxEditorHistoryEntries = 40;
     private readonly List<EditorHistoryState> _editorUndoHistory = new();
     private readonly List<EditorHistoryState> _editorRedoHistory = new();
@@ -4388,7 +4397,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool CanUseSinglePreviewTool()
     {
         return SelectedPhoto is not null &&
-               CurrentRuntimeWorkMode == RuntimeWorkMode.Edit;
+               SelectedPreviewPhotos.Count == 1;
     }
 
     private RuntimeWorkMode ResolveRuntimeWorkMode()

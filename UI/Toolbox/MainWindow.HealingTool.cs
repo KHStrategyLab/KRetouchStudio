@@ -207,6 +207,11 @@ public partial class MainWindow
         _isHealingDragging = true;
         _healingStrokeStartSourcePoint = _healingSourceImagePoint;
         _healingStrokeStartTargetPoint = imagePoint;
+        if (!isSpot && _healingSourceBitmap is not null)
+        {
+            BeginSourceCopyStroke(target);
+        }
+
         ApplyHealingDab(target, imagePoint);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
@@ -232,6 +237,7 @@ public partial class MainWindow
 
         _isHealingDragging = false;
         System.Windows.Input.Mouse.Capture(null);
+        EndSourceCopyStroke();
         PushEditorHistorySnapshot("Healing", $"{HealingMode} {HealingSize:0}px / {HealingStrength:0}%");
     }
 
