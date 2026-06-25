@@ -347,8 +347,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
-        BackgroundRetouchTab.WhiteBackgroundRequested += BackgroundRetouchTab_WhiteBackgroundRequested;
-        BackgroundRetouchTab.WhiteBackgroundAdjustmentCommitted += BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted;
+        BackgroundRetouchTab.BackgroundReplacementRequested += BackgroundRetouchTab_BackgroundReplacementRequested;
+        BackgroundRetouchTab.BackgroundReplacementAdjustmentCommitted += BackgroundRetouchTab_BackgroundReplacementAdjustmentCommitted;
+        BackgroundRetouchTab.BackgroundReplacementPreviewChanged += BackgroundRetouchTab_BackgroundReplacementPreviewChanged;
+        BackgroundRetouchTab.BackgroundImageImportRequested += BackgroundRetouchTab_BackgroundImageImportRequested;
+        BackgroundRetouchTab.BackgroundImageSelected += BackgroundRetouchTab_BackgroundImageSelected;
+        BackgroundRetouchTab.BackgroundImageRemoved += BackgroundRetouchTab_BackgroundImageRemoved;
         HistoryPanelItems.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HistoryPanelListVisibility));
@@ -4088,6 +4092,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (CanUseBackgroundColorPickPreview())
+        {
+            PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
+            return;
+        }
+
         if (CanUseSamplerPreview())
         {
             PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
@@ -4167,6 +4177,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_isSinglePreviewPanDragging || _draggingPreviewTile is not null || _isFrameSelectionDragging || _isFrameSelectionMoving || _isZoomSelectionDragging || _isRulerDragging || _isLassoToolDragging || _isPathSelectionDragging || _isBrushDragging || _isEraserDragging || _isStampDragging || _isHealingDragging || _isBlurSharpDragging || _isFillGradientDragging || _isDodgeBurnDragging || _isHistoryBrushDragging || _isLiquifyDragging || _isRectangleSelectionCreating || _isRectangleSelectionMoving || _isRectangleSelectionResizing || _isRectangleSelectionRotating || _isTypeTextCreating || _isTypeTextDragging)
         {
+            return;
+        }
+
+        if (CanUseBackgroundColorPickPreview())
+        {
+            ApplyBackgroundPickedColorAtPreviewPoint(e.GetPosition(PreviewSurface));
+            e.Handled = true;
             return;
         }
 
@@ -4998,6 +5015,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             imageWidth = faceShapeFrameWidth;
             imageHeight = faceShapeFrameHeight;
+        }
+        else if (TryGetBackgroundPreviewFrameSize(SelectedPhoto, out double backgroundFrameWidth, out double backgroundFrameHeight))
+        {
+            imageWidth = backgroundFrameWidth;
+            imageHeight = backgroundFrameHeight;
         }
 
         if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))

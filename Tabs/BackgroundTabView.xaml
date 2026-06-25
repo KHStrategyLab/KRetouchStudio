@@ -221,18 +221,44 @@
                               Margin="6,0"
                               HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="Image"
-                                Style="{StaticResource BackgroundImageSlotStyle}"
-                                Margin="0"
-                                ToolTip="Background image slot 1"/>
-                        <Button Content="Image"
-                                Style="{StaticResource BackgroundImageSlotStyle}"
-                                ToolTip="Background image slot 2"/>
-                        <Button Content="Image"
-                                Style="{StaticResource BackgroundImageSlotStyle}"
-                                ToolTip="Background image slot 3"/>
-                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ElementName=Root, Path=BackgroundImages}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource BackgroundImageSlotStyle}"
+                                        ToolTip="{Binding Path}"
+                                        Tag="{Binding Path}"
+                                        CommandParameter="{Binding Path}"
+                                        Click="BackgroundImageSlot_Click">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Delete"
+                                                      CommandParameter="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                                                      Click="BackgroundImageDeleteMenuItem_Click"/>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <Grid>
+                                        <Image Source="{Binding Thumbnail}"
+                                               Stretch="UniformToFill"/>
+                                        <Border Background="#99000000"
+                                                VerticalAlignment="Bottom"
+                                                Height="13">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       Foreground="White"
+                                                       FontSize="8"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </ScrollViewer>
                 <Button Grid.Column="2"
                         Content="&gt;"
@@ -261,7 +287,9 @@
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=BoundaryProbeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="Boundary probe preserve strength"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
                         KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=BoundaryProbeStrength, StringFormat={}{0:0}}"
@@ -287,10 +315,40 @@
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=BoundaryCleanStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="Local background color cleanup strength"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
                         KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=BoundaryCleanStrength, StringFormat={}{0:0}}"
+                           Foreground="{StaticResource TextSub}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="34"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="Shrink"
+                           Foreground="{StaticResource TextSub}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <Slider Grid.Column="1"
+                        x:Name="AlphaShrinkStrengthSlider"
+                        Minimum="0"
+                        Maximum="100"
+                        TickFrequency="1"
+                        Value="{Binding ElementName=Root, Path=AlphaShrinkStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="Shrink alpha edge inward to remove thin background fringe"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
+                        KeyUp="BoundarySlider_KeyUp"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding ElementName=Root, Path=AlphaShrinkStrength, StringFormat={}{0:0}}"
                            Foreground="{StaticResource TextSub}"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"/>
@@ -313,7 +371,9 @@
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=EdgeBlurStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="Edge Blur"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
                         KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=EdgeBlurStrength, StringFormat={}{0:0}}"
@@ -339,7 +399,9 @@
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=SoftAlphaStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="Use softer alpha instead of hardening strong mask values"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
                         KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=SoftAlphaStrength, StringFormat={}{0:0}}"
@@ -365,7 +427,9 @@
                         TickFrequency="1"
                         Value="{Binding ElementName=Root, Path=AlphaGammaStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="Boost semi-transparent alpha"
+                        PreviewMouseLeftButtonDown="BoundarySlider_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="BoundarySlider_PreviewMouseLeftButtonUp"
+                        ValueChanged="BoundarySlider_ValueChanged"
                         KeyUp="BoundarySlider_KeyUp"/>
                 <TextBlock Grid.Column="2"
                            Text="{Binding ElementName=Root, Path=AlphaGammaStrength, StringFormat={}{0:0}}"

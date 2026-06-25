@@ -1,10 +1,13 @@
 ﻿using System.Windows.Controls;
 
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace KRetouchStudio.Tabs;
 
@@ -24,8 +27,10 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private double _boundaryProbeStrength;
     private double _boundaryCleanStrength;
     private double _edgeBlurStrength;
+    private double _alphaShrinkStrength;
     private double _softAlphaStrength;
     private double _alphaGammaStrength;
+    private bool _isBackgroundAdjustmentSliderInteracting;
 
     public BackgroundTabView()
     {
@@ -35,13 +40,25 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public event EventHandler? WhiteBackgroundRequested;
+    public event EventHandler? BackgroundReplacementRequested;
 
-    public event EventHandler? WhiteBackgroundAdjustmentCommitted;
+    public event EventHandler? BackgroundReplacementAdjustmentCommitted;
+
+    public event EventHandler? BackgroundReplacementPreviewChanged;
+
+    public event EventHandler? BackgroundImageImportRequested;
+
+    public event EventHandler<BackgroundImageSelectedEventArgs>? BackgroundImageSelected;
+
+    public event EventHandler<BackgroundImageRemovedEventArgs>? BackgroundImageRemoved;
 
     public event EventHandler? BackgroundTabOpened;
 
     public System.Windows.Media.Brush CustomBackgroundBrush { get; }
+
+    public ObservableCollection<BackgroundImageSlot> BackgroundImages { get; } = new();
+
+    public string? SelectedBackgroundImagePath { get; private set; }
 
     public bool IsWhiteBackgroundModeActive => _activeBackgroundMode == BackgroundMode.White;
 
@@ -117,6 +134,22 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         }
     }
 
+    public double AlphaShrinkStrength
+    {
+        get => _alphaShrinkStrength;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 100);
+            if (Math.Abs(_alphaShrinkStrength - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _alphaShrinkStrength = clamped;
+            OnPropertyChanged();
+        }
+    }
+
     public double SoftAlphaStrength
     {
         get => _softAlphaStrength;
@@ -167,19 +200,35 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private void WhiteBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
         SetActiveBackgroundMode(BackgroundMode.White, forceRefresh: true);
-        WhiteBackgroundRequested?.Invoke(this, EventArgs.Empty);
+        BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
     private void GrayBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
         SetActiveBackgroundMode(BackgroundMode.Gray, forceRefresh: true);
+        BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
     private void ColorBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveBackgroundMode(BackgroundMode.Color, forceRefresh: true);
+        using System.Windows.Forms.ColorDialog dialog = new();
+        if (CustomBackgroundBrush is SolidColorBrush currentBrush)
+        {
+            System.Windows.Media.Color currentColor = currentBrush.Color;
+            dialog.Color = System.Drawing.Color.FromArgb(currentColor.R, currentColor.G, currentColor.B);
+        }
+
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        {
+            System.Drawing.Color pickedColor = dialog.Color;
+            ApplyCustomBackgroundColor(System.Windows.Media.Color.FromRgb(
+                pickedColor.R,
+                pickedColor.G,
+                pickedColor.B));
+        }
+
         e.Handled = true;
     }
 
@@ -189,15 +238,155 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         e.Handled = true;
     }
 
+    public void ApplyPickedBackgroundColor(System.Windows.Media.Color color)
+    {
+        ApplyCustomBackgroundColor(color);
+    }
+
+    private void ApplyCustomBackgroundColor(System.Windows.Media.Color color)
+    {
+        if (CustomBackgroundBrush is SolidColorBrush solidColorBrush)
+        {
+            solidColorBrush.Color = color;
+            OnPropertyChanged(nameof(CustomBackgroundBrush));
+        }
+
+        SetActiveBackgroundMode(BackgroundMode.Color, forceRefresh: true);
+        BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     private void ImageBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
         SetActiveBackgroundMode(BackgroundMode.Image, forceRefresh: true);
+        BackgroundImageImportRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
+    }
+
+    public void SetBackgroundImagePaths(IEnumerable<string> paths, string? selectedPath)
+    {
+        BackgroundImages.Clear();
+        foreach (string path in paths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            BackgroundImages.Add(new BackgroundImageSlot(path));
+        }
+
+        SelectedBackgroundImagePath = BackgroundImages.Any(item => string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase))
+            ? selectedPath
+            : BackgroundImages.FirstOrDefault()?.Path;
+        OnPropertyChanged(nameof(SelectedBackgroundImagePath));
+    }
+
+    public void AddBackgroundImagePath(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        if (!BackgroundImages.Any(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase)))
+        {
+            BackgroundImages.Add(new BackgroundImageSlot(path));
+        }
+
+        SelectBackgroundImagePath(path, raiseEvent: false);
+    }
+
+    private void BackgroundImageSlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button button &&
+            button.CommandParameter is string path)
+        {
+            SelectBackgroundImagePath(path, raiseEvent: true);
+            e.Handled = true;
+        }
+    }
+
+    private void BackgroundImageDeleteMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem menuItem &&
+            menuItem.CommandParameter is string path)
+        {
+            MessageBoxResult result = System.Windows.MessageBox.Show(
+                Window.GetWindow(this),
+                "이 배경 이미지를 목록에서 삭제하시겠습니까?",
+                "배경 이미지 삭제",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            RemoveBackgroundImagePath(path);
+            e.Handled = true;
+        }
+    }
+
+    private void RemoveBackgroundImagePath(string path)
+    {
+        BackgroundImageSlot? target = BackgroundImages.FirstOrDefault(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            return;
+        }
+
+        bool wasSelected = string.Equals(SelectedBackgroundImagePath, path, StringComparison.OrdinalIgnoreCase);
+        BackgroundImages.Remove(target);
+        if (wasSelected)
+        {
+            SelectedBackgroundImagePath = null;
+            OnPropertyChanged(nameof(SelectedBackgroundImagePath));
+            SetActiveBackgroundMode(BackgroundMode.White, forceRefresh: true);
+        }
+
+        BackgroundImageRemoved?.Invoke(this, new BackgroundImageRemovedEventArgs(path, wasSelected));
+    }
+
+    private void SelectBackgroundImagePath(string path, bool raiseEvent)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        SelectedBackgroundImagePath = path;
+        OnPropertyChanged(nameof(SelectedBackgroundImagePath));
+        SetActiveBackgroundMode(BackgroundMode.Image, forceRefresh: true);
+
+        if (raiseEvent)
+        {
+            BackgroundImageSelected?.Invoke(this, new BackgroundImageSelectedEventArgs(path));
+        }
     }
 
     private void BoundarySlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _isBackgroundAdjustmentSliderInteracting = false;
         CommitWhiteBackgroundAdjustment();
+    }
+
+    private void BoundarySlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isBackgroundAdjustmentSliderInteracting = true;
+    }
+
+    private void BoundarySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not System.Windows.Controls.Slider slider ||
+            (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isBackgroundAdjustmentSliderInteracting)
+        {
+            _isBackgroundAdjustmentSliderInteracting = true;
+        }
+
+        if (_activeBackgroundMode is BackgroundMode.White or BackgroundMode.Gray or BackgroundMode.Color or BackgroundMode.Image)
+        {
+            BackgroundReplacementPreviewChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void BoundarySlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -217,12 +406,12 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private void CommitWhiteBackgroundAdjustment()
     {
-        if (_activeBackgroundMode != BackgroundMode.White)
+        if (_activeBackgroundMode is not (BackgroundMode.White or BackgroundMode.Gray or BackgroundMode.Color or BackgroundMode.Image))
         {
             return;
         }
 
-        WhiteBackgroundAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
+        BackgroundReplacementAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
 
     private void SetActiveBackgroundMode(BackgroundMode mode, bool forceRefresh = false)
@@ -253,5 +442,52 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public sealed class BackgroundImageSelectedEventArgs(string path) : EventArgs
+{
+    public string Path { get; } = path;
+}
+
+public sealed class BackgroundImageRemovedEventArgs(string path, bool wasSelected) : EventArgs
+{
+    public string Path { get; } = path;
+
+    public bool WasSelected { get; } = wasSelected;
+}
+
+public sealed class BackgroundImageSlot
+{
+    public BackgroundImageSlot(string path)
+    {
+        Path = path;
+        DisplayName = System.IO.Path.GetFileNameWithoutExtension(path);
+        Thumbnail = CreateThumbnail(path);
+    }
+
+    public string Path { get; }
+
+    public string DisplayName { get; }
+
+    public ImageSource? Thumbnail { get; }
+
+    private static ImageSource? CreateThumbnail(string path)
+    {
+        try
+        {
+            BitmapImage image = new();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = 88;
+            image.UriSource = new Uri(path, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

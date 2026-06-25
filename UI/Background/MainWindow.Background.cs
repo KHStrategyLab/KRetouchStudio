@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using KRetouchStudio.Tabs;
 using System.Text.Json;
 using System.Threading;
 using System.Windows;
@@ -11,8 +12,11 @@ namespace KRetouchStudio;
 
 public partial class MainWindow
 {
-    private const string WhiteBackgroundHistoryTitle = "Background";
+    private const string BackgroundReplacementHistoryTitle = "Background";
     private const string WhiteBackgroundHistoryDetail = "White background";
+    private const string GrayBackgroundHistoryDetail = "Gray background";
+    private const string ColorBackgroundHistoryDetail = "Color background";
+    private const string ImageBackgroundHistoryDetail = "Image background";
     private const string PersonAlphaEngineMediaPipe = "MediaPipe";
     private const string PersonAlphaEngineBiRefNet = "BiRefNet";
     private const byte WhiteBackgroundAlphaLowCutoff = 24;
@@ -35,11 +39,18 @@ public partial class MainWindow
         "KRetouchStudio",
         "BiRefNetOutput");
 
+    private static readonly string BackgroundImageLibraryRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "KRetouchStudio",
+        "BackgroundImages");
+
     private static readonly MediaBrush PreviewSurfaceDefaultBrush = CreateFrozenBrush(MediaColor.FromRgb(17, 19, 21), 1.0);
 
     private MediaBrush _previewSurfaceBackgroundBrush = PreviewSurfaceDefaultBrush;
     private BitmapSource? _backgroundPreviewImageSource;
     private string? _backgroundPreviewPhotoPath;
+    private double _backgroundPreviewFrameWidth;
+    private double _backgroundPreviewFrameHeight;
     private string? _personAlphaPath;
     private string? _personAlphaPhotoPath;
     private string? _personAlphaEngine;
@@ -52,6 +63,7 @@ public partial class MainWindow
     private bool _isBiRefNetWarmupStarted;
     private bool _isBackgroundPreviewRunning;
     private bool _hasPendingBackgroundPreviewRequest;
+    private int _backgroundPreviewRenderVersion;
 
     public MediaBrush PreviewSurfaceBackgroundBrush
     {
@@ -74,8 +86,12 @@ public partial class MainWindow
         BackgroundRetouchTab.BoundaryProbeStrength = ClampBackgroundSliderSetting(settings.BoundaryProbeStrength);
         BackgroundRetouchTab.BoundaryCleanStrength = ClampBackgroundSliderSetting(settings.BoundaryCleanStrength);
         BackgroundRetouchTab.EdgeBlurStrength = ClampBackgroundSliderSetting(settings.EdgeBlurStrength);
+        BackgroundRetouchTab.AlphaShrinkStrength = ClampBackgroundSliderSetting(settings.AlphaShrinkStrength);
         BackgroundRetouchTab.SoftAlphaStrength = ClampBackgroundSliderSetting(settings.SoftAlphaStrength);
         BackgroundRetouchTab.AlphaGammaStrength = ClampBackgroundSliderSetting(settings.AlphaGammaStrength);
+        BackgroundRetouchTab.SetBackgroundImagePaths(
+            settings.BackgroundImagePaths.Where(File.Exists),
+            settings.SelectedBackgroundImagePath);
     }
 
     private void SaveBackgroundSettingsFromCurrentSliders()
@@ -84,9 +100,23 @@ public partial class MainWindow
         settings.BoundaryProbeStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryProbeStrength);
         settings.BoundaryCleanStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.BoundaryCleanStrength);
         settings.EdgeBlurStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.EdgeBlurStrength);
+        settings.AlphaShrinkStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaShrinkStrength);
         settings.SoftAlphaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.SoftAlphaStrength);
         settings.AlphaGammaStrength = ClampBackgroundSliderSetting(BackgroundRetouchTab.AlphaGammaStrength);
+        SaveBackgroundImageSettings(settings);
         SaveAppConfig();
+    }
+
+    private void SaveBackgroundImageSettings(BackgroundSettings settings)
+    {
+        settings.BackgroundImagePaths = BackgroundRetouchTab.BackgroundImages
+            .Select(item => item.Path)
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        settings.SelectedBackgroundImagePath = string.IsNullOrWhiteSpace(BackgroundRetouchTab.SelectedBackgroundImagePath)
+            ? null
+            : BackgroundRetouchTab.SelectedBackgroundImagePath;
     }
 
     private static double ClampBackgroundSliderSetting(double value)
@@ -94,9 +124,108 @@ public partial class MainWindow
         return Math.Clamp(Math.Round(value), 0, 100);
     }
 
-    private async void BackgroundRetouchTab_WhiteBackgroundRequested(object? sender, EventArgs e)
+    private async void BackgroundRetouchTab_BackgroundReplacementRequested(object? sender, EventArgs e)
     {
-        await ApplyWhiteBackgroundPreviewAsync();
+        await ApplyBackgroundReplacementPreviewAsync();
+    }
+
+    private async void BackgroundRetouchTab_BackgroundReplacementPreviewChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ApplyBackgroundReplacementDragPreviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ClearBackgroundPreview();
+            MediaPipeStatusText = "Background preview failed: " + ex.Message;
+        }
+    }
+
+    private async void BackgroundRetouchTab_BackgroundImageImportRequested(object? sender, EventArgs e)
+    {
+        Microsoft.Win32.OpenFileDialog dialog = new()
+        {
+            Filter = "Image files|*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif|All files|*.*",
+            Multiselect = true,
+            Title = "Select background image"
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        foreach (string fileName in dialog.FileNames)
+        {
+            string? libraryPath = CopyBackgroundImageToLibrary(fileName);
+            if (!string.IsNullOrWhiteSpace(libraryPath))
+            {
+                BackgroundRetouchTab.AddBackgroundImagePath(libraryPath);
+            }
+        }
+
+        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
+        SaveBackgroundImageSettings(settings);
+        SaveAppConfig();
+        await ApplyBackgroundReplacementPreviewAsync();
+    }
+
+    private async void BackgroundRetouchTab_BackgroundImageSelected(object? sender, BackgroundImageSelectedEventArgs e)
+    {
+        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
+        SaveBackgroundImageSettings(settings);
+        SaveAppConfig();
+        await ApplyBackgroundReplacementPreviewAsync();
+    }
+
+    private void BackgroundRetouchTab_BackgroundImageRemoved(object? sender, BackgroundImageRemovedEventArgs e)
+    {
+        BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
+        SaveBackgroundImageSettings(settings);
+        SaveAppConfig();
+        if (SelectedPhoto is PhotoItem photo &&
+            e.WasSelected &&
+            IsCurrentHistoryBackgroundReplacement())
+        {
+            photo.SetAdjustedImage(photo.BaseImage);
+            _editorUndoHistory.RemoveAt(_editorUndoHistory.Count - 1);
+            RefreshEditorHistoryPanel();
+            StoreCurrentEditorHistorySession(photo, persistToDisk: false);
+            UpdatePreviewImageFrame();
+            OnPropertyChanged(nameof(SinglePreviewImageSource));
+        }
+
+        MediaPipeStatusText = "Background: image removed";
+    }
+
+    private static string? CopyBackgroundImageToLibrary(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        Directory.CreateDirectory(BackgroundImageLibraryRoot);
+        string sourceFullPath = Path.GetFullPath(sourcePath);
+        string libraryFullPath = Path.GetFullPath(BackgroundImageLibraryRoot);
+        if (sourceFullPath.StartsWith(libraryFullPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return sourceFullPath;
+        }
+
+        string extension = Path.GetExtension(sourcePath);
+        string baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        string targetPath = Path.Combine(BackgroundImageLibraryRoot, Path.GetFileName(sourcePath));
+        int suffix = 1;
+        while (File.Exists(targetPath))
+        {
+            targetPath = Path.Combine(BackgroundImageLibraryRoot, $"{baseName}_{suffix}{extension}");
+            suffix++;
+        }
+
+        File.Copy(sourcePath, targetPath);
+        return targetPath;
     }
 
     private async void BackgroundRetouchTab_BackgroundTabOpened(object? sender, EventArgs e)
@@ -154,18 +283,137 @@ public partial class MainWindow
         }
     }
 
-    private async void BackgroundRetouchTab_WhiteBackgroundAdjustmentCommitted(object? sender, EventArgs e)
+    private async void BackgroundRetouchTab_BackgroundReplacementAdjustmentCommitted(object? sender, EventArgs e)
     {
-        if (!IsCurrentHistoryWhiteBackground())
+        if (!IsCurrentHistoryBackgroundReplacement())
         {
             return;
         }
 
-        await ApplyWhiteBackgroundPreviewAsync();
+        await ApplyBackgroundReplacementPreviewAsync();
     }
 
-    private async Task ApplyWhiteBackgroundPreviewAsync()
+    private bool CanUseBackgroundColorPickPreview()
     {
+        return BackgroundRetouchTab?.IsPickBackgroundModeActive == true &&
+               CanUseSinglePreviewTool();
+    }
+
+    private void ApplyBackgroundPickedColorAtPreviewPoint(System.Windows.Point previewPoint)
+    {
+        if (!TrySampleBackgroundColorAtPreviewPoint(previewPoint, out MediaColor color))
+        {
+            MediaPipeStatusText = "Background: pick inside image";
+            return;
+        }
+
+        BackgroundRetouchTab.ApplyPickedBackgroundColor(color);
+        MediaPipeStatusText = $"Background: picked #{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    private bool TrySampleBackgroundColorAtPreviewPoint(System.Windows.Point previewPoint, out MediaColor color)
+    {
+        color = default;
+        if (SelectedPhoto is not PhotoItem photo ||
+            !TryPreviewPointToImagePixel(previewPoint, out int pixelX, out int pixelY))
+        {
+            return false;
+        }
+
+        BitmapSource source = GetCurrentDisplayBitmapSource(photo);
+        int requestedRange = 5;
+        int half = requestedRange / 2;
+        int left = Math.Clamp(pixelX - half, 0, source.PixelWidth - 1);
+        int top = Math.Clamp(pixelY - half, 0, source.PixelHeight - 1);
+        int right = Math.Clamp(left + requestedRange - 1, 0, source.PixelWidth - 1);
+        int bottom = Math.Clamp(top + requestedRange - 1, 0, source.PixelHeight - 1);
+        left = Math.Max(0, Math.Min(left, right));
+        top = Math.Max(0, Math.Min(top, bottom));
+        int width = Math.Max(1, right - left + 1);
+        int height = Math.Max(1, bottom - top + 1);
+
+        BitmapSource bgraSource = source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        int stride = width * 4;
+        byte[] pixels = new byte[stride * height];
+        bgraSource.CopyPixels(new Int32Rect(left, top, width, height), pixels, stride, 0);
+
+        long sumB = 0;
+        long sumG = 0;
+        long sumR = 0;
+        int count = width * height;
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            sumB += pixels[i];
+            sumG += pixels[i + 1];
+            sumR += pixels[i + 2];
+        }
+
+        byte r = (byte)Math.Clamp((int)Math.Round(sumR / (double)count), 0, 255);
+        byte g = (byte)Math.Clamp((int)Math.Round(sumG / (double)count), 0, 255);
+        byte b = (byte)Math.Clamp((int)Math.Round(sumB / (double)count), 0, 255);
+        color = MediaColor.FromRgb(r, g, b);
+        return true;
+    }
+
+    private async Task ApplyBackgroundReplacementDragPreviewAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto || BackgroundRetouchTab is null)
+        {
+            ClearBackgroundPreview();
+            return;
+        }
+
+        int renderVersion = Interlocked.Increment(ref _backgroundPreviewRenderVersion);
+        double boundaryProbeStrength = BackgroundRetouchTab.BoundaryProbeStrength;
+        double boundaryCleanStrength = BackgroundRetouchTab.BoundaryCleanStrength;
+        double edgeBlurStrength = BackgroundRetouchTab.EdgeBlurStrength;
+        double alphaShrinkStrength = BackgroundRetouchTab.AlphaShrinkStrength;
+        double softAlphaStrength = BackgroundRetouchTab.SoftAlphaStrength;
+        double alphaGammaStrength = BackgroundRetouchTab.AlphaGammaStrength;
+        (string detailPrefix, string statusName, byte fillB, byte fillG, byte fillR, string? imagePath) = GetActiveBackgroundReplacement();
+
+        string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+        if (alphaPath is null ||
+            !ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _backgroundPreviewRenderVersion)
+        {
+            return;
+        }
+
+        BitmapSource baseSource = GetBackgroundReplacementRenderSource(targetPhoto, replaceCurrentBackground: false);
+        BitmapSource proxySource = targetPhoto.PreviewProxy1200 ?? baseSource;
+        BitmapSource safeProxy = CloneBitmapSource(proxySource);
+        MediaPipeStatusText = $"Background: {statusName} 1200 preview...";
+
+        BitmapSource preview = await Task.Run(() => BuildBackgroundReplacementPreview(
+            safeProxy,
+            alphaPath,
+            fillB,
+            fillG,
+            fillR,
+            imagePath,
+            boundaryProbeStrength,
+            boundaryCleanStrength,
+            edgeBlurStrength,
+            alphaShrinkStrength,
+            softAlphaStrength,
+            alphaGammaStrength));
+
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _backgroundPreviewRenderVersion)
+        {
+            return;
+        }
+
+        SetBackgroundPreview(targetPhoto, preview, baseSource.PixelWidth, baseSource.PixelHeight);
+        MediaPipeStatusText = $"Background: {statusName} 1200 preview";
+    }
+
+    private async Task ApplyBackgroundReplacementPreviewAsync()
+    {
+        Interlocked.Increment(ref _backgroundPreviewRenderVersion);
         if (_isBackgroundPreviewRunning)
         {
             _hasPendingBackgroundPreviewRequest = true;
@@ -178,7 +426,7 @@ public partial class MainWindow
             do
             {
                 _hasPendingBackgroundPreviewRequest = false;
-                await ApplyWhiteBackgroundPreviewCoreAsync();
+                await ApplyBackgroundReplacementPreviewCoreAsync();
             }
             while (_hasPendingBackgroundPreviewRequest);
         }
@@ -188,7 +436,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task ApplyWhiteBackgroundPreviewCoreAsync()
+    private async Task ApplyBackgroundReplacementPreviewCoreAsync()
     {
         PhotoItem? targetPhoto = SelectedPhoto;
         if (targetPhoto is null)
@@ -200,21 +448,25 @@ public partial class MainWindow
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
         double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
         double edgeBlurStrength = BackgroundRetouchTab?.EdgeBlurStrength ?? 0;
+        double alphaShrinkStrength = BackgroundRetouchTab?.AlphaShrinkStrength ?? 0;
         double softAlphaStrength = BackgroundRetouchTab?.SoftAlphaStrength ?? 0;
         double alphaGammaStrength = BackgroundRetouchTab?.AlphaGammaStrength ?? 0;
-        string historyDetail = CreateWhiteBackgroundHistoryDetail(
+        (string detailPrefix, string statusName, byte fillB, byte fillG, byte fillR, string? imagePath) = GetActiveBackgroundReplacement();
+        string historyDetail = CreateBackgroundReplacementHistoryDetail(
+            detailPrefix,
             boundaryProbeStrength,
             boundaryCleanStrength,
             edgeBlurStrength,
+            alphaShrinkStrength,
             softAlphaStrength,
             alphaGammaStrength);
-        if (IsCurrentWhiteBackgroundAlreadyApplied(historyDetail))
+        if (IsCurrentBackgroundReplacementAlreadyApplied(historyDetail))
         {
-            MediaPipeStatusText = "Background: white already applied";
+            MediaPipeStatusText = $"Background: {statusName} already applied";
             return;
         }
 
-        MediaPipeStatusText = "Background: white preview...";
+        MediaPipeStatusText = $"Background: {statusName} preview...";
 
         try
         {
@@ -230,31 +482,36 @@ public partial class MainWindow
                 return;
             }
 
-            bool replaceCurrentWhiteBackground = IsCurrentHistoryWhiteBackground();
-            BitmapSource source = GetWhiteBackgroundRenderSource(targetPhoto, replaceCurrentWhiteBackground);
-            BitmapSource preview = BuildWhiteBackgroundPreview(
+            bool replaceCurrentBackground = IsCurrentHistoryBackgroundReplacement();
+            BitmapSource source = GetBackgroundReplacementRenderSource(targetPhoto, replaceCurrentBackground);
+            BitmapSource preview = BuildBackgroundReplacementPreview(
                 source,
                 alphaPath,
+                fillB,
+                fillG,
+                fillR,
+                imagePath,
                 boundaryProbeStrength,
                 boundaryCleanStrength,
                 edgeBlurStrength,
+                alphaShrinkStrength,
                 softAlphaStrength,
                 alphaGammaStrength);
             targetPhoto.SetAdjustedImage(preview);
-            if (replaceCurrentWhiteBackground)
+            if (replaceCurrentBackground)
             {
-                ReplaceCurrentWhiteBackgroundHistorySnapshot(targetPhoto, historyDetail);
+                ReplaceCurrentBackgroundReplacementHistorySnapshot(targetPhoto, historyDetail);
             }
             else
             {
-                PushEditorHistorySnapshot(WhiteBackgroundHistoryTitle, historyDetail);
+                PushEditorHistorySnapshot(BackgroundReplacementHistoryTitle, historyDetail);
             }
 
             UpdatePreviewImageFrame();
             string alphaRunMode = string.IsNullOrWhiteSpace(_personAlphaRunMode)
                 ? PersonAlphaEngineBiRefNet
                 : $"{PersonAlphaEngineBiRefNet} {_personAlphaRunMode}";
-            MediaPipeStatusText = "Background: white preview | " + alphaRunMode;
+            MediaPipeStatusText = $"Background: {statusName} preview | " + alphaRunMode;
         }
         catch (Exception ex)
         {
@@ -425,10 +682,12 @@ public partial class MainWindow
         ClearLiquifyTensionCache();
     }
 
-    private void SetBackgroundPreview(PhotoItem photo, BitmapSource preview)
+    private void SetBackgroundPreview(PhotoItem photo, BitmapSource preview, double frameWidth, double frameHeight)
     {
         _backgroundPreviewImageSource = preview;
         _backgroundPreviewPhotoPath = photo.Path;
+        _backgroundPreviewFrameWidth = frameWidth;
+        _backgroundPreviewFrameHeight = frameHeight;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
         UpdatePreviewImageFrame();
     }
@@ -443,6 +702,8 @@ public partial class MainWindow
 
         _backgroundPreviewImageSource = null;
         _backgroundPreviewPhotoPath = null;
+        _backgroundPreviewFrameWidth = 0;
+        _backgroundPreviewFrameHeight = 0;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
         UpdatePreviewImageFrame();
     }
@@ -460,12 +721,34 @@ public partial class MainWindow
         return false;
     }
 
-    private BitmapSource BuildWhiteBackgroundPreview(
+    private bool TryGetBackgroundPreviewFrameSize(PhotoItem photo, out double width, out double height)
+    {
+        if (_backgroundPreviewImageSource is not null &&
+            _backgroundPreviewFrameWidth > 0 &&
+            _backgroundPreviewFrameHeight > 0 &&
+            string.Equals(_backgroundPreviewPhotoPath, photo.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            width = _backgroundPreviewFrameWidth;
+            height = _backgroundPreviewFrameHeight;
+            return true;
+        }
+
+        width = 0;
+        height = 0;
+        return false;
+    }
+
+    private BitmapSource BuildBackgroundReplacementPreview(
         BitmapSource source,
         string alphaPath,
+        byte solidB,
+        byte solidG,
+        byte solidR,
+        string? imagePath,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
         double edgeBlurStrength,
+        double alphaShrinkStrength,
         double softAlphaStrength,
         double alphaGammaStrength)
     {
@@ -477,6 +760,13 @@ public partial class MainWindow
         byte[] sourcePixels = new byte[sourceStride * height];
         byte[] alphaPixels = GetOrCreateRefinedPersonAlphaMask(alphaPath, width, height);
         byte[] resultPixels = new byte[sourceStride * height];
+        byte[]? backgroundPixels = TryCreateImageBackgroundPixels(
+            imagePath,
+            width,
+            height,
+            bgraSource.DpiX,
+            bgraSource.DpiY,
+            sourceStride);
 
         bgraSource.CopyPixels(sourcePixels, sourceStride, 0);
         (byte backgroundB, byte backgroundG, byte backgroundR) = EstimateBackgroundColorBgra32(
@@ -509,6 +799,11 @@ public partial class MainWindow
             width,
             height,
             edgeBlurStrength);
+        alphaPixels = ApplyAlphaShrink(
+            alphaPixels,
+            width,
+            height,
+            alphaShrinkStrength);
 
         for (int y = 0; y < height; y++)
         {
@@ -532,10 +827,13 @@ public partial class MainWindow
                     backgroundB,
                     backgroundG,
                     backgroundR);
+                byte replacementB = backgroundPixels is null ? solidB : backgroundPixels[sourceIndex];
+                byte replacementG = backgroundPixels is null ? solidG : backgroundPixels[sourceIndex + 1];
+                byte replacementR = backgroundPixels is null ? solidR : backgroundPixels[sourceIndex + 2];
 
-                resultPixels[sourceIndex] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex], localBackground.B, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
-                resultPixels[sourceIndex + 1] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], localBackground.G, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
-                resultPixels[sourceIndex + 2] = BlendWhiteWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], localBackground.R, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                resultPixels[sourceIndex] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex], localBackground.B, replacementB, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                resultPixels[sourceIndex + 1] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 1], localBackground.G, replacementG, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
+                resultPixels[sourceIndex + 2] = BlendSolidWithAlphaKeyCleanup(sourcePixels[sourceIndex + 2], localBackground.R, replacementR, alpha, outputAlpha, inverseAlpha, boundaryCleanStrength);
                 resultPixels[sourceIndex + 3] = 255;
             }
         }
@@ -553,51 +851,138 @@ public partial class MainWindow
         return preview;
     }
 
-    private bool IsCurrentWhiteBackgroundAlreadyApplied(string historyDetail)
+    private static byte[]? TryCreateImageBackgroundPixels(
+        string? imagePath,
+        int width,
+        int height,
+        double dpiX,
+        double dpiY,
+        int stride)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath) ||
+            !File.Exists(imagePath) ||
+            width <= 0 ||
+            height <= 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            BitmapImage image = new();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(imagePath, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+
+            double scale = Math.Max(width / (double)image.PixelWidth, height / (double)image.PixelHeight);
+            double renderWidth = image.PixelWidth * scale;
+            double renderHeight = image.PixelHeight * scale;
+            double offsetX = (width - renderWidth) * 0.5;
+            double offsetY = (height - renderHeight) * 0.5;
+
+            DrawingVisual visual = new();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawImage(image, new Rect(offsetX, offsetY, renderWidth, renderHeight));
+            }
+
+            RenderTargetBitmap rendered = new(
+                width,
+                height,
+                dpiX,
+                dpiY,
+                PixelFormats.Pbgra32);
+            rendered.Render(visual);
+            BitmapSource bgraBackground = EnsureBitmapFormat(rendered, PixelFormats.Bgra32);
+            byte[] pixels = new byte[stride * height];
+            bgraBackground.CopyPixels(pixels, stride, 0);
+            return pixels;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private bool IsCurrentBackgroundReplacementAlreadyApplied(string historyDetail)
     {
         return _editorUndoHistory.Count > 0 &&
-               string.Equals(_editorUndoHistory[^1].Title, WhiteBackgroundHistoryTitle, StringComparison.Ordinal) &&
+               string.Equals(_editorUndoHistory[^1].Title, BackgroundReplacementHistoryTitle, StringComparison.Ordinal) &&
                string.Equals(_editorUndoHistory[^1].Detail, historyDetail, StringComparison.Ordinal);
     }
 
-    private bool IsCurrentHistoryWhiteBackground()
+    private bool IsCurrentHistoryBackgroundReplacement()
     {
         return _editorUndoHistory.Count > 0 &&
-               string.Equals(_editorUndoHistory[^1].Title, WhiteBackgroundHistoryTitle, StringComparison.Ordinal) &&
-               _editorUndoHistory[^1].Detail.StartsWith(WhiteBackgroundHistoryDetail, StringComparison.Ordinal);
+               string.Equals(_editorUndoHistory[^1].Title, BackgroundReplacementHistoryTitle, StringComparison.Ordinal) &&
+               (_editorUndoHistory[^1].Detail.StartsWith(WhiteBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                _editorUndoHistory[^1].Detail.StartsWith(GrayBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                _editorUndoHistory[^1].Detail.StartsWith(ColorBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                _editorUndoHistory[^1].Detail.StartsWith(ImageBackgroundHistoryDetail, StringComparison.Ordinal));
     }
 
-    private BitmapSource GetWhiteBackgroundRenderSource(PhotoItem photo, bool replaceCurrentWhiteBackground)
+    private BitmapSource GetBackgroundReplacementRenderSource(PhotoItem photo, bool replaceCurrentBackground)
     {
         return photo.BaseImage;
     }
 
-    private void ReplaceCurrentWhiteBackgroundHistorySnapshot(PhotoItem photo, string historyDetail)
+    private void ReplaceCurrentBackgroundReplacementHistorySnapshot(PhotoItem photo, string historyDetail)
     {
         if (_editorUndoHistory.Count == 0)
         {
-            PushEditorHistorySnapshot(WhiteBackgroundHistoryTitle, historyDetail);
+            PushEditorHistorySnapshot(BackgroundReplacementHistoryTitle, historyDetail);
             return;
         }
 
-        _editorUndoHistory[^1] = CaptureEditorHistoryState(photo, WhiteBackgroundHistoryTitle, historyDetail);
+        _editorUndoHistory[^1] = CaptureEditorHistoryState(photo, BackgroundReplacementHistoryTitle, historyDetail);
         RefreshEditorHistoryPanel();
         StoreCurrentEditorHistorySession(photo, persistToDisk: false);
     }
 
-    private static string CreateWhiteBackgroundHistoryDetail(
+    private (string DetailPrefix, string StatusName, byte B, byte G, byte R, string? ImagePath) GetActiveBackgroundReplacement()
+    {
+        if (BackgroundRetouchTab?.IsGrayBackgroundModeActive == true)
+        {
+            return (GrayBackgroundHistoryDetail, "gray", 238, 240, 242, null);
+        }
+
+        if (BackgroundRetouchTab?.IsColorBackgroundModeActive == true &&
+            BackgroundRetouchTab.CustomBackgroundBrush is SolidColorBrush colorBrush)
+        {
+            MediaColor color = colorBrush.Color;
+            string detail = $"{ColorBackgroundHistoryDetail} #{color.R:X2}{color.G:X2}{color.B:X2}";
+            return (detail, "color", color.B, color.G, color.R, null);
+        }
+
+        if (BackgroundRetouchTab?.IsImageBackgroundModeActive == true &&
+            !string.IsNullOrWhiteSpace(BackgroundRetouchTab.SelectedBackgroundImagePath) &&
+            File.Exists(BackgroundRetouchTab.SelectedBackgroundImagePath))
+        {
+            string fileName = Path.GetFileName(BackgroundRetouchTab.SelectedBackgroundImagePath);
+            return ($"{ImageBackgroundHistoryDetail} {fileName}", "image", 255, 255, 255, BackgroundRetouchTab.SelectedBackgroundImagePath);
+        }
+
+        return (WhiteBackgroundHistoryDetail, "white", 255, 255, 255, null);
+    }
+
+    private static string CreateBackgroundReplacementHistoryDetail(
+        string detailPrefix,
         double boundaryProbeStrength,
         double boundaryCleanStrength,
         double edgeBlurStrength,
+        double alphaShrinkStrength,
         double softAlphaStrength,
         double alphaGammaStrength)
     {
         double edge = Math.Clamp(Math.Round(boundaryProbeStrength), 0, 100);
         double clean = Math.Clamp(Math.Round(boundaryCleanStrength), 0, 100);
         double blur = Math.Clamp(Math.Round(edgeBlurStrength), 0, 100);
+        double shrink = Math.Clamp(Math.Round(alphaShrinkStrength), 0, 100);
         double soft = Math.Clamp(Math.Round(softAlphaStrength), 0, 100);
         double gamma = Math.Clamp(Math.Round(alphaGammaStrength), 0, 100);
-        return $"{WhiteBackgroundHistoryDetail} | Source Original | Edge {edge:0} | Clean {clean:0} | Blur {blur:0} | Soft {soft:0} | Gamma {gamma:0}";
+        return $"{detailPrefix} | Source Original | Edge {edge:0} | Clean {clean:0} | Blur {blur:0} | Shrink {shrink:0} | Soft {soft:0} | Gamma {gamma:0}";
     }
 
     private static int ApplyAlphaGamma(int alpha, double alphaGammaStrength)
@@ -671,6 +1056,42 @@ public partial class MainWindow
             int original = alphaPixels[i];
             int blurred = blurredAlpha[i];
             result[i] = (byte)Math.Clamp((int)Math.Round(original + ((blurred - original) * normalizedStrength)), 0, 255);
+        }
+
+        return result;
+    }
+
+    private static byte[] ApplyAlphaShrink(
+        byte[] alphaPixels,
+        int width,
+        int height,
+        double shrinkStrength)
+    {
+        double normalizedStrength = Math.Clamp(shrinkStrength / 100.0, 0.0, 1.0);
+        if (normalizedStrength <= 0.001 ||
+            alphaPixels.Length == 0 ||
+            width <= 0 ||
+            height <= 0)
+        {
+            return alphaPixels;
+        }
+
+        double radiusValue = normalizedStrength * 3.0;
+        int radius = Math.Max(1, (int)Math.Ceiling(radiusValue));
+        bool[] supportMask = BuildBinaryMask(alphaPixels, WhiteBackgroundAlphaLowCutoff);
+        bool[] erodedMask = ErodeBinaryMask(supportMask, width, height, radius);
+        double blend = Math.Clamp(radiusValue / radius, 0.0, 1.0);
+        byte[] result = (byte[])alphaPixels.Clone();
+
+        for (int i = 0; i < result.Length; i++)
+        {
+            if (erodedMask[i])
+            {
+                continue;
+            }
+
+            int original = alphaPixels[i];
+            result[i] = (byte)Math.Clamp((int)Math.Round(original * (1.0 - blend)), 0, 255);
         }
 
         return result;
@@ -1329,11 +1750,11 @@ public partial class MainWindow
         return (0.0722 * b) + (0.7152 * g) + (0.2126 * r);
     }
 
-    private static byte BlendWhiteWithAlphaKeyCleanup(byte channel, byte backgroundChannel, int sourceAlpha, int outputAlpha, int inverseOutputAlpha, double cleanStrength)
+    private static byte BlendSolidWithAlphaKeyCleanup(byte channel, byte backgroundChannel, byte solidChannel, int sourceAlpha, int outputAlpha, int inverseOutputAlpha, double cleanStrength)
     {
         if (outputAlpha <= 0)
         {
-            return 255;
+            return solidChannel;
         }
 
         if (outputAlpha >= 255)
@@ -1342,7 +1763,7 @@ public partial class MainWindow
         }
 
         byte cleanedChannel = RemoveBackgroundContamination(channel, backgroundChannel, sourceAlpha, cleanStrength);
-        return BlendOverWhite(cleanedChannel, outputAlpha, inverseOutputAlpha);
+        return BlendOverSolid(cleanedChannel, solidChannel, outputAlpha, inverseOutputAlpha);
     }
 
     private readonly record struct ProbeSample(byte B, byte G, byte R);
@@ -1365,9 +1786,9 @@ public partial class MainWindow
         return (byte)Math.Clamp((int)Math.Round(cleaned), 0, 255);
     }
 
-    private static byte BlendOverWhite(byte channel, int alpha, int inverseAlpha)
+    private static byte BlendOverSolid(byte channel, byte solidChannel, int alpha, int inverseAlpha)
     {
-        return (byte)(((channel * alpha) + (255 * inverseAlpha) + 127) / 255);
+        return (byte)(((channel * alpha) + (solidChannel * inverseAlpha) + 127) / 255);
     }
 
     private static (byte B, byte G, byte R) EstimateBackgroundColorBgra32(
