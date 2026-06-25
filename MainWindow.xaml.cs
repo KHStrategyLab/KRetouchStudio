@@ -340,6 +340,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
+        FaceShapeRetouchTab.FaceShapeControlAdjustmentPreviewChanged += FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
@@ -5723,6 +5724,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private async void FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ApplyFaceShapeControlDragPreviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            MediaPipeStatusText = $"Face Shape preview failed: {ex.Message}";
+        }
     }
 
     private sealed record PreviewProxy1200BuildItem(PhotoItem Photo, int Generation);

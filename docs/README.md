@@ -27,6 +27,8 @@
 - [FaceBox Depth Role Model](FACEBOX_DEPTH_ROLE_MODEL.md) - frontal `FaceBox` interpreted as a lightweight 2.5D facial volume container.
 - [Face Rotation Depth Rule](FACE_ROTATION_DEPTH_RULE.md) - future face rotation follows role-guided local depth behavior instead of flat image rotation.
 - [Face Up/Dn 3D Projection Rule](FACE_UPDN_3D_PROJECTION_RULE.md) - approved practical route for `Up/Dn`: no exact camera chase, cached MediaPipe, shallow z, all-point debug projection first.
+- [Face MediaPipe Landmark Index Guide](FACE_MEDIAPIPE_LANDMARK_INDEX_GUIDE.md) - code-facing MediaPipe index groups for Face Shape, symmetry, jaw, chin, cheek, bone, and retouch planning.
+- [Beauty Retouching Techniques](BEAUTY_RETOUCHING_TECHNIQUES.md) - practical studio retouching rules for skin texture, wrinkles, blemishes, hair cleanup, hair volume, hairline, and scalp coverage.
 - [Detector Target And Mask IDs](DETECTOR_TARGET_AND_MASK_IDS.md) - code-facing ID split for detector targets, search ROI, work boxes, and reusable masks.
 - [Face Visible Structure Master](FACE_VISIBLE_STRUCTURE_MASTER.md) - one-sheet visible face structure vocabulary for detection, mask, and tool routing.
 - [Screen I/O And Work Mode Architecture](SCREEN_IO_AND_WORK_MODE_ARCHITECTURE.md) - screen mode, panel state, layer/history split, and tool-file policy.

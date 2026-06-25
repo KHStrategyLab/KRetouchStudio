@@ -381,7 +381,15 @@ public partial class MainWindow
 
     private async void FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged(object? sender, EventArgs e)
     {
-        await ApplyFaceShapeHeadPoseDragPreviewAsync();
+        try
+        {
+            await ApplyFaceShapeHeadPoseDragPreviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            MediaPipeStatusText = $"Face Head Pose preview failed: {ex.Message}";
+        }
     }
 
     private async void FaceShapeRetouchTab_FaceShapeAdjustmentCommitted(object? sender, EventArgs e)
@@ -395,7 +403,12 @@ public partial class MainWindow
             FaceShapeRetouchTab.IsFaceTiltFaceShapeModeSelected ||
             FaceShapeRetouchTab.IsFaceTurnFaceShapeModeSelected ||
             FaceShapeRetouchTab.IsHeadTiltFaceShapeModeSelected;
-        if (!isHeadPoseCommit)
+        bool isFaceShapeControlCommit =
+            FaceShapeRetouchTab.IsCheekFaceShapeModeSelected ||
+            FaceShapeRetouchTab.IsBoneFaceShapeModeSelected ||
+            FaceShapeRetouchTab.IsJawFaceShapeModeSelected ||
+            FaceShapeRetouchTab.IsChinFaceShapeModeSelected;
+        if (!isHeadPoseCommit && !isFaceShapeControlCommit)
         {
             ClearFaceShapeHeadPoseDragPreview();
         }
@@ -507,7 +520,7 @@ public partial class MainWindow
             landmarks,
             baseSource.PixelWidth,
             baseSource.PixelHeight);
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Sym: rendering {strength:0}...";
 
@@ -575,7 +588,7 @@ public partial class MainWindow
             landmarks,
             baseSource.PixelWidth,
             baseSource.PixelHeight);
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Cheek: rendering {strength:0}...";
 
@@ -643,7 +656,7 @@ public partial class MainWindow
             landmarks,
             baseSource.PixelWidth,
             baseSource.PixelHeight);
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Bone: rendering {strength:0}...";
 
@@ -711,7 +724,7 @@ public partial class MainWindow
             landmarks,
             baseSource.PixelWidth,
             baseSource.PixelHeight);
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Jaw: rendering {strength:0}...";
 
@@ -779,7 +792,7 @@ public partial class MainWindow
             landmarks,
             baseSource.PixelWidth,
             baseSource.PixelHeight);
-        BitmapSource safeBase = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
+        BitmapSource safeBase = CloneBitmapSource(baseSource);
         double renderStrength = strength;
         MediaPipeStatusText = $"Face Chin: rendering {strength:0}...";
 
@@ -1054,6 +1067,110 @@ public partial class MainWindow
         ClearFaceShapeProjectionDebugOverlay();
         UpdatePreviewLayout();
         MediaPipeStatusText = $"Face Up/Dn: rigid {projectedPointCount:0} pts | mesh {committedRigidMaskPlan.Triangles.Count:0} | {sliderStrength:0}";
+    }
+
+    private async Task ApplyFaceShapeControlDragPreviewAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto || FaceShapeRetouchTab is null)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            return;
+        }
+
+        bool isCheek = FaceShapeRetouchTab.IsCheekFaceShapeModeSelected;
+        bool isBone = FaceShapeRetouchTab.IsBoneFaceShapeModeSelected;
+        bool isJaw = FaceShapeRetouchTab.IsJawFaceShapeModeSelected;
+        bool isChin = FaceShapeRetouchTab.IsChinFaceShapeModeSelected;
+        if (!isCheek && !isBone && !isJaw && !isChin)
+        {
+            return;
+        }
+
+        double strength = isCheek
+            ? Math.Clamp(Math.Round(FaceShapeRetouchTab.CheekFaceShapeStrength), 0, 100)
+            : isBone
+                ? Math.Clamp(Math.Round(FaceShapeRetouchTab.BoneFaceShapeStrength), 0, 100)
+                : isJaw
+                    ? Math.Clamp(Math.Round(FaceShapeRetouchTab.JawFaceShapeStrength), 0, 100)
+                    : Math.Clamp(Math.Round(FaceShapeRetouchTab.ChinFaceShapeStrength), 0, 100);
+        int renderVersion = Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+        BitmapSource baseSource = isCheek
+            ? GetFaceShapeCheekRenderSource(targetPhoto)
+            : isBone
+                ? GetFaceShapeBoneRenderSource(targetPhoto)
+                : isJaw
+                    ? GetFaceShapeJawRenderSource(targetPhoto)
+                    : GetFaceShapeChinRenderSource(targetPhoto);
+        BitmapSource proxySource = GetOrCreateFaceShapeHeadPoseDragProxy(targetPhoto, baseSource);
+
+        string statusPrefix = isCheek
+            ? "Face Cheek"
+            : isBone
+                ? "Face Bone"
+                : isJaw
+                    ? "Face Jaw"
+                    : "Face Chin";
+        if (strength <= 0.001)
+        {
+            SetFaceShapeHeadPoseDragPreview(targetPhoto, proxySource, baseSource.PixelWidth, baseSource.PixelHeight);
+            MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview reset";
+            return;
+        }
+
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, statusPrefix);
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        if (landmarks.Count == 0)
+        {
+            MediaPipeStatusText = $"{statusPrefix}: no landmarks";
+            return;
+        }
+
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            proxySource.PixelWidth,
+            proxySource.PixelHeight);
+        BitmapSource safeProxy = CloneBitmapSource(proxySource);
+        double renderStrength = strength;
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {strength:0}...";
+
+        BitmapSource preview = await Task.Run(() => isCheek
+            ? BuildFaceShapeCheekPreview(
+                safeProxy,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion)
+            : isBone
+                ? BuildFaceShapeBonePreview(
+                    safeProxy,
+                    landmarkPoints,
+                    renderStrength,
+                    () => renderVersion != _faceShapeSymmetryRenderVersion)
+                : isJaw
+                    ? BuildFaceShapeJawPreview(
+                        safeProxy,
+                        landmarkPoints,
+                        renderStrength,
+                        () => renderVersion != _faceShapeSymmetryRenderVersion)
+                    : BuildFaceShapeChinPreview(
+                        safeProxy,
+                        landmarkPoints,
+                        renderStrength,
+                        () => renderVersion != _faceShapeSymmetryRenderVersion));
+
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        SetFaceShapeHeadPoseDragPreview(targetPhoto, preview, baseSource.PixelWidth, baseSource.PixelHeight);
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {strength:0}";
     }
 
     private async Task ApplyFaceShapeHeadPoseDragPreviewAsync()
