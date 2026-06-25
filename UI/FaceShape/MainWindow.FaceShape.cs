@@ -208,16 +208,16 @@ public partial class MainWindow
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeJawPairs =
     [
-        (234, 454, 0.35),
-        (93, 323, 0.46),
-        (132, 361, 0.58),
-        (58, 288, 0.74),
-        (172, 397, 0.82),
-        (136, 365, 0.78),
-        (150, 379, 0.68),
-        (149, 378, 0.52),
-        (176, 400, 0.34),
-        (148, 377, 0.18)
+        (234, 454, 0.00),
+        (93, 323, 0.05),
+        (132, 361, 0.15),
+        (58, 288, 0.60),
+        (172, 397, 1.00),
+        (136, 365, 0.85),
+        (150, 379, 0.40),
+        (149, 378, 0.20),
+        (176, 400, 0.05),
+        (148, 377, 0.00)
     ];
 
     private static readonly (int Left, int Right, double Weight)[] FaceShapeChinPairs =
@@ -5376,16 +5376,13 @@ public partial class MainWindow
         double amount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
             bounds.Width *
             FaceShapeJawMaxInwardRatio;
-        double liftAmount = Math.Clamp(strength / 100.0, 0.0, 1.0) *
-            bounds.Width *
-            0.030;
         List<FaceShapeControlPoint> controls = new(
             (FaceShapeJawPairs.Length * 2) + FaceShapeJawAnchorIndices.Length);
 
         foreach ((int leftIndex, int rightIndex, double weight) in FaceShapeJawPairs)
         {
-            AddFaceShapeJawDirectionalControl(landmarks, leftIndex, centerX, amount, liftAmount, weight, controls);
-            AddFaceShapeJawDirectionalControl(landmarks, rightIndex, centerX, amount, liftAmount, weight, controls);
+            AddFaceShapeJawDirectionalControl(landmarks, leftIndex, centerX, amount, weight, controls);
+            AddFaceShapeJawDirectionalControl(landmarks, rightIndex, centerX, amount, weight, controls);
         }
 
         foreach (int index in FaceShapeJawAnchorIndices)
@@ -5422,7 +5419,6 @@ public partial class MainWindow
         int index,
         double centerX,
         double amount,
-        double liftAmount,
         double weight,
         List<FaceShapeControlPoint> controls)
     {
@@ -5438,23 +5434,7 @@ public partial class MainWindow
         }
 
         double dx = direction * amount * Math.Clamp(weight, 0.0, 1.0);
-        double dy = -liftAmount * GetFaceShapeJawLiftWeight(index);
-        controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, dy));
-    }
-
-    private static double GetFaceShapeJawLiftWeight(int index)
-    {
-        return index switch
-        {
-            58 or 288 => 0.10,
-            172 or 397 => 0.20,
-            136 or 365 => 0.35,
-            150 or 379 => 0.50,
-            149 or 378 => 0.70,
-            176 or 400 => 0.90,
-            148 or 377 => 1.00,
-            _ => 0.0
-        };
+        controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, 0));
     }
 
     private static double GetFaceShapeTargetOvalPointPullAmount(
