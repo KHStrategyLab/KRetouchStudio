@@ -35,8 +35,11 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     private double _alignStrength;
     private bool _isHeadPoseStrengthSliderInteracting;
     private bool _isFaceShapeControlStrengthSliderInteracting;
+    private bool _isSymmetrizeStrengthSliderInteracting;
     private FaceShapeMode _lastFaceShapeControlPreviewMode = FaceShapeMode.Cheek;
     private double _lastFaceShapeControlPreviewStrength = double.NaN;
+    private FaceShapeMode _lastSymmetrizePreviewMode = FaceShapeMode.Sym;
+    private double _lastSymmetrizePreviewStrength = double.NaN;
 
     public FaceShapeTabView()
     {
@@ -52,6 +55,8 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     public event EventHandler? HeadPoseAdjustmentPreviewChanged;
 
     public event EventHandler? FaceShapeControlAdjustmentPreviewChanged;
+
+    public event EventHandler? SymmetrizeAdjustmentPreviewChanged;
 
     public bool IsSymFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Sym;
 
@@ -334,7 +339,38 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void SymmetrizeStrengthSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _isSymmetrizeStrengthSliderInteracting = false;
         CommitSymmetrizeAdjustment();
+    }
+
+    private void SymmetrizeStrengthSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSymmetrizeStrengthSliderInteracting = true;
+        ResetSymmetrizePreviewTracking();
+    }
+
+    private void SymmetrizeStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not System.Windows.Controls.Slider slider ||
+            (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSymmetrizeStrengthSliderInteracting)
+        {
+            _isSymmetrizeStrengthSliderInteracting = true;
+            ResetSymmetrizePreviewTracking();
+        }
+
+        bool changed = SetFaceShapeStrength(_activeSymmetrizeMode, e.NewValue);
+        SetActiveFaceShapeMode(_activeSymmetrizeMode);
+        if (changed)
+        {
+            OnPropertyChanged(nameof(ActiveSymmetrizeStrength));
+        }
+
+        RaiseSymmetrizePreviewIfNeeded(e.NewValue);
     }
 
     private void SymmetrizeStrengthSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -370,6 +406,12 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         _lastFaceShapeControlPreviewStrength = double.NaN;
     }
 
+    private void ResetSymmetrizePreviewTracking()
+    {
+        _lastSymmetrizePreviewMode = _activeSymmetrizeMode;
+        _lastSymmetrizePreviewStrength = double.NaN;
+    }
+
     private void RaiseFaceShapeControlPreviewIfNeeded(double value)
     {
         double previewStrength = Math.Clamp(Math.Round(value), 0, 100);
@@ -383,6 +425,21 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         _lastFaceShapeControlPreviewMode = _activeFaceShapeControlMode;
         _lastFaceShapeControlPreviewStrength = previewStrength;
         FaceShapeControlAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseSymmetrizePreviewIfNeeded(double value)
+    {
+        double previewStrength = Math.Clamp(Math.Round(value), 0, 100);
+        if (!_isSymmetrizeStrengthSliderInteracting ||
+            (_lastSymmetrizePreviewMode == _activeSymmetrizeMode &&
+             Math.Abs(_lastSymmetrizePreviewStrength - previewStrength) <= 0.001))
+        {
+            return;
+        }
+
+        _lastSymmetrizePreviewMode = _activeSymmetrizeMode;
+        _lastSymmetrizePreviewStrength = previewStrength;
+        SymmetrizeAdjustmentPreviewChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void CommitHeadPoseAdjustment()

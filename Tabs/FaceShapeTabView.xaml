@@ -185,6 +185,8 @@
                     Maximum="100"
                     TickFrequency="1"
                     Value="{Binding ElementName=Root, Path=ActiveSymmetrizeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    ValueChanged="SymmetrizeStrengthSlider_ValueChanged"
+                    PreviewMouseLeftButtonDown="SymmetrizeStrengthSlider_PreviewMouseLeftButtonDown"
                     PreviewMouseLeftButtonUp="SymmetrizeStrengthSlider_PreviewMouseLeftButtonUp"
                     KeyUp="SymmetrizeStrengthSlider_KeyUp"/>
         </StackPanel>

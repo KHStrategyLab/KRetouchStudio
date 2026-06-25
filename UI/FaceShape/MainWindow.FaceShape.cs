@@ -350,6 +350,7 @@ public partial class MainWindow
     private BitmapSource? _faceShapeHeadPoseDragProxyBaseSource;
     private BitmapSource? _faceShapeHeadPoseDragProxySource;
     private int _faceShapeSymmetryRenderVersion;
+    private int _faceShapeUpperPrewarmVersion;
 
     private readonly struct FaceShapePointArray(Point[] points, double[] zValues, bool[] hasPoint, int count)
     {
@@ -412,7 +413,10 @@ public partial class MainWindow
             FaceShapeRetouchTab.IsBoneFaceShapeModeSelected ||
             FaceShapeRetouchTab.IsJawFaceShapeModeSelected ||
             FaceShapeRetouchTab.IsChinFaceShapeModeSelected;
-        if (!isHeadPoseCommit && !isFaceShapeControlCommit)
+        bool isSymmetrizeCommit =
+            FaceShapeRetouchTab.IsSymFaceShapeModeSelected ||
+            FaceShapeRetouchTab.IsAlignFaceShapeModeSelected;
+        if (!isHeadPoseCommit && !isFaceShapeControlCommit && !isSymmetrizeCommit)
         {
             ClearFaceShapeHeadPoseDragPreview();
         }
@@ -542,6 +546,8 @@ public partial class MainWindow
         }
 
         targetPhoto.SetAdjustedImage(preview);
+        ClearFaceShapeHeadPoseDragPreview();
+        ClearFaceShapeHeadPoseDragProxy();
         PushOrReplaceFaceShapeSymmetryHistory(targetPhoto, strength);
         UpdatePreviewLayout();
         MediaPipeStatusText = $"Face Sym: applied {strength:0}";
@@ -625,9 +631,152 @@ public partial class MainWindow
         }
 
         targetPhoto.SetAdjustedImage(preview);
+        ClearFaceShapeHeadPoseDragPreview();
+        ClearFaceShapeHeadPoseDragProxy();
         PushOrReplaceFaceShapeUpperHistory(targetPhoto, strength);
         UpdatePreviewLayout();
         MediaPipeStatusText = $"Face Upper: applied {strength:0}";
+    }
+
+    private async Task ApplyFaceShapeSymmetrizeDragPreviewAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto || FaceShapeRetouchTab is null)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            return;
+        }
+
+        bool isFace = FaceShapeRetouchTab.IsSymFaceShapeModeSelected;
+        bool isUpper = FaceShapeRetouchTab.IsAlignFaceShapeModeSelected;
+        if (!isFace && !isUpper)
+        {
+            return;
+        }
+
+        double strength = isFace
+            ? Math.Clamp(Math.Round(FaceShapeRetouchTab.SymFaceShapeStrength), 0, 100)
+            : Math.Clamp(Math.Round(FaceShapeRetouchTab.AlignFaceShapeStrength), 0, 100);
+        int renderVersion = Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+        BitmapSource baseSource = isFace
+            ? GetFaceShapeSymmetryRenderSource(targetPhoto)
+            : GetFaceShapeUpperRenderSource(targetPhoto);
+        BitmapSource proxySource = GetOrCreateFaceShapeHeadPoseDragProxy(targetPhoto, baseSource);
+        string statusPrefix = isFace ? "Face Sym" : "Face Upper";
+
+        if (strength <= 0.001)
+        {
+            SetFaceShapeHeadPoseDragPreview(targetPhoto, proxySource, baseSource.PixelWidth, baseSource.PixelHeight);
+            MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview reset";
+            return;
+        }
+
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, statusPrefix);
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        if (landmarks.Count == 0)
+        {
+            MediaPipeStatusText = $"{statusPrefix}: no landmarks";
+            return;
+        }
+
+        IReadOnlyDictionary<int, Point> landmarkPoints = GetOrCreateFaceShapePointMap(
+            targetPhoto,
+            landmarks,
+            proxySource.PixelWidth,
+            proxySource.PixelHeight);
+        byte[]? alphaPixels = null;
+        if (isUpper)
+        {
+            string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                renderVersion != _faceShapeSymmetryRenderVersion)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(alphaPath))
+            {
+                MediaPipeStatusText = "Face Upper: no person mask";
+                return;
+            }
+
+            alphaPixels = GetOrCreateRefinedPersonAlphaMask(alphaPath, proxySource.PixelWidth, proxySource.PixelHeight);
+        }
+
+        BitmapSource safeProxy = CloneBitmapSource(proxySource);
+        double renderStrength = strength;
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {strength:0}...";
+
+        BitmapSource preview = await Task.Run(() => isFace
+            ? BuildFaceShapeSymmetryPreview(
+                safeProxy,
+                landmarkPoints,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion)
+            : BuildFaceShapeUpperPreview(
+                safeProxy,
+                landmarkPoints,
+                alphaPixels!,
+                renderStrength,
+                () => renderVersion != _faceShapeSymmetryRenderVersion));
+
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            renderVersion != _faceShapeSymmetryRenderVersion)
+        {
+            return;
+        }
+
+        SetFaceShapeHeadPoseDragPreview(targetPhoto, preview, baseSource.PixelWidth, baseSource.PixelHeight);
+        MediaPipeStatusText = $"{statusPrefix}: {FaceShapeHeadPoseDragPreviewLongSide:0} preview {strength:0}";
+    }
+
+    private async Task PrewarmFaceShapeUpperAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto)
+        {
+            return;
+        }
+
+        int prewarmVersion = Interlocked.Increment(ref _faceShapeUpperPrewarmVersion);
+        BitmapSource baseSource = GetFaceShapeUpperRenderSource(targetPhoto);
+        BitmapSource proxySource = GetOrCreateFaceShapeHeadPoseDragProxy(targetPhoto, baseSource);
+
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, "Face Upper");
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            prewarmVersion != _faceShapeUpperPrewarmVersion)
+        {
+            return;
+        }
+
+        if (landmarks.Count > 0)
+        {
+            _ = GetOrCreateFaceShapePointMap(
+                targetPhoto,
+                landmarks,
+                proxySource.PixelWidth,
+                proxySource.PixelHeight);
+        }
+
+        string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+            prewarmVersion != _faceShapeUpperPrewarmVersion)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(alphaPath))
+        {
+            _ = GetOrCreateRefinedPersonAlphaMask(alphaPath, proxySource.PixelWidth, proxySource.PixelHeight);
+        }
+
+        if (FaceShapeRetouchTab?.IsAlignFaceShapeModeSelected == true)
+        {
+            MediaPipeStatusText = "Face Upper: warmed";
+        }
     }
 
     private async Task ApplyFaceShapeCheekPreviewAsync()
@@ -1393,6 +1542,8 @@ public partial class MainWindow
     {
         _faceShapeSymmetrySessionPhoto = null;
         _faceShapeSymmetrySessionBaseImage = null;
+        _faceShapeUpperSessionPhoto = null;
+        _faceShapeUpperSessionBaseImage = null;
         _faceShapeCheekSessionPhoto = null;
         _faceShapeCheekSessionBaseImage = null;
         _faceShapeBoneSessionPhoto = null;
@@ -1410,6 +1561,7 @@ public partial class MainWindow
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeHeadPoseDragProxy();
         Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+        Interlocked.Increment(ref _faceShapeUpperPrewarmVersion);
     }
 
     private BitmapSource GetOrCreateFaceShapeHeadPoseDragProxy(PhotoItem targetPhoto, BitmapSource source)

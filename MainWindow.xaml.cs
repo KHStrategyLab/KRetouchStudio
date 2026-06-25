@@ -55,6 +55,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private DateTimeOffset _lastWorkAreaRefreshAt = DateTimeOffset.MinValue;
     private bool _isRefreshingWorkArea;
     private bool _isPhotoListPanelVisible = true;
+    private bool _isEditModeUpperPrewarmQueued;
+    private bool _isEditModeUpperPrewarmStarted;
     private string _activeToolId = "select";
     private enum ToolBucket
     {
@@ -341,6 +343,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         FaceShapeRetouchTab.FaceShapeControlAdjustmentPreviewChanged += FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged;
+        FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
@@ -3502,6 +3505,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ClearLocalWorkbenchGuide();
 
         SelectedPhoto = SelectedPreviewPhotos.Count == 1 ? SelectedPreviewPhotos[0] : null;
+        _isEditModeUpperPrewarmQueued = false;
+        _isEditModeUpperPrewarmStarted = false;
         CollapseAllRetouchTabs();
         UpdatePreviewLayout();
     }
@@ -3635,6 +3640,36 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         CollapseRetouchTabsExcept(expandedTab);
         RaiseRuntimeWorkModePropertyChanged();
+        QueueEditModeUpperPrewarm();
+    }
+
+    private void QueueEditModeUpperPrewarm()
+    {
+        if (_isEditModeUpperPrewarmQueued || _isEditModeUpperPrewarmStarted || SelectedPhoto is null)
+        {
+            return;
+        }
+
+        _isEditModeUpperPrewarmQueued = true;
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            await Task.Delay(450);
+            _isEditModeUpperPrewarmQueued = false;
+            if (_isEditModeUpperPrewarmStarted || SelectedPhoto is null || CurrentRuntimeWorkMode != RuntimeWorkMode.Edit)
+            {
+                return;
+            }
+
+            _isEditModeUpperPrewarmStarted = true;
+            try
+            {
+                await PrewarmFaceShapeUpperAsync();
+            }
+            catch (Exception ex)
+            {
+                MediaPipeStatusText = $"Face Upper warmup failed: {ex.Message}";
+            }
+        }, System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private void RetouchExpander_Collapsed(object sender, RoutedEventArgs e)
@@ -5736,6 +5771,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ClearFaceShapeHeadPoseDragPreview();
             MediaPipeStatusText = $"Face Shape preview failed: {ex.Message}";
+        }
+    }
+
+    private async void FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ApplyFaceShapeSymmetrizeDragPreviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ClearFaceShapeHeadPoseDragPreview();
+            MediaPipeStatusText = $"Face Sym preview failed: {ex.Message}";
         }
     }
 
