@@ -1770,6 +1770,25 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="HealingModeButton_Click"/>
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding HealingPatchOptionsVisibility}"
+                                        Margin="0,0,12,0">
+                                <Button x:Name="HealingPatchSourceModeButton"
+                                        Style="{StaticResource AppActionButtonStyle}"
+                                        Content="Source"
+                                        Tag="source"
+                                        Height="26"
+                                        Padding="10,0"
+                                        Margin="0,0,6,0"
+                                        Click="HealingPatchModeButton_Click"/>
+                                <Button x:Name="HealingPatchDestinationModeButton"
+                                        Style="{StaticResource AppActionButtonStyle}"
+                                        Content="Dest"
+                                        Tag="destination"
+                                        Height="26"
+                                        Padding="10,0"
+                                        Click="HealingPatchModeButton_Click"/>
+                            </StackPanel>
                             <StackPanel Width="112"
                                         Margin="0,0,14,0">
                                 <StackPanel Orientation="Horizontal"
@@ -1801,7 +1820,7 @@
                                         Margin="0,0,14,0">
                                 <StackPanel Orientation="Horizontal"
                                             Margin="0,0,0,2">
-                                    <TextBlock Text="Softness"
+                                    <TextBlock Text="Hardness"
                                                Height="18"
                                                Foreground="{StaticResource TextSub}"
                                                VerticalAlignment="Bottom"
@@ -1809,7 +1828,7 @@
                                     <TextBlock Width="34"
                                                Height="18"
                                                Foreground="{StaticResource TextMain}"
-                                               Text="{Binding HealingSoftness, StringFormat={}{0:0}}"
+                                               Text="{Binding HealingHardness, StringFormat={}{0:0}}"
                                                VerticalAlignment="Bottom"
                                                TextAlignment="Center"
                                                Padding="0,0,0,2"
@@ -1821,14 +1840,14 @@
                                 </StackPanel>
                                 <Slider Minimum="0"
                                         Maximum="100"
-                                        Value="{Binding HealingSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Value="{Binding HealingHardness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         Focusable="False"/>
                             </StackPanel>
                             <StackPanel Width="112"
                                         Margin="0,0,14,0">
                                 <StackPanel Orientation="Horizontal"
                                             Margin="0,0,0,2">
-                                    <TextBlock Text="Strength"
+                                    <TextBlock Text="Opacity"
                                                Height="18"
                                                Foreground="{StaticResource TextSub}"
                                                VerticalAlignment="Bottom"
@@ -3166,6 +3185,16 @@
                                  StrokeThickness="1"
                                  StrokeDashArray="3,2"
                                  Fill="Transparent"/>
+                        <Rectangle Visibility="{Binding HealingPatchSelectionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding HealingPatchSelectionLeft}"
+                                   Canvas.Top="{Binding HealingPatchSelectionTop}"
+                                   Width="{Binding HealingPatchSelectionWidth}"
+                                   Height="{Binding HealingPatchSelectionHeight}"
+                                   Stroke="#F1D35A"
+                                   StrokeThickness="1"
+                                   StrokeDashArray="4,2"
+                                   Fill="#22F1D35A"/>
                         <Ellipse Visibility="{Binding BlurSharpCircleVisibility}"
                                  IsHitTestVisible="False"
                                  Canvas.Left="{Binding BlurSharpCircleLeft}"

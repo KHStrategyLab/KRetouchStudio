@@ -47,9 +47,10 @@ public sealed class ToolboxDefaultSettings
     public bool ShowStampCircle { get; set; } = true;
 
     public string HealingMode { get; set; } = "healing";
+    public string HealingPatchMode { get; set; } = "source";
     public double HealingSize { get; set; } = 80;
     public double HealingSoftness { get; set; } = 50;
-    public double HealingStrength { get; set; } = 50;
+    public double HealingStrength { get; set; } = 100;
     public bool ShowHealingCircle { get; set; } = true;
 
     public string BlurSharpMode { get; set; } = "blur";

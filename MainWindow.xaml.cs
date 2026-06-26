@@ -217,13 +217,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private int _sourceCopyStrokeHeight;
     private double _healingSize = 80;
     private double _healingSoftness = 50;
-    private double _healingStrength = 50;
+    private double _healingStrength = 100;
     private bool _showHealingCircle = true;
     private double _healingCircleLeft;
     private double _healingCircleTop;
     private double _healingCircleSize = 80;
     private Visibility _healingCircleVisibility = Visibility.Collapsed;
     private string _healingMode = "healing";
+    private string _healingPatchMode = "source";
     private bool _isHealingDragging;
     private bool _hasHealingSource;
     private System.Windows.Point _healingSourceImagePoint;
@@ -231,6 +232,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private System.Windows.Point _healingStrokeStartTargetPoint;
     private System.Windows.Point _healingLastImagePoint;
     private BitmapSource? _healingSourceBitmap;
+    private BitmapSource? _healingStrokeTargetBitmap;
+    private byte[]? _healingStrokeMaskPixels;
+    private readonly List<System.Windows.Point> _healingStrokePoints = new();
+    private int _healingStrokeMaskWidth;
+    private int _healingStrokeMaskHeight;
+    private bool _isOpenCvHealingStroke;
+    private bool _isHealingPatchCreating;
+    private bool _isHealingPatchDragging;
+    private bool _hasHealingPatchSelection;
+    private System.Windows.Point _healingPatchStartPreviewPoint;
+    private System.Windows.Point _healingPatchDragStartPreviewPoint;
+    private Rect _healingPatchSelectionImageRect;
+    private double _healingPatchSelectionLeft;
+    private double _healingPatchSelectionTop;
+    private double _healingPatchSelectionWidth;
+    private double _healingPatchSelectionHeight;
+    private double _healingPatchDragStartLeft;
+    private double _healingPatchDragStartTop;
     private string _blurSharpMode = "blur";
     private double _blurSharpSize = 80;
     private double _blurSharpSoftness = 50;
@@ -480,6 +499,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isHealingDragging = false;
         _hasHealingSource = false;
         _healingSourceBitmap = null;
+        ClearHealingPatchSelection();
 
         EndSourceCopyStroke();
         Mouse.Capture(null);
@@ -575,6 +595,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(EraserToolOptionsVisibility));
             OnPropertyChanged(nameof(StampToolOptionsVisibility));
             OnPropertyChanged(nameof(HealingToolOptionsVisibility));
+            OnPropertyChanged(nameof(HealingPatchOptionsVisibility));
+            OnPropertyChanged(nameof(HealingPatchSelectionVisibility));
             OnPropertyChanged(nameof(BlurSharpToolOptionsVisibility));
             OnPropertyChanged(nameof(DodgeBurnToolOptionsVisibility));
             OnPropertyChanged(nameof(HistoryBrushToolOptionsVisibility));
@@ -2275,7 +2297,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StampSoftness += direction * 5;
                 return true;
             case "healing":
-                HealingSoftness += direction * 5;
+                HealingHardness += direction * 5;
                 return true;
             case "blursharp":
                 BlurSharpSoftness += direction * 5;
@@ -3332,6 +3354,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _stampCircleSize = _stampSize;
 
         _healingMode = NormalizeToolMode(settings.HealingMode, "healing", "healing", "patch", "spot");
+        _healingPatchMode = NormalizeToolMode(settings.HealingPatchMode, "source", "source", "destination");
         _healingSize = Math.Clamp(settings.HealingSize, 1, 600);
         _healingSoftness = Math.Clamp(settings.HealingSoftness, 0, 100);
         _healingStrength = Math.Clamp(settings.HealingStrength, 0, 100);
@@ -3411,6 +3434,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         settings.StampOpacity = StampOpacity;
         settings.ShowStampCircle = ShowStampCircle;
         settings.HealingMode = HealingMode;
+        settings.HealingPatchMode = HealingPatchMode;
         settings.HealingSize = HealingSize;
         settings.HealingSoftness = HealingSoftness;
         settings.HealingStrength = HealingStrength;
@@ -3491,9 +3515,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(StampOpacity));
         OnPropertyChanged(nameof(ShowStampCircle));
         OnPropertyChanged(nameof(HealingMode));
+        OnPropertyChanged(nameof(HealingPatchMode));
+        OnPropertyChanged(nameof(HealingPatchOptionsVisibility));
+        OnPropertyChanged(nameof(HealingPatchSelectionVisibility));
         OnPropertyChanged(nameof(HealingModeHintText));
         OnPropertyChanged(nameof(HealingSize));
         OnPropertyChanged(nameof(HealingSoftness));
+        OnPropertyChanged(nameof(HealingHardness));
         OnPropertyChanged(nameof(HealingStrength));
         OnPropertyChanged(nameof(ShowHealingCircle));
         OnPropertyChanged(nameof(BlurSharpMode));
@@ -4584,7 +4612,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
             double pressure = GetToolInputPressure(e, PreviewSurface);
             UpdateHealingCircle(previewPoint, pressure);
-            if (_isHealingDragging && e.LeftButton == MouseButtonState.Pressed)
+            if ((_isHealingDragging || _isHealingPatchCreating || _isHealingPatchDragging) &&
+                e.LeftButton == MouseButtonState.Pressed)
             {
                 ContinueHealingStroke(previewPoint, pressure);
                 e.Handled = true;
@@ -4807,7 +4836,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PreviewSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isSinglePreviewPanDragging || _draggingPreviewTile is not null || _isFrameSelectionDragging || _isFrameSelectionMoving || _isZoomSelectionDragging || _isRulerDragging || _isLassoToolDragging || _isPathSelectionDragging || _isBrushDragging || _isEraserDragging || _isStampDragging || _isHealingDragging || _isBlurSharpDragging || _isFillGradientDragging || _isDodgeBurnDragging || _isHistoryBrushDragging || _isLiquifyDragging || _isRectangleSelectionCreating || _isRectangleSelectionMoving || _isRectangleSelectionResizing || _isRectangleSelectionRotating || _isTypeTextCreating || _isTypeTextDragging)
+        if (_isSinglePreviewPanDragging || _draggingPreviewTile is not null || _isFrameSelectionDragging || _isFrameSelectionMoving || _isZoomSelectionDragging || _isRulerDragging || _isLassoToolDragging || _isPathSelectionDragging || _isBrushDragging || _isEraserDragging || _isStampDragging || _isHealingDragging || _isHealingPatchCreating || _isHealingPatchDragging || _isBlurSharpDragging || _isFillGradientDragging || _isDodgeBurnDragging || _isHistoryBrushDragging || _isLiquifyDragging || _isRectangleSelectionCreating || _isRectangleSelectionMoving || _isRectangleSelectionResizing || _isRectangleSelectionRotating || _isTypeTextCreating || _isTypeTextDragging)
         {
             return;
         }

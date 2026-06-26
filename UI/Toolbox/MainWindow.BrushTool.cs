@@ -471,7 +471,8 @@ public partial class MainWindow
         System.Windows.Point sourceCenter,
         double size,
         double softness,
-        double opacity)
+        double opacity,
+        bool matchTargetTone = false)
     {
         CopyBgraPixels(target, out byte[] pixels, out int stride);
         System.Windows.Media.Imaging.BitmapSource source = EnsureBgraBitmapSource(sourceBitmap);
@@ -480,6 +481,53 @@ public partial class MainWindow
         int height = target.PixelHeight;
         bool changed = false;
         bool useStrokeBase = IsSourceCopyStrokeBaseValid(target);
+        double toneDeltaB = 0;
+        double toneDeltaG = 0;
+        double toneDeltaR = 0;
+
+        if (matchTargetTone)
+        {
+            double sourceSumB = 0;
+            double sourceSumG = 0;
+            double sourceSumR = 0;
+            double targetSumB = 0;
+            double targetSumG = 0;
+            double targetSumR = 0;
+            double weightSum = 0;
+
+            ForEachDabPixel(width, height, targetCenter, size, softness, false, opacity, (x, y, alpha) =>
+            {
+                int sourceX = (int)Math.Round(sourceCenter.X + (x - targetCenter.X));
+                int sourceY = (int)Math.Round(sourceCenter.Y + (y - targetCenter.Y));
+                if (sourceX < 0 || sourceY < 0 || sourceX >= source.PixelWidth || sourceY >= source.PixelHeight)
+                {
+                    return;
+                }
+
+                int index = y * stride + x * 4;
+                int sourceIndex = sourceY * sourceStride + sourceX * 4;
+                int baseIndex = useStrokeBase ? y * _sourceCopyStrokeStride + x * 4 : index;
+                byte baseB = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 0] : pixels[index + 0];
+                byte baseG = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 1] : pixels[index + 1];
+                byte baseR = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 2] : pixels[index + 2];
+                double weight = Math.Clamp(alpha, 0.0, 1.0);
+
+                targetSumB += baseB * weight;
+                targetSumG += baseG * weight;
+                targetSumR += baseR * weight;
+                sourceSumB += sourcePixels[sourceIndex + 0] * weight;
+                sourceSumG += sourcePixels[sourceIndex + 1] * weight;
+                sourceSumR += sourcePixels[sourceIndex + 2] * weight;
+                weightSum += weight;
+            });
+
+            if (weightSum > 0.001)
+            {
+                toneDeltaB = (targetSumB - sourceSumB) / weightSum;
+                toneDeltaG = (targetSumG - sourceSumG) / weightSum;
+                toneDeltaR = (targetSumR - sourceSumR) / weightSum;
+            }
+        }
 
         ForEachDabPixel(width, height, targetCenter, size, softness, false, opacity, (x, y, alpha) =>
         {
@@ -510,10 +558,13 @@ public partial class MainWindow
             byte baseB = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 0] : pixels[index + 0];
             byte baseG = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 1] : pixels[index + 1];
             byte baseR = useStrokeBase && _sourceCopyStrokeBasePixels is not null ? _sourceCopyStrokeBasePixels[baseIndex + 2] : pixels[index + 2];
+            byte sourceB = matchTargetTone ? ClampByte(sourcePixels[sourceIndex + 0] + toneDeltaB) : sourcePixels[sourceIndex + 0];
+            byte sourceG = matchTargetTone ? ClampByte(sourcePixels[sourceIndex + 1] + toneDeltaG) : sourcePixels[sourceIndex + 1];
+            byte sourceR = matchTargetTone ? ClampByte(sourcePixels[sourceIndex + 2] + toneDeltaR) : sourcePixels[sourceIndex + 2];
 
-            pixels[index + 0] = BlendByte(baseB, sourcePixels[sourceIndex + 0], alpha);
-            pixels[index + 1] = BlendByte(baseG, sourcePixels[sourceIndex + 1], alpha);
-            pixels[index + 2] = BlendByte(baseR, sourcePixels[sourceIndex + 2], alpha);
+            pixels[index + 0] = BlendByte(baseB, sourceB, alpha);
+            pixels[index + 1] = BlendByte(baseG, sourceG, alpha);
+            pixels[index + 2] = BlendByte(baseR, sourceR, alpha);
             pixels[index + 3] = 255;
             changed = true;
         });

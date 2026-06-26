@@ -29,6 +29,11 @@
     <None Include="KRetouchStudio_update.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260602" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260602" />
+  </ItemGroup>
+
   <Target Name="PackageReleaseZip" AfterTargets="Build" Condition="'$(CreateReleasePackage)' == 'true'">
     <MakeDir Directories="$(ProjectDir)release\" />
     <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;Add-Type -AssemblyName System.IO.Compression.FileSystem; $outDir = '$(TargetDir)'; $stage = '$(ProjectDir)release\package_stage'; $zip = '$(ProjectDir)release\KRetouchStudio_latest.zip'; if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }; New-Item -ItemType Directory -Path $stage | Out-Null; Copy-Item -Path (Join-Path $outDir '*') -Destination $stage -Recurse -Force; if (Test-Path $zip) { Remove-Item $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false); $dstDir = Join-Path $env:USERPROFILE 'Documents\\KRetouchStudio\\Updates'; if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }; $dst = Join-Path $dstDir 'KRetouchStudio_latest.zip'; if (Test-Path $dst) { Remove-Item $dst -Force }; Copy-Item -Path $zip -Destination $dst -Force&quot;" />
