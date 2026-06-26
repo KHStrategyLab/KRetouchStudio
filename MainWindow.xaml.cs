@@ -602,6 +602,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ? Visibility.Visible
         : Visibility.Collapsed;
 
+    private bool IsMultiPreviewToolLockActive => SelectedPreviewPhotos.Count > 1;
+
     public int PreviewGridColumns
     {
         get
@@ -1386,6 +1388,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         ActivateToolById(toolId);
+        e.Handled = true;
     }
 
     private void ActivateToolById(string toolId)
@@ -1393,6 +1396,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(toolId))
         {
             return;
+        }
+
+        if (IsMultiPreviewToolLockActive &&
+            !string.Equals(toolId, "hand", StringComparison.OrdinalIgnoreCase))
+        {
+            toolId = "hand";
         }
 
         if (string.Equals(toolId, "crop", StringComparison.OrdinalIgnoreCase))
@@ -1429,8 +1438,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         foreach (System.Windows.Controls.Button button in GetToolboxButtons())
         {
-            bool isActive = button.Tag is string toolId &&
+            string? toolId = button.Tag as string;
+            bool isActive = toolId is not null &&
                             string.Equals(toolId, ActiveToolId, StringComparison.OrdinalIgnoreCase);
+            bool isLockedOut = IsMultiPreviewToolLockActive &&
+                               !string.Equals(toolId, "hand", StringComparison.OrdinalIgnoreCase);
+            button.IsEnabled = !isLockedOut;
             button.Background = isActive
                 ? (System.Windows.Media.Brush)FindResource("PanelSelectedBg")
                 : (System.Windows.Media.Brush)FindResource("SurfacePrimary");
@@ -1440,6 +1453,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             button.Foreground = isActive
                 ? (System.Windows.Media.Brush)FindResource("Accent")
                 : (System.Windows.Media.Brush)FindResource("TextMain");
+            button.Opacity = isLockedOut ? 0.42 : 1.0;
         }
 
         UpdateFrameShapeSelection();
@@ -2258,6 +2272,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
         ModifierKeys modifiers = Keyboard.Modifiers;
+
+        if (IsMultiPreviewToolLockActive)
+        {
+            if (modifiers == ModifierKeys.None && key == Key.H)
+            {
+                ActivateToolById("hand");
+                return true;
+            }
+
+            return false;
+        }
 
         if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && key == Key.X)
         {
@@ -4185,6 +4210,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(PreviewGridColumns));
         OnPropertyChanged(nameof(CanSaveCurrentPhoto));
         RaiseRuntimeWorkModePropertyChanged();
+        ApplyMultiPreviewToolLock();
 
         if (SelectedPreviewPhotos.Count == 1)
         {
@@ -4196,6 +4222,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SelectedPhoto = null;
             CollapseAllRetouchTabs();
         }
+    }
+
+    private void ApplyMultiPreviewToolLock()
+    {
+        if (IsMultiPreviewToolLockActive &&
+            !string.Equals(ActiveToolId, "hand", StringComparison.OrdinalIgnoreCase))
+        {
+            ActiveToolId = "hand";
+        }
+
+        UpdateToolboxSelection();
     }
 
     private void ClearLocalWorkbenchImages()
@@ -5451,38 +5488,48 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         foreach (PhotoItem photo in SelectedPreviewPhotos)
         {
-            DependencyObject? container = MultiPreviewItemsControl.ItemContainerGenerator.ContainerFromItem(photo);
-            if (container is null)
-            {
-                continue;
-            }
-
-            FrameworkElement? tile = null;
-            Queue<DependencyObject> queue = new();
-            queue.Enqueue(container);
-            while (queue.Count > 0)
-            {
-                DependencyObject current = queue.Dequeue();
-
-                if (current is Border border && ReferenceEquals(border.DataContext, photo))
-                {
-                    tile = border;
-                    break;
-                }
-
-                for (int i = 0; i < VisualTreeHelper.GetChildrenCount(current); i++)
-                {
-                    queue.Enqueue(VisualTreeHelper.GetChild(current, i));
-                }
-            }
-
-            if (tile is null)
+            if (!TryGetMultiPreviewTile(photo, out FrameworkElement? tile) || tile is null)
             {
                 continue;
             }
 
             UpdatePreviewTilePan(photo, tile, photo.MultiPreviewOffsetX, photo.MultiPreviewOffsetY);
         }
+    }
+
+    private bool TryGetMultiPreviewTile(PhotoItem photo, out FrameworkElement? tile)
+    {
+        tile = null;
+        if (MultiPreviewItemsControl is null)
+        {
+            return false;
+        }
+
+        DependencyObject? container = MultiPreviewItemsControl.ItemContainerGenerator.ContainerFromItem(photo);
+        if (container is null)
+        {
+            return false;
+        }
+
+        Queue<DependencyObject> queue = new();
+        queue.Enqueue(container);
+        while (queue.Count > 0)
+        {
+            DependencyObject current = queue.Dequeue();
+
+            if (current is Border border && ReferenceEquals(border.DataContext, photo))
+            {
+                tile = border;
+                return true;
+            }
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(current); i++)
+            {
+                queue.Enqueue(VisualTreeHelper.GetChild(current, i));
+            }
+        }
+
+        return false;
     }
 
     private void UpdatePreviewImageFrame()

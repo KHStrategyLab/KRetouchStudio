@@ -28,6 +28,12 @@ public partial class MainWindow
 
     private void ApplyPreviewFitIn()
     {
+        if (SelectedPreviewPhotos.Count > 1)
+        {
+            ApplyMultiPreviewFitIn();
+            return;
+        }
+
         if (!CanUseSinglePreviewTool())
         {
             return;
@@ -39,6 +45,12 @@ public partial class MainWindow
 
     private void ApplyPreviewActualSize()
     {
+        if (SelectedPreviewPhotos.Count > 1)
+        {
+            ApplyMultiPreviewActualSize();
+            return;
+        }
+
         if (!CanUseSinglePreviewTool() || SelectedPhoto is null)
         {
             return;
@@ -73,6 +85,58 @@ public partial class MainWindow
         if (TryGetPreviewImageTransform(source.PixelWidth, source.PixelHeight, out double offsetX, out double offsetY, out _))
         {
             UpdateSinglePreviewPan(offsetX, offsetY);
+        }
+    }
+
+    private void ApplyMultiPreviewFitIn()
+    {
+        if (SelectedPreviewPhotos.Count <= 1)
+        {
+            return;
+        }
+
+        MultiPreviewItemsControl?.UpdateLayout();
+        foreach (PhotoItem photo in SelectedPreviewPhotos)
+        {
+            photo.MultiPreviewZoomPercent = 100;
+            photo.MultiPreviewOffsetX = 0;
+            photo.MultiPreviewOffsetY = 0;
+            photo.UseOriginalForMultiPreview = false;
+        }
+
+        ReapplyMultiPreviewTilePanClamps();
+    }
+
+    private void ApplyMultiPreviewActualSize()
+    {
+        if (SelectedPreviewPhotos.Count <= 1 || MultiPreviewItemsControl is null)
+        {
+            return;
+        }
+
+        MultiPreviewItemsControl.UpdateLayout();
+        foreach (PhotoItem photo in SelectedPreviewPhotos)
+        {
+            if (!TryGetMultiPreviewTile(photo, out FrameworkElement? tile) ||
+                tile is null ||
+                tile.ActualWidth <= 0 ||
+                tile.ActualHeight <= 0 ||
+                photo.BaseImage.PixelWidth <= 0 ||
+                photo.BaseImage.PixelHeight <= 0)
+            {
+                continue;
+            }
+
+            double fitScale = Math.Min(
+                tile.ActualWidth / photo.BaseImage.PixelWidth,
+                tile.ActualHeight / photo.BaseImage.PixelHeight);
+            if (fitScale <= 0)
+            {
+                continue;
+            }
+
+            photo.MultiPreviewZoomPercent = 100.0 / fitScale;
+            UpdatePreviewTilePan(photo, tile, 0, 0);
         }
     }
 }

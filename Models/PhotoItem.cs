@@ -19,6 +19,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
 {
     public const int PreviewProxyLongSide = 1200;
     public const double PreviewProxySharpness = 55;
+    public const double MultiPreviewMaxZoomPercent = 1600;
 
     private ImageSource _image;
     private ImageSource _thumbnail;
@@ -173,7 +174,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         get => _multiPreviewZoomPercent;
         set
         {
-            double clamped = Math.Clamp(value, 100, 300);
+            double clamped = Math.Clamp(value, 100, MultiPreviewMaxZoomPercent);
             if (Math.Abs(_multiPreviewZoomPercent - clamped) < 0.01)
             {
                 return;
