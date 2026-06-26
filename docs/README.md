@@ -10,13 +10,14 @@
 6. `FACE_ROTATION_DEPTH_RULE.md` - face rotation policy derived from the FaceBox depth-role model instead of flat 2D image spin.
 7. `FACE_UPDN_3D_PROJECTION_RULE.md` - approved Up/Dn path: fast camera assumption, shallow z, cached landmarks, all-point debug projection before mesh warp.
 8. `DETECTOR_TARGET_AND_MASK_IDS.md` - code-facing detector target, search ROI, work box, and mask ID catalog.
-9. `PERSON_MASK_AND_SUBJECT_FORMULA_SPEC.md` - canonical PersonMask, SubjectMask, BioMask, and background formula.
-10. `KRETOUCHPRO_PHOTOGRAPHIC_TERMS_DICTIONARY.md` - photographic and retouch-routing vocabulary.
-11. `PORTRAIT_BODY_HAIR_CLOTHING_LOCATION_DICTIONARY.md` - body, hair, clothing, and region naming dictionary.
-12. `PORTABILITY_AND_SETUP.md` - checkout-root, dependency, and local-state rules for other computers.
-13. `session_logs/2026-06-15.md` - migration diary and historical direction notes.
-14. `session_logs/2026-06-16.md` - 8-point approval crop policy decision log.
-15. `session_logs/2026-06-24.md` - Face Up/Dn 3D projection direction lock and first debug checkpoint.
+9. `FACE_DETAIL_RETOUCH_SLIDER_CONTRACT.md` - Face Detail slider-to-engine operation, mask, preview, and implementation contract.
+10. `PERSON_MASK_AND_SUBJECT_FORMULA_SPEC.md` - canonical PersonMask, SubjectMask, BioMask, and background formula.
+11. `KRETOUCHPRO_PHOTOGRAPHIC_TERMS_DICTIONARY.md` - photographic and retouch-routing vocabulary.
+12. `PORTRAIT_BODY_HAIR_CLOTHING_LOCATION_DICTIONARY.md` - body, hair, clothing, and region naming dictionary.
+13. `PORTABILITY_AND_SETUP.md` - checkout-root, dependency, and local-state rules for other computers.
+14. `session_logs/2026-06-15.md` - migration diary and historical direction notes.
+15. `session_logs/2026-06-16.md` - 8-point approval crop policy decision log.
+16. `session_logs/2026-06-24.md` - Face Up/Dn 3D projection direction lock and first debug checkpoint.
 
 ## CORE Documents
 
@@ -30,6 +31,7 @@
 - [Face MediaPipe Landmark Index Guide](FACE_MEDIAPIPE_LANDMARK_INDEX_GUIDE.md) - code-facing MediaPipe index groups for Face Shape, symmetry, jaw, chin, cheek, bone, and retouch planning.
 - [Beauty Retouching Techniques](BEAUTY_RETOUCHING_TECHNIQUES.md) - practical studio retouching rules for skin texture, wrinkles, blemishes, hair cleanup, hair volume, hairline, and scalp coverage.
 - [Detector Target And Mask IDs](DETECTOR_TARGET_AND_MASK_IDS.md) - code-facing ID split for detector targets, search ROI, work boxes, and reusable masks.
+- [Face Detail Retouch Slider Contract](FACE_DETAIL_RETOUCH_SLIDER_CONTRACT.md) - slider-to-engine operation, mask, preview, and implementation contract for Eyes/Brows/Nose/Mouth/Neck.
 - [Face Visible Structure Master](FACE_VISIBLE_STRUCTURE_MASTER.md) - one-sheet visible face structure vocabulary for detection, mask, and tool routing.
 - [Screen I/O And Work Mode Architecture](SCREEN_IO_AND_WORK_MODE_ARCHITECTURE.md) - screen mode, panel state, layer/history split, and tool-file policy.
 - [Toolbox And Retouch Panel Contract](TOOLBOX_RETOUCH_PANEL_CONTRACT.md) - toolbox target input and right-panel parameter dispatch contract.
