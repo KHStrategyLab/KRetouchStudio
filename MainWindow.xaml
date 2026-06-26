@@ -3518,11 +3518,8 @@
                             <tabs:SkinTabView x:Name="SkinRetouchTab"/>
                             <tabs:WrinkleTabView x:Name="WrinkleRetouchTab"/>
                             <tabs:FaceShapeTabView x:Name="FaceShapeRetouchTab"/>
-                            <tabs:MouthTabView x:Name="MouthRetouchTab"/>
-                            <tabs:BodyTabView x:Name="BodyRetouchTab"/>
+                            <tabs:FaceDetailTabView x:Name="FaceDetailRetouchTab"/>
                             <tabs:BackgroundTabView x:Name="BackgroundRetouchTab"/>
-                            <tabs:EyesTabView x:Name="EyesRetouchTab"/>
-                            <tabs:NoseTabView x:Name="NoseRetouchTab"/>
                         </StackPanel>
                     </ScrollViewer>
                     <Border Grid.Row="1"

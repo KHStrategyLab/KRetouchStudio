@@ -508,10 +508,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SkinRetouchTab?.ResetForPhotoChange();
         WrinkleRetouchTab?.ResetForPhotoChange();
         FaceShapeRetouchTab?.ResetForPhotoChange();
-        MouthRetouchTab?.ResetForPhotoChange();
-        BodyRetouchTab?.ResetForPhotoChange();
-        EyesRetouchTab?.ResetForPhotoChange();
-        NoseRetouchTab?.ResetForPhotoChange();
+        FaceDetailRetouchTab?.ResetForPhotoChange();
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeProjectionDebugOverlay();
     }
@@ -4244,12 +4241,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SkinRetouchTab?.Collapse();
         WrinkleRetouchTab?.Collapse();
         FaceShapeRetouchTab?.Collapse();
-        MouthRetouchTab?.Collapse();
-        BodyRetouchTab?.Collapse();
+        FaceDetailRetouchTab?.Collapse();
         BackgroundRetouchTab?.Collapse();
         PhotoAdjustRetouchTab?.Collapse();
-        EyesRetouchTab?.Collapse();
-        NoseRetouchTab?.Collapse();
         RaiseRuntimeWorkModePropertyChanged();
     }
 
@@ -4270,14 +4264,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             FaceShapeRetouchTab?.Collapse();
         }
 
-        if (!ReferenceEquals(expandedTab, MouthRetouchTab))
+        if (!ReferenceEquals(expandedTab, FaceDetailRetouchTab))
         {
-            MouthRetouchTab?.Collapse();
-        }
-
-        if (!ReferenceEquals(expandedTab, BodyRetouchTab))
-        {
-            BodyRetouchTab?.Collapse();
+            FaceDetailRetouchTab?.Collapse();
         }
 
         if (!ReferenceEquals(expandedTab, BackgroundRetouchTab))
@@ -4288,16 +4277,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!ReferenceEquals(expandedTab, PhotoAdjustRetouchTab))
         {
             PhotoAdjustRetouchTab?.Collapse();
-        }
-
-        if (!ReferenceEquals(expandedTab, EyesRetouchTab))
-        {
-            EyesRetouchTab?.Collapse();
-        }
-
-        if (!ReferenceEquals(expandedTab, NoseRetouchTab))
-        {
-            NoseRetouchTab?.Collapse();
         }
     }
 
