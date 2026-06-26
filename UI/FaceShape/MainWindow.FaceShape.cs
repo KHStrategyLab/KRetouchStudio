@@ -1637,7 +1637,7 @@ public partial class MainWindow
         _faceShapeHeadPoseDragPreviewFrameWidth = frameWidth;
         _faceShapeHeadPoseDragPreviewFrameHeight = frameHeight;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
-        UpdatePreviewImageFrame();
+        UpdatePreviewLayout();
     }
 
     private void ClearFaceShapeHeadPoseDragPreview()
@@ -1655,7 +1655,7 @@ public partial class MainWindow
         _faceShapeHeadPoseDragPreviewFrameWidth = 0;
         _faceShapeHeadPoseDragPreviewFrameHeight = 0;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
-        UpdatePreviewImageFrame();
+        UpdatePreviewLayout();
     }
 
     private void ClearFaceShapeHeadPoseDragProxy()

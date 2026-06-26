@@ -42,6 +42,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _previewImageTop;
     private double _previewImageWidth;
     private double _previewImageHeight;
+    private PhotoItem? _singlePreviewFramePhoto;
+    private double _singlePreviewFrameImageWidth;
+    private double _singlePreviewFrameImageHeight;
     private PhotoItem? _selectionAnchor;
     private AppConfig _appConfig = new();
     private static readonly TimeSpan WorkAreaRefreshCooldown = TimeSpan.FromSeconds(1);
@@ -77,6 +80,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         },
     };
+
+    private readonly record struct SinglePreviewViewportAnchor(
+        PhotoItem? Photo,
+        bool IsValid,
+        double CenterImageX,
+        double CenterImageY);
     private static readonly string AppConfigDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "KRetouchStudio");
@@ -235,21 +244,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private BitmapSource? _healingStrokeTargetBitmap;
     private byte[]? _healingStrokeMaskPixels;
     private readonly List<System.Windows.Point> _healingStrokePoints = new();
+    private Geometry? _healingStrokePreviewGeometry;
+    private Visibility _healingStrokePreviewVisibility = Visibility.Collapsed;
+    private double _healingStrokePreviewThickness = 1;
     private int _healingStrokeMaskWidth;
     private int _healingStrokeMaskHeight;
     private bool _isOpenCvHealingStroke;
+    private bool _isOpenCvSpotHealingStroke;
+    private bool _isHealingOperationRunning;
+    private bool _healingOperationPreviousHitTestVisible = true;
     private bool _isHealingPatchCreating;
     private bool _isHealingPatchDragging;
     private bool _hasHealingPatchSelection;
+    private Geometry? _healingPatchSelectionGeometry;
+    private Geometry? _healingSourceMarkerGeometry;
+    private Visibility _healingSourceMarkerVisibility = Visibility.Collapsed;
+    private readonly List<System.Windows.Point> _healingPatchSelectionImagePoints = new();
+    private readonly List<System.Windows.Point> _healingPatchOriginalImagePoints = new();
+    private readonly List<System.Windows.Point> _healingPatchDragStartImagePoints = new();
     private System.Windows.Point _healingPatchStartPreviewPoint;
     private System.Windows.Point _healingPatchDragStartPreviewPoint;
+    private System.Windows.Point _healingPatchDragStartImagePoint;
     private Rect _healingPatchSelectionImageRect;
+    private Rect _healingPatchOriginalImageRect;
+    private Rect _healingPatchDragStartImageRect;
     private double _healingPatchSelectionLeft;
     private double _healingPatchSelectionTop;
     private double _healingPatchSelectionWidth;
     private double _healingPatchSelectionHeight;
-    private double _healingPatchDragStartLeft;
-    private double _healingPatchDragStartTop;
     private string _blurSharpMode = "blur";
     private double _blurSharpSize = 80;
     private double _blurSharpSoftness = 50;
@@ -1442,7 +1464,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         ActiveToolId = toolId;
-        UpdatePreviewImageFrame();
+        UpdatePreviewLayout();
         if (string.Equals(toolId, "freetransform", StringComparison.OrdinalIgnoreCase))
         {
             ResetFreeTransformShell();
@@ -1455,6 +1477,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdateEraserCircleVisibility();
         UpdateStampCircleVisibility();
         UpdateHealingCircleVisibility();
+        UpdateHealingSourceMarkerVisibility();
         UpdateBlurSharpCircleVisibility();
         UpdateDodgeBurnCircleVisibility();
         UpdateHistoryBrushCircleVisibility();
@@ -2565,6 +2588,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                !_isEraserDragging &&
                !_isStampDragging &&
                !_isHealingDragging &&
+               !_isHealingOperationRunning &&
                !_isBlurSharpDragging &&
                !_isFillGradientDragging &&
                !_isHistoryBrushDragging &&
@@ -4221,10 +4245,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (Math.Abs(PreviewZoomPercent - 100) > 0.01)
         {
             PreviewZoomPercent = 100;
+            CenterSinglePreviewImage();
             return;
         }
 
-        UpdatePreviewImageFrame();
+        CenterSinglePreviewImage();
     }
 
     public void NotifyRetouchTabExpanded(object expandedTab)
@@ -4836,7 +4861,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PreviewSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isSinglePreviewPanDragging || _draggingPreviewTile is not null || _isFrameSelectionDragging || _isFrameSelectionMoving || _isZoomSelectionDragging || _isRulerDragging || _isLassoToolDragging || _isPathSelectionDragging || _isBrushDragging || _isEraserDragging || _isStampDragging || _isHealingDragging || _isHealingPatchCreating || _isHealingPatchDragging || _isBlurSharpDragging || _isFillGradientDragging || _isDodgeBurnDragging || _isHistoryBrushDragging || _isLiquifyDragging || _isRectangleSelectionCreating || _isRectangleSelectionMoving || _isRectangleSelectionResizing || _isRectangleSelectionRotating || _isTypeTextCreating || _isTypeTextDragging)
+        if (_isSinglePreviewPanDragging || _draggingPreviewTile is not null || _isFrameSelectionDragging || _isFrameSelectionMoving || _isZoomSelectionDragging || _isRulerDragging || _isLassoToolDragging || _isPathSelectionDragging || _isBrushDragging || _isEraserDragging || _isStampDragging || _isHealingDragging || _isHealingOperationRunning || _isHealingPatchCreating || _isHealingPatchDragging || _isBlurSharpDragging || _isFillGradientDragging || _isDodgeBurnDragging || _isHistoryBrushDragging || _isLiquifyDragging || _isRectangleSelectionCreating || _isRectangleSelectionMoving || _isRectangleSelectionResizing || _isRectangleSelectionRotating || _isTypeTextCreating || _isTypeTextDragging)
         {
             return;
         }
@@ -5055,6 +5080,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         EraserCircleVisibility = Visibility.Collapsed;
         StampCircleVisibility = Visibility.Collapsed;
         HealingCircleVisibility = Visibility.Collapsed;
+        HealingStrokePreviewVisibility = Visibility.Collapsed;
+        HealingSourceMarkerVisibility = Visibility.Collapsed;
         BlurSharpCircleVisibility = Visibility.Collapsed;
         DodgeBurnCircleVisibility = Visibility.Collapsed;
         HistoryBrushCircleVisibility = Visibility.Collapsed;
@@ -5162,7 +5189,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         BitmapSource source = GetCurrentDisplayBitmapSource(photo);
-        if (!TryGetPreviewImageTransform(source.PixelWidth, source.PixelHeight, out double offsetX, out double offsetY, out double scale) ||
+        if (!TryGetCurrentPreviewImageTransform(source.PixelWidth, source.PixelHeight, out double offsetX, out double offsetY, out double scale) ||
             scale <= 0)
         {
             return false;
@@ -5274,24 +5301,108 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewImageTop = Math.Clamp(top, minTop, maxTop);
         UpdateMediaPipePreviewOverlay();
         UpdateFaceShapeProjectionDebugOverlay();
+        RefreshImageAnchoredPreviewOverlays();
     }
 
-    private void UpdatePreviewLayout()
+    private void RefreshImageAnchoredPreviewOverlays()
     {
         UpdateLocalWorkbenchGuide();
-        UpdatePreviewImageFrame();
         UpdateRectangleSelectionOverlayFromImageRect();
         UpdateMagicSelectionVisibility();
         UpdatePathAnchorPointPositions();
         RebuildPathToolGeometry();
         RebuildLassoToolGeometry();
+        UpdateHealingSourceMarkerVisibility();
+        RebuildHealingStrokePreview();
+        RebuildHealingPatchSelectionGeometry();
         UpdateTypeTextItemPositions();
         UpdateTypeToolVisualState();
+    }
+
+    private void UpdatePreviewLayout()
+    {
+        SinglePreviewViewportAnchor viewportAnchor = CaptureSinglePreviewViewportAnchor();
+        UpdatePreviewLayoutCore();
+        RestoreSinglePreviewViewportAnchor(viewportAnchor);
+    }
+
+    private void UpdatePreviewLayoutCore()
+    {
+        UpdatePreviewImageFrame();
+        RefreshImageAnchoredPreviewOverlays();
 
         if (SelectedPreviewPhotos.Count > 1)
         {
             ReapplyMultiPreviewTilePanClamps();
         }
+    }
+
+    private void UpdatePreviewLayoutPreservingSinglePreviewPan()
+    {
+        UpdatePreviewLayout();
+    }
+
+    private SinglePreviewViewportAnchor CaptureSinglePreviewViewportAnchor()
+    {
+        if (SelectedPreviewPhotos.Count != 1 ||
+            SelectedPhoto is null ||
+            !ReferenceEquals(SelectedPhoto, _singlePreviewFramePhoto) ||
+            PreviewSurface.ActualWidth <= 0 ||
+            PreviewSurface.ActualHeight <= 0 ||
+            PreviewImageWidth <= 0 ||
+            PreviewImageHeight <= 0 ||
+            _singlePreviewFrameImageWidth <= 0 ||
+            _singlePreviewFrameImageHeight <= 0)
+        {
+            return default;
+        }
+
+        double scaleX = PreviewImageWidth / _singlePreviewFrameImageWidth;
+        double scaleY = PreviewImageHeight / _singlePreviewFrameImageHeight;
+        if (scaleX <= 0 || scaleY <= 0)
+        {
+            return default;
+        }
+
+        double surfaceCenterX = PreviewSurface.ActualWidth * 0.5;
+        double surfaceCenterY = PreviewSurface.ActualHeight * 0.5;
+        double centerImageX = (surfaceCenterX - PreviewImageLeft) / scaleX;
+        double centerImageY = (surfaceCenterY - PreviewImageTop) / scaleY;
+        return new SinglePreviewViewportAnchor(
+            SelectedPhoto,
+            true,
+            Math.Clamp(centerImageX, 0, _singlePreviewFrameImageWidth),
+            Math.Clamp(centerImageY, 0, _singlePreviewFrameImageHeight));
+    }
+
+    private void RestoreSinglePreviewViewportAnchor(SinglePreviewViewportAnchor anchor)
+    {
+        if (!anchor.IsValid ||
+            SelectedPreviewPhotos.Count != 1 ||
+            SelectedPhoto is null ||
+            !ReferenceEquals(SelectedPhoto, anchor.Photo) ||
+            PreviewSurface.ActualWidth <= 0 ||
+            PreviewSurface.ActualHeight <= 0 ||
+            PreviewImageWidth <= 0 ||
+            PreviewImageHeight <= 0 ||
+            _singlePreviewFrameImageWidth <= 0 ||
+            _singlePreviewFrameImageHeight <= 0)
+        {
+            return;
+        }
+
+        double scaleX = PreviewImageWidth / _singlePreviewFrameImageWidth;
+        double scaleY = PreviewImageHeight / _singlePreviewFrameImageHeight;
+        if (scaleX <= 0 || scaleY <= 0)
+        {
+            return;
+        }
+
+        double centerImageX = Math.Clamp(anchor.CenterImageX, 0, _singlePreviewFrameImageWidth);
+        double centerImageY = Math.Clamp(anchor.CenterImageY, 0, _singlePreviewFrameImageHeight);
+        double nextLeft = (PreviewSurface.ActualWidth * 0.5) - (centerImageX * scaleX);
+        double nextTop = (PreviewSurface.ActualHeight * 0.5) - (centerImageY * scaleY);
+        UpdateSinglePreviewPan(nextLeft, nextTop);
     }
 
     private void PhotoAdjustRetouchTab_CurvePreviewChanged(object? sender, TonePreviewChangedEventArgs e)
@@ -5697,21 +5808,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PreviewImageTop = 0;
             PreviewImageWidth = 0;
             PreviewImageHeight = 0;
+            _singlePreviewFramePhoto = null;
+            _singlePreviewFrameImageWidth = 0;
+            _singlePreviewFrameImageHeight = 0;
             return;
         }
 
-        BitmapSource source = GetSinglePreviewBitmapSource(SelectedPhoto);
-        double imageWidth = source.PixelWidth;
-        double imageHeight = source.PixelHeight;
-        if (TryGetFaceShapeHeadPoseDragPreviewFrameSize(SelectedPhoto, out double faceShapeFrameWidth, out double faceShapeFrameHeight))
+        PhotoItem photo = SelectedPhoto;
+        if (!TryGetSinglePreviewFrameSize(photo, out double imageWidth, out double imageHeight))
         {
-            imageWidth = faceShapeFrameWidth;
-            imageHeight = faceShapeFrameHeight;
-        }
-        else if (TryGetBackgroundPreviewFrameSize(SelectedPhoto, out double backgroundFrameWidth, out double backgroundFrameHeight))
-        {
-            imageWidth = backgroundFrameWidth;
-            imageHeight = backgroundFrameHeight;
+            PreviewImageLeft = 0;
+            PreviewImageTop = 0;
+            PreviewImageWidth = 0;
+            PreviewImageHeight = 0;
+            _singlePreviewFramePhoto = null;
+            _singlePreviewFrameImageWidth = 0;
+            _singlePreviewFrameImageHeight = 0;
+            return;
         }
 
         if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
@@ -5723,8 +5836,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewImageTop = offsetY;
         PreviewImageWidth = imageWidth * scale;
         PreviewImageHeight = imageHeight * scale;
+        _singlePreviewFramePhoto = photo;
+        _singlePreviewFrameImageWidth = imageWidth;
+        _singlePreviewFrameImageHeight = imageHeight;
         UpdateMediaPipePreviewOverlay();
         UpdateFaceShapeProjectionDebugOverlay();
+    }
+
+    private bool TryGetSinglePreviewFrameSize(PhotoItem photo, out double imageWidth, out double imageHeight)
+    {
+        BitmapSource source = GetSinglePreviewBitmapSource(photo);
+        imageWidth = source.PixelWidth;
+        imageHeight = source.PixelHeight;
+        if (TryGetFaceShapeHeadPoseDragPreviewFrameSize(photo, out double faceShapeFrameWidth, out double faceShapeFrameHeight))
+        {
+            imageWidth = faceShapeFrameWidth;
+            imageHeight = faceShapeFrameHeight;
+        }
+        else if (TryGetBackgroundPreviewFrameSize(photo, out double backgroundFrameWidth, out double backgroundFrameHeight))
+        {
+            imageWidth = backgroundFrameWidth;
+            imageHeight = backgroundFrameHeight;
+        }
+
+        return imageWidth > 0 && imageHeight > 0;
     }
 
     private void UpdateLocalWorkbenchGuide()
@@ -5738,7 +5873,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LocalWorkbenchCoordinateMap map = _localWorkbenchState.CoordinateMap;
         double imageWidth = map.OriginalImageRect.Width;
         double imageHeight = map.OriginalImageRect.Height;
-        if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
+        if (!TryGetCurrentPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
         {
             ClearLocalWorkbenchGuide();
             return;
@@ -5783,6 +5918,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         offsetX = (surfaceWidth - displayedWidth) * 0.5;
         offsetY = (surfaceHeight - displayedHeight) * 0.5;
         return true;
+    }
+
+    private bool TryGetCurrentPreviewImageTransform(
+        double imageWidth,
+        double imageHeight,
+        out double offsetX,
+        out double offsetY,
+        out double scale)
+    {
+        offsetX = PreviewImageLeft;
+        offsetY = PreviewImageTop;
+        scale = 1;
+
+        if (imageWidth <= 0 ||
+            imageHeight <= 0 ||
+            PreviewImageWidth <= 0 ||
+            PreviewImageHeight <= 0)
+        {
+            return false;
+        }
+
+        double scaleX = PreviewImageWidth / imageWidth;
+        double scaleY = PreviewImageHeight / imageHeight;
+        scale = Math.Min(scaleX, scaleY);
+        return scale > 0;
     }
 
     private void LoadEditorHistoryForSelectedPhoto()

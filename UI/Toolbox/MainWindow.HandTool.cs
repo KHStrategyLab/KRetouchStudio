@@ -64,15 +64,16 @@ public partial class MainWindow
             return;
         }
 
-        BitmapSource source = GetCurrentDisplayBitmapSource(SelectedPhoto);
         double surfaceWidth = PreviewSurface.ActualWidth;
         double surfaceHeight = PreviewSurface.ActualHeight;
-        if (source.PixelWidth <= 0 || source.PixelHeight <= 0 || surfaceWidth <= 0 || surfaceHeight <= 0)
+        if (!TryGetSinglePreviewFrameSize(SelectedPhoto, out double imageWidth, out double imageHeight) ||
+            surfaceWidth <= 0 ||
+            surfaceHeight <= 0)
         {
             return;
         }
 
-        double fitScale = Math.Min(surfaceWidth / source.PixelWidth, surfaceHeight / source.PixelHeight);
+        double fitScale = Math.Min(surfaceWidth / imageWidth, surfaceHeight / imageHeight);
         if (fitScale <= 0)
         {
             return;
@@ -89,8 +90,8 @@ public partial class MainWindow
             return;
         }
 
-        BitmapSource source = GetCurrentDisplayBitmapSource(SelectedPhoto);
-        if (TryGetPreviewImageTransform(source.PixelWidth, source.PixelHeight, out double offsetX, out double offsetY, out _))
+        if (TryGetSinglePreviewFrameSize(SelectedPhoto, out double imageWidth, out double imageHeight) &&
+            TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out _))
         {
             UpdateSinglePreviewPan(offsetX, offsetY);
         }

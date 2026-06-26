@@ -201,7 +201,7 @@ public partial class MainWindow
             return;
         }
 
-        if (!TryGetPreviewImageTransform(sourceWidth, sourceHeight, out double offsetX, out double offsetY, out double currentScale) ||
+        if (!TryGetCurrentPreviewImageTransform(sourceWidth, sourceHeight, out double offsetX, out double offsetY, out double currentScale) ||
             currentScale <= 0)
         {
             ClearZoomSelectionTarget();

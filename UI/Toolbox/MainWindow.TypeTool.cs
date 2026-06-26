@@ -299,7 +299,7 @@ public partial class MainWindow
 
         double imageWidth = SelectedPhoto.BaseImage.PixelWidth;
         double imageHeight = SelectedPhoto.BaseImage.PixelHeight;
-        if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out _, out _, out double scale) || scale <= 0)
+        if (!TryGetCurrentPreviewImageTransform(imageWidth, imageHeight, out _, out _, out double scale) || scale <= 0)
         {
             return;
         }
@@ -378,7 +378,7 @@ public partial class MainWindow
 
         double imageWidth = SelectedPhoto.BaseImage.PixelWidth;
         double imageHeight = SelectedPhoto.BaseImage.PixelHeight;
-        if (!TryGetPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
+        if (!TryGetCurrentPreviewImageTransform(imageWidth, imageHeight, out double offsetX, out double offsetY, out double scale))
         {
             OnPropertyChanged(nameof(TypeTextOverlayVisibility));
             return;

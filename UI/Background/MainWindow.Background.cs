@@ -203,7 +203,7 @@ public partial class MainWindow
             _editorUndoHistory.RemoveAt(_editorUndoHistory.Count - 1);
             RefreshEditorHistoryPanel();
             StoreCurrentEditorHistorySession(photo, persistToDisk: false);
-            UpdatePreviewImageFrame();
+            UpdatePreviewLayout();
             OnPropertyChanged(nameof(SinglePreviewImageSource));
         }
 
@@ -591,7 +591,7 @@ public partial class MainWindow
                 PushEditorHistorySnapshot(BackgroundReplacementHistoryTitle, historyDetail);
             }
 
-            UpdatePreviewImageFrame();
+            UpdatePreviewLayout();
             string alphaRunMode = string.IsNullOrWhiteSpace(_personAlphaRunMode)
                 ? PersonAlphaEngineBiRefNet
                 : $"{PersonAlphaEngineBiRefNet} {_personAlphaRunMode}";
@@ -959,7 +959,7 @@ public partial class MainWindow
         _backgroundPreviewFrameWidth = frameWidth;
         _backgroundPreviewFrameHeight = frameHeight;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
-        UpdatePreviewImageFrame();
+        UpdatePreviewLayout();
     }
 
     private void ClearBackgroundPreview()
@@ -975,7 +975,7 @@ public partial class MainWindow
         _backgroundPreviewFrameWidth = 0;
         _backgroundPreviewFrameHeight = 0;
         OnPropertyChanged(nameof(SinglePreviewImageSource));
-        UpdatePreviewImageFrame();
+        UpdatePreviewLayout();
     }
 
     private bool TryGetBackgroundPreviewBitmapSource(PhotoItem photo, out BitmapSource preview)
