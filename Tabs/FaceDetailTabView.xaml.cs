@@ -2,6 +2,9 @@
 using System.Runtime.CompilerServices;
 using System.Windows;
 
+using System.Windows.Controls;
+using System.Windows.Input;
+
 namespace KRetouchStudio.Tabs;
 
 public partial class FaceDetailTabView : System.Windows.Controls.UserControl, INotifyPropertyChanged
@@ -68,6 +71,9 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private double _rightSideNeck;
     private double _leftShoulderNeck;
     private double _rightShoulderNeck;
+    private bool _isSingleSliderInteracting;
+    private string? _lastSinglePreviewOperationId;
+    private double _lastSinglePreviewValue = double.NaN;
 
     public FaceDetailTabView()
     {
@@ -75,6 +81,10 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<FaceDetailAdjustmentEventArgs>? FaceDetailAdjustmentPreviewChanged;
+
+    public event EventHandler<FaceDetailAdjustmentEventArgs>? FaceDetailAdjustmentCommitted;
 
     public bool IsEyesTabActive => _activeTab == FaceDetailTab.Eyes;
 
@@ -442,6 +452,174 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         OnPropertyChanged(string.Empty);
     }
 
+    private void FaceDetailSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSingleSliderInteracting = true;
+        _lastSinglePreviewOperationId = null;
+        _lastSinglePreviewValue = double.NaN;
+    }
+
+    private void FaceDetailSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSingleSliderInteracting = false;
+        RaiseFaceDetailCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void FaceDetailSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSingleSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSingleSliderInteracting)
+        {
+            _isSingleSliderInteracting = true;
+            _lastSinglePreviewOperationId = null;
+            _lastSinglePreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastSinglePreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastSinglePreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastSinglePreviewOperationId = operationId;
+        _lastSinglePreviewValue = previewValue;
+        RaiseFaceDetailPreview(operationId, previewValue);
+    }
+
+    private void FaceDetailSlider_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseFaceDetailCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void PairSlider_SliderPreviewChanged(object? sender, FaceDetailSliderAdjustmentEventArgs e)
+    {
+        RaiseFaceDetailPreview(e.OperationId, e.Value);
+    }
+
+    private void PairSlider_SliderCommitted(object? sender, FaceDetailSliderAdjustmentEventArgs e)
+    {
+        RaiseFaceDetailCommitted(e.OperationId, e.Value);
+    }
+
+    private void RaiseFaceDetailPreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        FaceDetailAdjustmentPreviewChanged?.Invoke(
+            this,
+            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseFaceDetailCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        FaceDetailAdjustmentCommitted?.Invoke(
+            this,
+            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private FaceDetailAdjustmentSnapshot CreateSnapshot()
+    {
+        return new FaceDetailAdjustmentSnapshot(
+            EyeSize,
+            LeftEyeHeight,
+            RightEyeHeight,
+            LeftEyeWidth,
+            RightEyeWidth,
+            LeftEyeTilt,
+            RightEyeTilt,
+            EyeDistance,
+            LeftDarkCircle,
+            RightDarkCircle,
+            LeftUnderEye,
+            RightUnderEye,
+            LeftBrowThickness,
+            RightBrowThickness,
+            BrowDistance,
+            LeftBrowTilt,
+            RightBrowTilt,
+            LeftBrowArch,
+            RightBrowArch,
+            LeftBrowPosition,
+            RightBrowPosition,
+            LeftBrowTail,
+            RightBrowTail,
+            NoseSize,
+            NoseLength,
+            NoseBridge,
+            NoseWidth,
+            NoseTip,
+            LeftNostril,
+            RightNostril,
+            MouthSize,
+            MouthWidth,
+            MouthVertical,
+            LeftMouthCorner,
+            RightMouthCorner,
+            LeftSmileBalance,
+            RightSmileBalance,
+            UpperLip,
+            LowerLip,
+            NeckSlim,
+            NeckLength,
+            NeckWrinkle,
+            DoubleChin,
+            LeftSideNeck,
+            RightSideNeck,
+            LeftShoulderNeck,
+            RightShoulderNeck);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or
+            Key.Right or
+            Key.Up or
+            Key.Down or
+            Key.PageUp or
+            Key.PageDown or
+            Key.Home or
+            Key.End;
+    }
+
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow window)
@@ -529,3 +707,76 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class FaceDetailSliderAdjustmentEventArgs(
+    string operationId,
+    double value,
+    bool isLeftSide) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public bool IsLeftSide { get; } = isLeftSide;
+}
+
+public sealed class FaceDetailAdjustmentEventArgs(
+    string operationId,
+    double value,
+    FaceDetailAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public FaceDetailAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record FaceDetailAdjustmentSnapshot(
+    double EyeSize,
+    double LeftEyeHeight,
+    double RightEyeHeight,
+    double LeftEyeWidth,
+    double RightEyeWidth,
+    double LeftEyeTilt,
+    double RightEyeTilt,
+    double EyeDistance,
+    double LeftDarkCircle,
+    double RightDarkCircle,
+    double LeftUnderEye,
+    double RightUnderEye,
+    double LeftBrowThickness,
+    double RightBrowThickness,
+    double BrowDistance,
+    double LeftBrowTilt,
+    double RightBrowTilt,
+    double LeftBrowArch,
+    double RightBrowArch,
+    double LeftBrowPosition,
+    double RightBrowPosition,
+    double LeftBrowTail,
+    double RightBrowTail,
+    double NoseSize,
+    double NoseLength,
+    double NoseBridge,
+    double NoseWidth,
+    double NoseTip,
+    double LeftNostril,
+    double RightNostril,
+    double MouthSize,
+    double MouthWidth,
+    double MouthVertical,
+    double LeftMouthCorner,
+    double RightMouthCorner,
+    double LeftSmileBalance,
+    double RightSmileBalance,
+    double UpperLip,
+    double LowerLip,
+    double NeckSlim,
+    double NeckLength,
+    double NeckWrinkle,
+    double DoubleChin,
+    double LeftSideNeck,
+    double RightSideNeck,
+    double LeftShoulderNeck,
+    double RightShoulderNeck);

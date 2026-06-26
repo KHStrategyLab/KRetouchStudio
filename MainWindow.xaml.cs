@@ -418,6 +418,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
+        FaceDetailRetouchTab.FaceDetailAdjustmentPreviewChanged += FaceDetailRetouchTab_FaceDetailAdjustmentPreviewChanged;
+        FaceDetailRetouchTab.FaceDetailAdjustmentCommitted += FaceDetailRetouchTab_FaceDetailAdjustmentCommitted;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
         BackgroundRetouchTab.BackgroundReplacementRequested += BackgroundRetouchTab_BackgroundReplacementRequested;
         BackgroundRetouchTab.BackgroundReplacementAdjustmentCommitted += BackgroundRetouchTab_BackgroundReplacementAdjustmentCommitted;
@@ -487,6 +489,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
+            ClearFaceDetailRetouchSession();
             ClearRectangleSelection();
             ClearPathTool();
             ClearTypeTextTool();
@@ -6497,6 +6500,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
+            ClearFaceDetailRetouchSession();
 
             if (snapshot.AdjustedImage is null)
             {
