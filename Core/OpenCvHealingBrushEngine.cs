@@ -18,6 +18,7 @@ internal static class OpenCvHealingBrushEngine
         Vector sourceOffset,
         double hardness,
         double opacity,
+        double textureBoost,
         string cloneMode,
         out BitmapSource? result,
         out string? error)
@@ -112,7 +113,8 @@ internal static class OpenCvHealingBrushEngine
             return false;
         }
 
-        using Mat finalRoi = BlendClonedRoi(targetRoi, clonedRoi, maskRoi, hardness, opacity);
+        using Mat strengthenedRoi = BuildTextureBoostedRoi(clonedRoi, sourceRoi, textureBoost);
+        using Mat finalRoi = BlendClonedRoi(targetRoi, strengthenedRoi, maskRoi, hardness, opacity);
         result = CreateBgraBitmapFast(targetBgra, finalRoi, targetRoiRect, targetSource);
         return true;
     }
@@ -263,6 +265,19 @@ internal static class OpenCvHealingBrushEngine
             "MONOCHROME" => SeamlessCloneFlags.MonochromeTransfer,
             _ => SeamlessCloneFlags.NormalClone
         };
+    }
+
+    private static Mat BuildTextureBoostedRoi(Mat clonedRoi, Mat sourceRoi, double textureBoost)
+    {
+        double boost = Math.Clamp(textureBoost, 0.0, 0.70);
+        if (boost <= 0.001)
+        {
+            return clonedRoi.Clone();
+        }
+
+        Mat result = new();
+        Cv2.AddWeighted(clonedRoi, 1.0 - boost, sourceRoi, boost, 0, result);
+        return result;
     }
 
     private static Mat BlendClonedRoi(Mat targetRoi, Mat clonedRoi, Mat maskRoi, double hardness, double opacity)

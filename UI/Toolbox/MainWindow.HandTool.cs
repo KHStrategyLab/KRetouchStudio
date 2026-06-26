@@ -29,6 +29,11 @@ public partial class MainWindow
         ApplyPreviewFitIn();
     }
 
+    private void PreviewFillInButton_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyPreviewFillIn();
+    }
+
     private void PreviewActualSizeButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyPreviewActualSize();
@@ -48,6 +53,39 @@ public partial class MainWindow
         }
 
         PreviewZoomPercent = 100;
+        CenterSinglePreviewImage();
+    }
+
+    private void ApplyPreviewFillIn()
+    {
+        if (SelectedPreviewPhotos.Count > 1)
+        {
+            ApplyMultiPreviewFillIn();
+            return;
+        }
+
+        if (!CanUseSinglePreviewTool() || SelectedPhoto is null)
+        {
+            return;
+        }
+
+        double surfaceWidth = PreviewSurface.ActualWidth;
+        double surfaceHeight = PreviewSurface.ActualHeight;
+        if (!TryGetSinglePreviewFrameSize(SelectedPhoto, out double imageWidth, out double imageHeight) ||
+            surfaceWidth <= 0 ||
+            surfaceHeight <= 0)
+        {
+            return;
+        }
+
+        double fitScale = Math.Min(surfaceWidth / imageWidth, surfaceHeight / imageHeight);
+        double fillScale = Math.Max(surfaceWidth / imageWidth, surfaceHeight / imageHeight);
+        if (fitScale <= 0 || fillScale <= 0)
+        {
+            return;
+        }
+
+        PreviewZoomPercent = Math.Round((fillScale / fitScale * 100.0) / 5.0) * 5.0;
         CenterSinglePreviewImage();
     }
 

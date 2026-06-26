@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows;
+using System.Windows.Media;
 
 namespace KRetouchStudio;
 
@@ -128,6 +129,26 @@ public partial class MainWindow
         }
     }
 
+    public Geometry? StampSourceMarkerGeometry
+    {
+        get => _stampSourceMarkerGeometry;
+        private set
+        {
+            _stampSourceMarkerGeometry = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public Visibility StampSourceMarkerVisibility
+    {
+        get => _stampSourceMarkerVisibility;
+        private set
+        {
+            _stampSourceMarkerVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+
     private bool CanUseStampPreview()
     {
         return string.Equals(ActiveToolId, "stamp", StringComparison.OrdinalIgnoreCase) &&
@@ -150,6 +171,7 @@ public partial class MainWindow
             _stampSourceImagePoint = imagePoint;
             _stampSourceBitmap = CloneBitmapSource(GetCurrentDisplayBitmapSource(photo));
             StampSourceText = $"Source: {imagePoint.X:0}, {imagePoint.Y:0}";
+            UpdateStampSourceMarkerVisibility();
             return;
         }
 
@@ -167,6 +189,7 @@ public partial class MainWindow
         double size = ApplyToolPressureToSize(StampSize, pressure);
         double opacity = ApplyToolPressureToOpacity(StampOpacity / 100.0, pressure);
         ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, _stampStrokeStartSourcePoint, size, StampSoftness, opacity);
+        UpdateStampSourceMarker(GetCurrentStampSourceImagePoint(imagePoint));
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
@@ -182,6 +205,7 @@ public partial class MainWindow
 
         ApplyStampStrokeSegment(target, _stampLastImagePoint, imagePoint, pressure);
         _stampLastImagePoint = imagePoint;
+        UpdateStampSourceMarker(GetCurrentStampSourceImagePoint(imagePoint));
     }
 
     private void StopStampStroke()
@@ -194,6 +218,7 @@ public partial class MainWindow
         _isStampDragging = false;
         System.Windows.Input.Mouse.Capture(null);
         EndSourceCopyStroke();
+        UpdateStampSourceMarkerVisibility();
         PushEditorHistorySnapshot("Stamp", $"{StampSize:0}px");
     }
 
@@ -206,6 +231,14 @@ public partial class MainWindow
         StampCircleTop = center.Y - (size * 0.5);
         PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
         UpdateStampCircleVisibility();
+        if (_isStampDragging && TryPreviewPointToImagePoint(center, out System.Windows.Point imagePoint))
+        {
+            UpdateStampSourceMarker(GetCurrentStampSourceImagePoint(imagePoint));
+        }
+        else
+        {
+            UpdateStampSourceMarkerVisibility();
+        }
     }
 
     private void UpdateStampCircleVisibility()
@@ -213,6 +246,71 @@ public partial class MainWindow
         StampCircleVisibility = CanUseStampPreview() && ShowStampCircle
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private bool CanShowStampSourceMarker()
+    {
+        return CanUseStampPreview() &&
+               _hasStampSource &&
+               _isStampDragging &&
+               _stampSourceBitmap is not null;
+    }
+
+    private System.Windows.Point GetCurrentStampSourceImagePoint(System.Windows.Point targetImagePoint)
+    {
+        if (!_isStampDragging)
+        {
+            return _stampSourceImagePoint;
+        }
+
+        return new System.Windows.Point(
+            _stampStrokeStartSourcePoint.X + (targetImagePoint.X - _stampStrokeStartTargetPoint.X),
+            _stampStrokeStartSourcePoint.Y + (targetImagePoint.Y - _stampStrokeStartTargetPoint.Y));
+    }
+
+    private void UpdateStampSourceMarkerVisibility()
+    {
+        if (!CanShowStampSourceMarker())
+        {
+            StampSourceMarkerVisibility = Visibility.Collapsed;
+            return;
+        }
+
+        UpdateStampSourceMarker(GetCurrentStampSourceImagePoint(_stampLastImagePoint));
+    }
+
+    private void UpdateStampSourceMarker(System.Windows.Point sourceImagePoint)
+    {
+        if (!CanShowStampSourceMarker() || SelectedPhoto is not PhotoItem photo)
+        {
+            StampSourceMarkerVisibility = Visibility.Collapsed;
+            return;
+        }
+
+        System.Windows.Media.Imaging.BitmapSource source = GetCurrentDisplayBitmapSource(photo);
+        sourceImagePoint = new System.Windows.Point(
+            Math.Clamp(sourceImagePoint.X, 0, Math.Max(0, source.PixelWidth - 1)),
+            Math.Clamp(sourceImagePoint.Y, 0, Math.Max(0, source.PixelHeight - 1)));
+        if (!TryGetCurrentPreviewImageTransform(source.PixelWidth, source.PixelHeight, out double offsetX, out double offsetY, out double scale))
+        {
+            StampSourceMarkerVisibility = Visibility.Collapsed;
+            return;
+        }
+
+        System.Windows.Point previewPoint = ToPreviewPoint(sourceImagePoint, offsetX, offsetY, scale);
+        const double radius = 7.0;
+        StreamGeometry geometry = new();
+        using (StreamGeometryContext context = geometry.Open())
+        {
+            context.BeginFigure(new System.Windows.Point(previewPoint.X - radius, previewPoint.Y), false, false);
+            context.LineTo(new System.Windows.Point(previewPoint.X + radius, previewPoint.Y), true, false);
+            context.BeginFigure(new System.Windows.Point(previewPoint.X, previewPoint.Y - radius), false, false);
+            context.LineTo(new System.Windows.Point(previewPoint.X, previewPoint.Y + radius), true, false);
+        }
+
+        geometry.Freeze();
+        StampSourceMarkerGeometry = geometry;
+        StampSourceMarkerVisibility = Visibility.Visible;
     }
 
     private void ApplyStampStrokeSegment(

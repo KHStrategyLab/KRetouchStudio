@@ -699,6 +699,7 @@ public partial class MainWindow
     {
         return CanUseHealingPreview() &&
                _hasHealingSource &&
+               _isHealingDragging &&
                !string.Equals(HealingMode, "spot", StringComparison.OrdinalIgnoreCase) &&
                !string.Equals(HealingMode, "patch", StringComparison.OrdinalIgnoreCase) &&
                !_isHealingOperationRunning;
@@ -869,8 +870,9 @@ public partial class MainWindow
         int maskWidth = _healingStrokeMaskWidth;
         int maskHeight = _healingStrokeMaskHeight;
         System.Windows.Vector sourceOffset = _healingStrokeStartTargetPoint - _healingStrokeStartSourcePoint;
-        double hardness = HealingHardness;
-        double strength = HealingStrength;
+        double hardness = Math.Clamp(HealingHardness * 0.80, 0.0, 100.0);
+        double strength = Math.Clamp(HealingStrength * 1.25, 0.0, 100.0);
+        double textureBoost = Math.Clamp((HealingStrength / 100.0) * 0.58, 0.0, 0.58);
 
         (bool applied, System.Windows.Media.Imaging.BitmapSource? result, string? error) = await RunOpenCvHealingAsync(
             targetBitmap,
@@ -880,7 +882,9 @@ public partial class MainWindow
             maskHeight,
             sourceOffset,
             hardness,
-            strength);
+            strength,
+            textureBoost,
+            "MIXED");
 
         if (!applied || result is null)
         {
@@ -1203,7 +1207,9 @@ public partial class MainWindow
                 currentSource.PixelHeight,
                 sourceOffset,
                 hardness,
-                strength);
+                strength,
+                textureBoost: 0.0,
+                cloneMode: "NORMAL");
             applied = patchApplied;
             operationError = patchError;
 
@@ -1240,7 +1246,9 @@ public partial class MainWindow
         int maskHeight,
         Vector sourceOffset,
         double hardness,
-        double opacity)
+        double opacity,
+        double textureBoost,
+        string cloneMode)
     {
         return Task.Run(() =>
         {
@@ -1255,7 +1263,8 @@ public partial class MainWindow
                     sourceOffset,
                     hardness,
                     opacity,
-                    "NORMAL",
+                    textureBoost,
+                    cloneMode,
                     out System.Windows.Media.Imaging.BitmapSource? result,
                     out string? error);
                 return (applied, result, error);

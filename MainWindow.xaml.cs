@@ -107,6 +107,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _previewTilePanStartOffsetX;
     private double _previewTilePanStartOffsetY;
     private bool _isMultiPreviewGroupPanDragging;
+    private bool _isMultiPreviewInitialFillQueued;
     private readonly Dictionary<PhotoItem, (double X, double Y)> _groupPreviewPanStartOffsets = new();
     private bool _isFrameSelectionDragging;
     private bool _isFrameSelectionMoving;
@@ -212,8 +213,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _stampCircleTop;
     private double _stampCircleSize = 80;
     private Visibility _stampCircleVisibility = Visibility.Collapsed;
+    private Geometry? _stampSourceMarkerGeometry;
+    private Visibility _stampSourceMarkerVisibility = Visibility.Collapsed;
     private bool _isStampDragging;
     private bool _hasStampSource;
+    private string _stampOpacityDigitBuffer = string.Empty;
+    private DateTimeOffset _lastStampOpacityDigitAt = DateTimeOffset.MinValue;
     private System.Windows.Point _stampSourceImagePoint;
     private System.Windows.Point _stampStrokeStartSourcePoint;
     private System.Windows.Point _stampStrokeStartTargetPoint;
@@ -516,6 +521,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isStampDragging = false;
         _hasStampSource = false;
         _stampSourceBitmap = null;
+        StampSourceMarkerVisibility = Visibility.Collapsed;
         StampSourceText = "Source: Not Set";
 
         _isHealingDragging = false;
@@ -659,6 +665,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         get
         {
             int count = Math.Max(1, SelectedPreviewPhotos.Count);
+            if (count == 3)
+            {
+                return 3;
+            }
+
             return count <= 1 ? 1 : (int)Math.Ceiling(Math.Sqrt(count));
         }
     }
@@ -2180,6 +2191,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
 
+        if (TryHandleStampOpacityNumberShortcut(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (TryHandleToolScaleShortcut(e))
         {
             e.Handled = true;
@@ -2243,6 +2260,55 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return isShiftOnly
             ? AdjustActiveToolFeatherShortcut(direction)
             : AdjustActiveToolScaleShortcut(direction);
+    }
+
+    private bool TryHandleStampOpacityNumberShortcut(System.Windows.Input.KeyEventArgs e)
+    {
+        if (!string.Equals(ActiveToolId, "stamp", StringComparison.OrdinalIgnoreCase) ||
+            !CanHandleToolShortcuts() ||
+            Keyboard.Modifiers != ModifierKeys.None ||
+            !TryGetDigitFromKey(e.Key == Key.System ? e.SystemKey : e.Key, out int digit))
+        {
+            return false;
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if ((now - _lastStampOpacityDigitAt).TotalMilliseconds > 900)
+        {
+            _stampOpacityDigitBuffer = string.Empty;
+        }
+
+        _lastStampOpacityDigitAt = now;
+        _stampOpacityDigitBuffer = (_stampOpacityDigitBuffer + digit.ToString()).TrimStart('0');
+        if (_stampOpacityDigitBuffer.Length > 2)
+        {
+            _stampOpacityDigitBuffer = digit.ToString();
+        }
+
+        int opacity = string.IsNullOrEmpty(_stampOpacityDigitBuffer)
+            ? 0
+            : Math.Clamp(int.Parse(_stampOpacityDigitBuffer), 0, 100);
+
+        StampOpacity = opacity;
+        return true;
+    }
+
+    private static bool TryGetDigitFromKey(Key key, out int digit)
+    {
+        if (key >= Key.D0 && key <= Key.D9)
+        {
+            digit = key - Key.D0;
+            return true;
+        }
+
+        if (key >= Key.NumPad0 && key <= Key.NumPad9)
+        {
+            digit = key - Key.NumPad0;
+            return true;
+        }
+
+        digit = 0;
+        return false;
     }
 
     private bool AdjustActiveToolScaleShortcut(int direction)
@@ -2311,34 +2377,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         switch (ActiveToolId.ToLowerInvariant())
         {
             case "brush":
-                BrushSoftness += direction * 5;
+                BrushSoftness -= direction * 5;
                 return true;
             case "eraser":
-                EraserSoftness += direction * 5;
+                EraserSoftness -= direction * 5;
                 return true;
             case "stamp":
-                StampSoftness += direction * 5;
+                StampSoftness -= direction * 5;
                 return true;
             case "healing":
                 HealingHardness += direction * 5;
                 return true;
             case "blursharp":
-                BlurSharpSoftness += direction * 5;
+                BlurSharpSoftness -= direction * 5;
                 return true;
             case "dodgeburn":
-                DodgeBurnSoftness += direction * 5;
+                DodgeBurnSoftness -= direction * 5;
                 return true;
             case "historybrush":
-                HistoryBrushSoftness += direction * 5;
+                HistoryBrushSoftness -= direction * 5;
                 return true;
             case "liquify":
-                LiquifySoftness += direction * 5;
+                LiquifySoftness -= direction * 5;
                 return true;
             case "rectangle":
-                RectangleSelectionFeather += direction * 5;
+                RectangleSelectionFeather -= direction * 5;
                 return true;
             case "path":
-                PathToolFeather += direction * 5;
+                PathToolFeather -= direction * 5;
                 return true;
             default:
                 return false;
@@ -4329,6 +4395,61 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             SelectedPhoto = null;
             CollapseAllRetouchTabs();
+            QueueMultiPreviewInitialFillIn();
+        }
+    }
+
+    private void QueueMultiPreviewInitialFillIn()
+    {
+        if (_isMultiPreviewInitialFillQueued || SelectedPreviewPhotos.Count <= 1)
+        {
+            return;
+        }
+
+        _isMultiPreviewInitialFillQueued = true;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _isMultiPreviewInitialFillQueued = false;
+            ApplyMultiPreviewFillIn();
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void ApplyMultiPreviewFillIn()
+    {
+        if (SelectedPreviewPhotos.Count <= 1 || MultiPreviewItemsControl is null)
+        {
+            return;
+        }
+
+        MultiPreviewItemsControl.UpdateLayout();
+        foreach (PhotoItem photo in SelectedPreviewPhotos)
+        {
+            if (!TryGetMultiPreviewTile(photo, out FrameworkElement? tile) ||
+                tile is null ||
+                tile.ActualWidth <= 0 ||
+                tile.ActualHeight <= 0 ||
+                photo.BaseImage.PixelWidth <= 0 ||
+                photo.BaseImage.PixelHeight <= 0)
+            {
+                continue;
+            }
+
+            double fitScale = Math.Min(
+                tile.ActualWidth / photo.BaseImage.PixelWidth,
+                tile.ActualHeight / photo.BaseImage.PixelHeight);
+            double fillScale = Math.Max(
+                tile.ActualWidth / photo.BaseImage.PixelWidth,
+                tile.ActualHeight / photo.BaseImage.PixelHeight);
+            if (fitScale <= 0 || fillScale <= 0)
+            {
+                continue;
+            }
+
+            photo.MultiPreviewZoomPercent = Math.Clamp(
+                Math.Round((fillScale / fitScale * 100.0) / 5.0) * 5.0,
+                100.0,
+                PhotoItem.MultiPreviewMaxZoomPercent);
+            UpdatePreviewTilePan(photo, tile, 0, 0);
         }
     }
 
@@ -5079,6 +5200,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         BrushCircleVisibility = Visibility.Collapsed;
         EraserCircleVisibility = Visibility.Collapsed;
         StampCircleVisibility = Visibility.Collapsed;
+        StampSourceMarkerVisibility = Visibility.Collapsed;
         HealingCircleVisibility = Visibility.Collapsed;
         HealingStrokePreviewVisibility = Visibility.Collapsed;
         HealingSourceMarkerVisibility = Visibility.Collapsed;
@@ -5312,6 +5434,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdatePathAnchorPointPositions();
         RebuildPathToolGeometry();
         RebuildLassoToolGeometry();
+        UpdateStampSourceMarkerVisibility();
         UpdateHealingSourceMarkerVisibility();
         RebuildHealingStrokePreview();
         RebuildHealingPatchSelectionGeometry();
