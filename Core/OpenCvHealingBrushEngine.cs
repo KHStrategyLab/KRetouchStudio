@@ -43,8 +43,8 @@ internal static class OpenCvHealingBrushEngine
             return false;
         }
 
-        using Mat targetBgra = BitmapSourceToBgraMat(targetSource, out byte[] targetPixels);
-        using Mat sourceBgra = BitmapSourceToBgraMat(sourceSnapshot, out _);
+        using Mat targetBgra = BitmapSourceToBgraMat(targetSource);
+        using Mat sourceBgra = BitmapSourceToBgraMat(sourceSnapshot);
         using Mat targetBgr = new();
         using Mat sourceBgr = new();
         Cv2.CvtColor(targetBgra, targetBgr, ColorConversionCodes.BGRA2BGR);
@@ -58,7 +58,7 @@ internal static class OpenCvHealingBrushEngine
             return false;
         }
 
-        int padding = Math.Clamp((int)Math.Ceiling(Math.Max(maskBox.Width, maskBox.Height) * 0.35), 20, 240);
+        int padding = Math.Clamp((int)Math.Ceiling(Math.Max(maskBox.Width, maskBox.Height) * 0.12), 12, 48);
         int roiLeft = Math.Max(0, maskBox.X - padding);
         int roiTop = Math.Max(0, maskBox.Y - padding);
         int roiRight = Math.Min(width, maskBox.X + maskBox.Width + padding);
@@ -113,10 +113,7 @@ internal static class OpenCvHealingBrushEngine
         }
 
         using Mat finalRoi = BlendClonedRoi(targetRoi, clonedRoi, maskRoi, hardness, opacity);
-        using Mat outputBgr = targetBgr.Clone();
-        using Mat outputRoi = outputBgr.SubMat(targetRoiRect);
-        finalRoi.CopyTo(outputRoi);
-        result = CreateBgraBitmap(outputBgr, targetPixels, targetSource, width, height);
+        result = CreateBgraBitmapFast(targetBgra, finalRoi, targetRoiRect, targetSource);
         return true;
     }
 
@@ -149,7 +146,7 @@ internal static class OpenCvHealingBrushEngine
             return false;
         }
 
-        using Mat targetBgra = BitmapSourceToBgraMat(targetSource, out byte[] targetPixels);
+        using Mat targetBgra = BitmapSourceToBgraMat(targetSource);
         using Mat targetBgr = new();
         Cv2.CvtColor(targetBgra, targetBgr, ColorConversionCodes.BGRA2BGR);
 
@@ -161,7 +158,7 @@ internal static class OpenCvHealingBrushEngine
             return false;
         }
 
-        int padding = Math.Clamp((int)Math.Ceiling(Math.Max(maskBox.Width, maskBox.Height) * 0.45), 18, 220);
+        int padding = Math.Clamp((int)Math.Ceiling(Math.Max(maskBox.Width, maskBox.Height) * 0.10), 10, 40);
         int roiLeft = Math.Max(0, maskBox.X - padding);
         int roiTop = Math.Max(0, maskBox.Y - padding);
         int roiRight = Math.Min(width, maskBox.X + maskBox.Width + padding);
@@ -194,10 +191,7 @@ internal static class OpenCvHealingBrushEngine
         }
 
         using Mat finalRoi = BlendClonedRoi(targetRoi, inpaintedRoi, maskRoi, 100.0, opacity);
-        using Mat outputBgr = targetBgr.Clone();
-        using Mat outputRoi = outputBgr.SubMat(targetRoiRect);
-        finalRoi.CopyTo(outputRoi);
-        result = CreateBgraBitmap(outputBgr, targetPixels, targetSource, width, height);
+        result = CreateBgraBitmapFast(targetBgra, finalRoi, targetRoiRect, targetSource);
         return true;
     }
 
@@ -312,7 +306,7 @@ internal static class OpenCvHealingBrushEngine
         return result;
     }
 
-    private static Mat BitmapSourceToBgraMat(BitmapSource source, out byte[] pixels)
+    private static Mat BitmapSourceToBgraMat(BitmapSource source)
     {
         BitmapSource bgraSource = source.Format == PixelFormats.Bgra32
             ? source
@@ -320,7 +314,7 @@ internal static class OpenCvHealingBrushEngine
         int width = bgraSource.PixelWidth;
         int height = bgraSource.PixelHeight;
         int stride = width * 4;
-        pixels = new byte[stride * height];
+        byte[] pixels = new byte[stride * height];
         bgraSource.CopyPixels(pixels, stride, 0);
 
         Mat mat = new(height, width, MatType.CV_8UC4);
@@ -335,17 +329,19 @@ internal static class OpenCvHealingBrushEngine
         return mat;
     }
 
-    private static BitmapSource CreateBgraBitmap(Mat outputBgr, byte[] targetPixels, BitmapSource targetSource, int width, int height)
+    private static BitmapSource CreateBgraBitmapFast(Mat originalBgra, Mat finalBgrRoi, OpenCvSharp.Rect roiRect, BitmapSource targetSource)
     {
-        using Mat outputBgra = new();
-        Cv2.CvtColor(outputBgr, outputBgra, ColorConversionCodes.BGR2BGRA);
+        using Mat outputBgra = originalBgra.Clone();
+        using Mat outputRoiBgra = outputBgra.SubMat(roiRect);
 
+        int[] fromTo = { 0, 0, 1, 1, 2, 2 };
+        Cv2.MixChannels(new[] { finalBgrRoi }, new[] { outputRoiBgra }, fromTo);
+
+        int width = outputBgra.Width;
+        int height = outputBgra.Height;
+        int stride = width * 4;
         byte[] outputPixels = new byte[width * height * 4];
         Marshal.Copy(outputBgra.Data, outputPixels, 0, outputPixels.Length);
-        for (int i = 3; i < outputPixels.Length; i += 4)
-        {
-            outputPixels[i] = targetPixels[i];
-        }
 
         BitmapSource bitmap = BitmapSource.Create(
             width,
@@ -355,7 +351,7 @@ internal static class OpenCvHealingBrushEngine
             PixelFormats.Bgra32,
             null,
             outputPixels,
-            width * 4);
+            stride);
         bitmap.Freeze();
         return bitmap;
     }
