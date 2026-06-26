@@ -48,6 +48,13 @@ public partial class LinkedPairSliderRow : System.Windows.Controls.UserControl
             typeof(LinkedPairSliderRow),
             new FrameworkPropertyMetadata(true, OnIsLinkedChanged));
 
+    public static readonly DependencyProperty UseStackedLayoutProperty =
+        DependencyProperty.Register(
+            nameof(UseStackedLayout),
+            typeof(bool),
+            typeof(LinkedPairSliderRow),
+            new PropertyMetadata(false));
+
     public string Label
     {
         get => (string)GetValue(LabelProperty);
@@ -70,6 +77,12 @@ public partial class LinkedPairSliderRow : System.Windows.Controls.UserControl
     {
         get => (bool)GetValue(IsLinkedProperty);
         set => SetValue(IsLinkedProperty, value);
+    }
+
+    public bool UseStackedLayout
+    {
+        get => (bool)GetValue(UseStackedLayoutProperty);
+        set => SetValue(UseStackedLayoutProperty, value);
     }
 
     private static object CoerceSliderValue(DependencyObject d, object baseValue)
@@ -135,12 +148,14 @@ public partial class LinkedPairSliderRow : System.Windows.Controls.UserControl
 
     private void UpdateLinkButtonChrome()
     {
-        if (LinkButton is null)
+        if (InlineLinkButton is null || StackedLinkButton is null)
         {
             return;
         }
 
-        LinkButton.Content = IsLinked ? "↔" : "×";
-        LinkButton.ToolTip = IsLinked ? "Linked left/right sliders" : "Separate left/right sliders";
+        string toolTip = IsLinked ? "Linked left/right sliders" : "Separate left/right sliders";
+
+        InlineLinkButton.ToolTip = toolTip;
+        StackedLinkButton.ToolTip = toolTip;
     }
 }
