@@ -23,6 +23,7 @@ public partial class MainWindow
             _stampSize = clamped;
             StampCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -39,6 +40,7 @@ public partial class MainWindow
 
             _stampSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -55,6 +57,7 @@ public partial class MainWindow
             _showStampCircle = value;
             OnPropertyChanged();
             UpdateStampCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 
@@ -142,6 +145,7 @@ public partial class MainWindow
         _isStampDragging = true;
         _stampStrokeStartSourcePoint = _stampSourceImagePoint;
         _stampStrokeStartTargetPoint = imagePoint;
+        _stampLastImagePoint = imagePoint;
         BeginSourceCopyStroke(target);
         ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, _stampStrokeStartSourcePoint, StampSize, StampSoftness, 1.0);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
@@ -157,10 +161,8 @@ public partial class MainWindow
             return;
         }
 
-        System.Windows.Point sourcePoint = new(
-            _stampStrokeStartSourcePoint.X + (imagePoint.X - _stampStrokeStartTargetPoint.X),
-            _stampStrokeStartSourcePoint.Y + (imagePoint.Y - _stampStrokeStartTargetPoint.Y));
-        ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, sourcePoint, StampSize, StampSoftness, 1.0);
+        ApplyStampStrokeSegment(target, _stampLastImagePoint, imagePoint);
+        _stampLastImagePoint = imagePoint;
     }
 
     private void StopStampStroke()
@@ -192,5 +194,24 @@ public partial class MainWindow
         StampCircleVisibility = CanUseStampPreview() && ShowStampCircle
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void ApplyStampStrokeSegment(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Point fromImagePoint,
+        System.Windows.Point toImagePoint)
+    {
+        if (_stampSourceBitmap is null)
+        {
+            return;
+        }
+
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, StampSize, point =>
+        {
+            System.Windows.Point sourcePoint = new(
+                _stampStrokeStartSourcePoint.X + (point.X - _stampStrokeStartTargetPoint.X),
+                _stampStrokeStartSourcePoint.Y + (point.Y - _stampStrokeStartTargetPoint.Y));
+            ApplySourceCopyDab(target, _stampSourceBitmap, point, sourcePoint, StampSize, StampSoftness, 1.0);
+        });
     }
 }

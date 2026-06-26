@@ -428,10 +428,16 @@
         </Border>
 
         <Border Grid.Row="0" Background="{StaticResource SurfaceSecondary}" BorderBrush="{StaticResource MenuBorder}" BorderThickness="0,0,0,1">
-            <Menu FontSize="13"
-                  Padding="8,0">
+                <Menu FontSize="13"
+                      Padding="8,0">
                 <MenuItem Header="File">
                     <MenuItem Header="Open" Click="LoadPhotosButton_Click"/>
+                    <MenuItem Header="Save"
+                              Click="SavePhotoButton_Click"
+                              IsEnabled="{Binding CanSaveCurrentPhoto}"/>
+                    <MenuItem Header="Save As..."
+                              Click="SavePhotoAsMenuItem_Click"
+                              IsEnabled="{Binding CanSaveCurrentPhoto}"/>
                     <MenuItem Header="Work Area" Click="WorkAreaMenuItem_Click"/>
                     <Separator/>
                     <MenuItem Header="Exit" Click="ExitMenuItem_Click"/>
@@ -813,7 +819,7 @@
 
             <Grid Grid.Column="2" Background="{StaticResource PreviewFrameBg}">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="42"/>
+                    <RowDefinition Height="Auto" MinHeight="42"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="44"/>
                 </Grid.RowDefinitions>
@@ -822,6 +828,11 @@
                         BorderBrush="{StaticResource MenuBorder}"
                         BorderThickness="0,0,0,1"
                         Padding="10,6">
+                    <Border.Resources>
+                        <Style TargetType="{x:Type TextBox}">
+                            <EventSetter Event="KeyDown" Handler="ToolboxSettingTextBox_KeyDown"/>
+                        </Style>
+                    </Border.Resources>
                     <Grid>
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding SelectToolOptionsVisibility}">
@@ -1319,30 +1330,60 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="BrushModeButton_Click"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BrushSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding BrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BrushSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding BrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowBrushCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1411,18 +1452,33 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="FillModeButton_Click"/>
-                            <TextBlock Text="Opacity"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding FillToolOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Opacity"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding FillToolOpacity, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding FillToolOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <TextBlock Text="{Binding FillToolStatusText}"
                                        Foreground="{StaticResource TextMain}"
                                        FontWeight="SemiBold"
@@ -1435,30 +1491,60 @@
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding EraserSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding EraserSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding EraserSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding EraserSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding EraserSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding EraserSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowEraserCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1476,30 +1562,60 @@
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding StampSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding StampSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding StampSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding StampSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding StampSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding StampSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowStampCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1545,47 +1661,98 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="HealingModeButton_Click"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HealingSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HealingSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Strength"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HealingStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HealingSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding HealingSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HealingSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding HealingSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Strength"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HealingStrength, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding HealingStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowHealingCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
                                       VerticalAlignment="Center"
                                       Margin="0,0,12,0"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="HealingResetButton_Click"/>
                             <TextBlock Text="{Binding HealingModeHintText}"
                                        Foreground="{StaticResource TextSub}"
                                        VerticalAlignment="Center"
@@ -1614,54 +1781,114 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="BlurSharpModeButton_Click"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BlurSharpSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BlurSharpSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Strength"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BlurSharpStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Radius"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding BlurSharpRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BlurSharpSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding BlurSharpSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BlurSharpSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding BlurSharpSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Strength"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BlurSharpStrength, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding BlurSharpStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Radius"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BlurSharpRadius, StringFormat={}{0:0.#}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0.1"
+                                        Maximum="100"
+                                        Value="{Binding BlurSharpRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowBlurSharpCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1690,42 +1917,87 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="DodgeBurnModeButton_Click"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding DodgeBurnSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding DodgeBurnSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Strength"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding DodgeBurnStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding DodgeBurnSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="4"
+                                        Maximum="512"
+                                        Value="{Binding DodgeBurnSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding DodgeBurnSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding DodgeBurnSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Strength"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding DodgeBurnStrength, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="100"
+                                        Value="{Binding DodgeBurnStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowDodgeBurnCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1749,42 +2021,87 @@
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HistoryBrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HistoryBrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Strength"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding HistoryBrushStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HistoryBrushSize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="600"
+                                        Value="{Binding HistoryBrushSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HistoryBrushSoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding HistoryBrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Strength"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding HistoryBrushStrength, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding HistoryBrushStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <TextBlock Text="Source"
                                        Foreground="{StaticResource TextSub}"
                                        VerticalAlignment="Center"
@@ -1896,18 +2213,33 @@
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
-                            <TextBlock Text="Range"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding SampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px avg"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Range"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding SampleRange, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="501"
+                                        Value="{Binding SampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <Border Width="26"
                                     Height="26"
                                     Background="{Binding SampleColorPreview}"
@@ -1942,30 +2274,60 @@
                                     Padding="12,0"
                                     Margin="0,0,12,0"
                                     Click="MagicModeButton_Click"/>
-                            <TextBlock Text="Tolerance"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding MagicTolerance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="rgb sum"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Sample"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding MagicSampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px avg"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Tolerance"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding MagicTolerance, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="rgb"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="765"
+                                        Value="{Binding MagicTolerance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Sample"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding MagicSampleRange, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="101"
+                                        Value="{Binding MagicSampleRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <TextBlock Text="Contiguous"
                                        Foreground="{StaticResource TextSub}"
                                        VerticalAlignment="Center"
@@ -1988,42 +2350,90 @@
                                        FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
-                            <TextBlock Text="Size"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding LiquifySize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="px"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Softness"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding LiquifySoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <TextBlock Text="Strength"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="56"
-                                     Height="26"
-                                     Text="{Binding LiquifyStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="%"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Size"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Left"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding LiquifySize, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="px"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="4"
+                                        Maximum="512"
+                                        Value="{Binding LiquifySize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Softness"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Left"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding LiquifySoftness, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding LiquifySoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Strength"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Left"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding LiquifyStrength, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="1"
+                                        Maximum="100"
+                                        Value="{Binding LiquifyStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowLiquifyCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -2046,6 +2456,7 @@
                       Grid.Row="1"
                       Margin="4"
                       ClipToBounds="True"
+                      Focusable="True"
                       Background="Transparent"
                       SizeChanged="PreviewSurface_SizeChanged"
                       MouseMove="PreviewSurface_MouseMove"

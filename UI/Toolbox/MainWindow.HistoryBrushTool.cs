@@ -23,6 +23,7 @@ public partial class MainWindow
             _historyBrushSize = clamped;
             HistoryBrushCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -39,6 +40,7 @@ public partial class MainWindow
 
             _historyBrushSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -55,6 +57,7 @@ public partial class MainWindow
 
             _historyBrushStrength = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -71,6 +74,7 @@ public partial class MainWindow
             _showHistoryBrushCircle = value;
             OnPropertyChanged();
             UpdateHistoryBrushCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 

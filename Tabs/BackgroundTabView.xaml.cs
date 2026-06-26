@@ -383,9 +383,39 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             _isBackgroundAdjustmentSliderInteracting = true;
         }
 
+        SyncBackgroundAdjustmentSliderValue(slider);
+
         if (_activeBackgroundMode is BackgroundMode.White or BackgroundMode.Gray or BackgroundMode.Color or BackgroundMode.Image)
         {
             BackgroundReplacementPreviewChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void SyncBackgroundAdjustmentSliderValue(System.Windows.Controls.Slider slider)
+    {
+        switch (slider.Name)
+        {
+            case "BackgroundOpacitySlider":
+                BackgroundOpacity = slider.Value;
+                break;
+            case "BoundaryProbeStrengthSlider":
+                BoundaryProbeStrength = slider.Value;
+                break;
+            case "BoundaryCleanStrengthSlider":
+                BoundaryCleanStrength = slider.Value;
+                break;
+            case "AlphaShrinkStrengthSlider":
+                AlphaShrinkStrength = slider.Value;
+                break;
+            case "EdgeBlurStrengthSlider":
+                EdgeBlurStrength = slider.Value;
+                break;
+            case "SoftAlphaStrengthSlider":
+                SoftAlphaStrength = slider.Value;
+                break;
+            case "AlphaGammaStrengthSlider":
+                AlphaGammaStrength = slider.Value;
+                break;
         }
     }
 

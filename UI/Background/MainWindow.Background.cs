@@ -32,12 +32,22 @@ public partial class MainWindow
     private const byte WhiteBackgroundInnerFillAlphaMin = 245;
     private const int WhiteBackgroundEdgeBlurRadius = 1;
     private const int BiRefNetInputSharpenStrength = 100;
+    private const int BackgroundDragPreviewRetryDelayMs = 35;
     private const double WhiteBackgroundAlphaGammaMinimum = 0.40;
+    private static readonly TimeSpan BiRefNetWarmupTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan BiRefNetInputPrepareTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan BiRefNetAlphaTimeout = TimeSpan.FromMinutes(3);
 
     private static readonly string BiRefNetOutputRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "KRetouchStudio",
         "BiRefNetOutput");
+
+    private static readonly string BackgroundDiagnosticLogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "KRetouchStudio",
+        "Logs",
+        "background.log");
 
     private static readonly string BackgroundImageLibraryRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -266,9 +276,10 @@ public partial class MainWindow
         try
         {
             MediaPipeStatusText = "BiRefNet: warming...";
+            using CancellationTokenSource timeout = new(BiRefNetWarmupTimeout);
             BiRefNetMattingWarmUpResult result = await BiRefNetMattingService.WarmUpAsync(
                 request,
-                CancellationToken.None);
+                timeout.Token);
 
             if (!Dispatcher.HasShutdownStarted)
             {
@@ -416,10 +427,12 @@ public partial class MainWindow
 
         if (!_backgroundRenderGate.Wait(0))
         {
+            _hasPendingBackgroundDragPreviewRequest = true;
+            await Task.Delay(BackgroundDragPreviewRetryDelayMs);
             return;
         }
 
-        BitmapSource safeProxy = proxySource.IsFrozen ? proxySource : CloneBitmapSource(proxySource);
+        BitmapSource safeProxy = CreateBackgroundRenderThreadSource(proxySource);
         MediaPipeStatusText = $"Background: {statusName} 1200 preview...";
 
         BitmapSource preview;
@@ -494,9 +507,11 @@ public partial class MainWindow
         if (targetPhoto is null)
         {
             MediaPipeStatusText = "Background: load photo first";
+            AppendBackgroundDiagnosticLog("request blocked | photo=(none)");
             return;
         }
 
+        int renderVersion = Volatile.Read(ref _backgroundPreviewRenderVersion);
         double boundaryProbeStrength = BackgroundRetouchTab?.BoundaryProbeStrength ?? 0;
         double boundaryCleanStrength = BackgroundRetouchTab?.BoundaryCleanStrength ?? 0;
         double edgeBlurStrength = BackgroundRetouchTab?.EdgeBlurStrength ?? 0;
@@ -514,32 +529,39 @@ public partial class MainWindow
             alphaShrinkStrength,
             softAlphaStrength,
             alphaGammaStrength);
+        AppendBackgroundDiagnosticLog($"request | mode={statusName} | photo=\"{targetPhoto.Path}\" | alpha={GetBackgroundAlphaState(targetPhoto)}");
         if (IsCurrentBackgroundReplacementAlreadyApplied(historyDetail))
         {
             MediaPipeStatusText = $"Background: {statusName} already applied";
+            AppendBackgroundDiagnosticLog($"skip already applied | mode={statusName} | photo=\"{targetPhoto.Path}\"");
             return;
         }
 
-        MediaPipeStatusText = $"Background: {statusName} preview...";
+        MediaPipeStatusText = $"Background: {statusName} preview... | {targetPhoto.FileName}";
 
         try
         {
             string? alphaPath = await GetOrCreatePersonAlphaPathAsync(targetPhoto);
             if (alphaPath is null)
             {
-                MediaPipeStatusText = "Background: person alpha not ready";
+                string failureStatus = _personAlphaFailureStatus ?? "not ready";
+                MediaPipeStatusText = $"Background: alpha not ready | {targetPhoto.FileName} | {failureStatus}";
+                AppendBackgroundDiagnosticLog($"alpha not ready | mode={statusName} | photo=\"{targetPhoto.Path}\" | status=\"{failureStatus}\"");
                 return;
             }
 
             if (!ReferenceEquals(SelectedPhoto, targetPhoto))
             {
+                AppendBackgroundDiagnosticLog($"request abandoned | selected photo changed | mode={statusName} | photo=\"{targetPhoto.Path}\"");
                 return;
             }
 
+            AppendBackgroundDiagnosticLog($"render start | mode={statusName} | photo=\"{targetPhoto.Path}\" | alpha=\"{alphaPath}\"");
             bool replaceCurrentBackground = IsCurrentHistoryBackgroundReplacement();
             BitmapSource source = GetBackgroundReplacementRenderSource(targetPhoto, replaceCurrentBackground);
-            BitmapSource preview = BuildBackgroundReplacementPreview(
-                source,
+            BitmapSource safeSource = CreateBackgroundRenderThreadSource(source);
+            BitmapSource preview = await Task.Run(() => BuildBackgroundReplacementPreview(
+                safeSource,
                 alphaPath,
                 fillB,
                 fillG,
@@ -551,7 +573,14 @@ public partial class MainWindow
                 edgeBlurStrength,
                 alphaShrinkStrength,
                 softAlphaStrength,
-                alphaGammaStrength);
+                alphaGammaStrength));
+            if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
+                renderVersion != _backgroundPreviewRenderVersion)
+            {
+                AppendBackgroundDiagnosticLog($"render abandoned | newer request exists | mode={statusName} | photo=\"{targetPhoto.Path}\"");
+                return;
+            }
+
             targetPhoto.SetAdjustedImage(preview);
             if (replaceCurrentBackground)
             {
@@ -567,11 +596,13 @@ public partial class MainWindow
                 ? PersonAlphaEngineBiRefNet
                 : $"{PersonAlphaEngineBiRefNet} {_personAlphaRunMode}";
             MediaPipeStatusText = $"Background: {statusName} preview | " + alphaRunMode;
+            AppendBackgroundDiagnosticLog($"render success | mode={statusName} | photo=\"{targetPhoto.Path}\" | {alphaRunMode}");
         }
         catch (Exception ex)
         {
             ClearBackgroundPreview();
             MediaPipeStatusText = "Background: failed | " + ex.Message;
+            AppendBackgroundDiagnosticLog($"render failed | mode={statusName} | photo=\"{targetPhoto.Path}\" | error=\"{ex.Message}\"");
         }
     }
 
@@ -579,12 +610,14 @@ public partial class MainWindow
     {
         if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
         {
+            AppendBackgroundDiagnosticLog($"alpha cache hit | photo=\"{targetPhoto.Path}\" | alpha=\"{_personAlphaPath}\"");
             return _personAlphaPath;
         }
 
         if (IsCachedPersonAlphaFailure(targetPhoto))
         {
             MediaPipeStatusText = _personAlphaFailureStatus ?? "Background: alpha failed";
+            AppendBackgroundDiagnosticLog($"alpha cached failure | photo=\"{targetPhoto.Path}\" | status=\"{_personAlphaFailureStatus}\"");
             return null;
         }
 
@@ -593,20 +626,27 @@ public partial class MainWindow
         {
             if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
             {
+                AppendBackgroundDiagnosticLog($"alpha cache hit after wait | photo=\"{targetPhoto.Path}\" | alpha=\"{_personAlphaPath}\"");
                 return _personAlphaPath;
             }
 
             if (IsCachedPersonAlphaFailure(targetPhoto))
             {
                 MediaPipeStatusText = _personAlphaFailureStatus ?? "Background: alpha failed";
+                AppendBackgroundDiagnosticLog($"alpha cached failure after wait | photo=\"{targetPhoto.Path}\" | status=\"{_personAlphaFailureStatus}\"");
                 return null;
             }
 
             string? preparedInputPath = IsCachedBiRefNetPreparedInputValid(targetPhoto)
                 ? _biRefNetPreparedInputPath
                 : await PrepareBiRefNetInputForPhotoAsync(targetPhoto, reportStatus: false);
+            if (string.IsNullOrWhiteSpace(preparedInputPath))
+            {
+                AppendBackgroundDiagnosticLog($"alpha input not ready | photo=\"{targetPhoto.Path}\"");
+            }
 
             string outputDirectory = Path.Combine(BiRefNetOutputRoot, DateTime.Now.ToString("yyyyMMdd_HHmmssfff") + "_background");
+            AppendBackgroundDiagnosticLog($"alpha run start | photo=\"{targetPhoto.Path}\" | preparedInput=\"{preparedInputPath ?? string.Empty}\" | output=\"{outputDirectory}\"");
             BiRefNetMattingRunRequest request = new(
                 _appConfig.MediaPipe.HelperRuntime,
                 Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
@@ -618,18 +658,27 @@ public partial class MainWindow
                 BiRefNetInputSharpenStrength,
                 "auto");
 
+            using CancellationTokenSource timeout = new(BiRefNetAlphaTimeout);
             BiRefNetMattingRunResult result = await BiRefNetMattingService.RunAsync(
                 request,
-                CancellationToken.None);
+                timeout.Token);
 
             if (!result.Succeeded)
             {
+                AppendBackgroundDiagnosticLog($"alpha run failed | photo=\"{targetPhoto.Path}\" | status=\"{result.SummaryText}\"");
                 CachePersonAlphaFailure(targetPhoto, result.SummaryText);
                 return null;
             }
 
             CachePersonAlphaArtifact(outputDirectory, targetPhoto.Path, PersonAlphaEngineBiRefNet, result.RunMode);
+            AppendBackgroundDiagnosticLog($"alpha run success | photo=\"{targetPhoto.Path}\" | alpha=\"{_personAlphaPath}\" | mode={result.RunMode}");
             return IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet) ? _personAlphaPath : null;
+        }
+        catch (OperationCanceledException)
+        {
+            AppendBackgroundDiagnosticLog($"alpha run timeout | photo=\"{targetPhoto.Path}\"");
+            CachePersonAlphaFailure(targetPhoto, "BiRefNet: failed | timeout");
+            return null;
         }
         finally
         {
@@ -666,9 +715,10 @@ public partial class MainWindow
                 MediaPipeStatusText = "BiRefNet: input 1024...";
             }
 
+            using CancellationTokenSource timeout = new(BiRefNetInputPrepareTimeout);
             BiRefNetInputPrepareResult result = await BiRefNetMattingService.PrepareInputAsync(
                 request,
-                CancellationToken.None);
+                timeout.Token);
 
             if (!result.Succeeded || string.IsNullOrWhiteSpace(result.InputPath))
             {
@@ -726,6 +776,7 @@ public partial class MainWindow
         _personAlphaFailurePhotoPath = targetPhoto.Path;
         _personAlphaFailureStatus = status;
         MediaPipeStatusText = status;
+        AppendBackgroundDiagnosticLog($"alpha failure cached | photo=\"{targetPhoto.Path}\" | status=\"{status}\"");
     }
 
     private bool IsCachedBiRefNetPreparedInputValid(PhotoItem targetPhoto)
@@ -822,10 +873,12 @@ public partial class MainWindow
         _personAlphaFailureStatus = null;
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
+        AppendBackgroundDiagnosticLog($"alpha artifact cached | photo=\"{photoPath}\" | alpha=\"{alphaPath}\" | engine={engine} | mode={runMode ?? string.Empty}");
     }
 
     private void ClearPersonAlphaCache()
     {
+        AppendBackgroundDiagnosticLog("alpha cache cleared");
         _personAlphaPath = null;
         _personAlphaPhotoPath = null;
         _personAlphaEngine = null;
@@ -835,6 +888,46 @@ public partial class MainWindow
         Interlocked.Increment(ref _backgroundResourcePrepareVersion);
         ClearRefinedPersonAlphaCache();
         ClearLiquifyTensionCache();
+    }
+
+    private string GetBackgroundAlphaState(PhotoItem targetPhoto)
+    {
+        if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
+        {
+            return $"ready:{_personAlphaPath}";
+        }
+
+        if (IsCachedPersonAlphaFailure(targetPhoto))
+        {
+            return $"failed:{_personAlphaFailureStatus}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(_personAlphaPath))
+        {
+            return $"other-photo:{_personAlphaPhotoPath}";
+        }
+
+        return "none";
+    }
+
+    private static void AppendBackgroundDiagnosticLog(string message)
+    {
+        try
+        {
+            string? directory = Path.GetDirectoryName(BackgroundDiagnosticLogPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.AppendAllText(
+                BackgroundDiagnosticLogPath,
+                $"{DateTime.Now:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Diagnostic logging must never block retouching.
+        }
     }
 
     private bool TryGetBackgroundDragPreviewSource(PhotoItem photo, out BitmapSource previewSource, out double frameWidth, out double frameHeight)
@@ -1034,6 +1127,31 @@ public partial class MainWindow
             sourceStride);
         preview.Freeze();
         return preview;
+    }
+
+    private static BitmapSource CreateBackgroundRenderThreadSource(BitmapSource source)
+    {
+        BitmapSource bgraSource = source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+
+        int width = bgraSource.PixelWidth;
+        int height = bgraSource.PixelHeight;
+        int stride = CalculateStride(width, PixelFormats.Bgra32);
+        byte[] pixels = new byte[stride * height];
+        bgraSource.CopyPixels(pixels, stride, 0);
+
+        BitmapSource clone = BitmapSource.Create(
+            width,
+            height,
+            bgraSource.DpiX,
+            bgraSource.DpiY,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            stride);
+        clone.Freeze();
+        return clone;
     }
 
     private static byte[]? TryCreateImageBackgroundPixels(

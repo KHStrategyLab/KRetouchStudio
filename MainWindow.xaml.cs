@@ -54,6 +54,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private const double ToolboxDoubleColumnMaxHeight = 1120;
     private DateTimeOffset _lastWorkAreaRefreshAt = DateTimeOffset.MinValue;
     private bool _isRefreshingWorkArea;
+    private int _jpegSaveQuality = 12;
+    private bool _jpegSaveEmbedColorProfile = true;
     private bool _isPhotoListPanelVisible = true;
     private bool _isEditModeUpperPrewarmQueued;
     private bool _isEditModeUpperPrewarmStarted;
@@ -84,6 +86,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         "KRetouchStudio",
         "EditorHistory");
     private static readonly string LegacyWorkAreaSettingsPath = Path.Combine(AppConfigDirectory, "work-area.txt");
+    private System.Windows.Threading.DispatcherTimer? _toolboxDefaultsSaveTimer;
+    private bool _isLoadingToolboxDefaults;
     private bool _isSpacePressed;
     private bool _isSinglePreviewPanDragging;
     private System.Windows.Point _singlePreviewPanStartPoint;
@@ -178,6 +182,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _brushCircleSize = 80;
     private Visibility _brushCircleVisibility = Visibility.Collapsed;
     private bool _isBrushDragging;
+    private System.Windows.Point _brushLastImagePoint;
     private double _eraserSize = 80;
     private double _eraserSoftness = 50;
     private bool _showEraserCircle = true;
@@ -199,6 +204,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private System.Windows.Point _stampSourceImagePoint;
     private System.Windows.Point _stampStrokeStartSourcePoint;
     private System.Windows.Point _stampStrokeStartTargetPoint;
+    private System.Windows.Point _stampLastImagePoint;
     private BitmapSource? _stampSourceBitmap;
     private byte[]? _sourceCopyStrokeBasePixels;
     private byte[]? _sourceCopyStrokeCoverage;
@@ -219,6 +225,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private System.Windows.Point _healingSourceImagePoint;
     private System.Windows.Point _healingStrokeStartSourcePoint;
     private System.Windows.Point _healingStrokeStartTargetPoint;
+    private System.Windows.Point _healingLastImagePoint;
     private BitmapSource? _healingSourceBitmap;
     private string _blurSharpMode = "blur";
     private double _blurSharpSize = 80;
@@ -287,6 +294,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _magicSampleRange = 5;
     private string _magicSelectionInfoText = "No selection";
     private ImageSource? _magicSelectionOverlayImage;
+    private bool[]? _magicSelectionMask;
+    private int _magicSelectionMaskWidth;
+    private int _magicSelectionMaskHeight;
+    private int _magicSelectionCount;
     private Visibility _magicSelectionVisibility = Visibility.Collapsed;
     private double _liquifySize = 96;
     private double _liquifySoftness = 55;
@@ -419,6 +430,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearToneCurveFastPreviewCache();
             PhotoAdjustRetouchTab?.RefreshForPhoto(_selectedPhoto is null ? null : GetCurrentDisplayBitmapSource(_selectedPhoto));
             ResetNonBackgroundRetouchControlsForPhotoChange();
+            ClearPhotoDependentToolState();
             ClearMagicSelection();
             ClearDodgeBurnSession(false);
             ClearLiquifySession(false);
@@ -450,6 +462,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         NoseRetouchTab?.ResetForPhotoChange();
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeProjectionDebugOverlay();
+    }
+
+    private void ClearPhotoDependentToolState()
+    {
+        _isStampDragging = false;
+        _hasStampSource = false;
+        _stampSourceBitmap = null;
+        StampSourceText = "Source: Not Set";
+
+        _isHealingDragging = false;
+        _hasHealingSource = false;
+        _healingSourceBitmap = null;
+
+        EndSourceCopyStroke();
+        Mouse.Capture(null);
     }
 
     public ImageSource? SinglePreviewImageSource => SelectedPhoto is PhotoItem photo
@@ -920,6 +947,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SavePhotoButton_Click(object sender, RoutedEventArgs e)
     {
+        SaveCurrentPhotoToProtectedOutput();
+    }
+
+    private void SavePhotoAsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        SaveCurrentPhotoWithDialog();
+    }
+
+    private void SaveCurrentPhotoToProtectedOutput()
+    {
         if (!CanSaveCurrentPhoto ||
             SelectedPhoto is not PhotoItem photo ||
             GetCurrentSaveBitmapSource(photo) is not BitmapSource image)
@@ -943,8 +980,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             MarkSelfSavedOutputPath(outputPath);
-            BitmapEncoder encoder = CreateSaveEncoder(outputExtension);
-            encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension));
+            BitmapEncoder encoder = CreateSaveEncoder(outputExtension, jpegQualityLevel: 100);
+            encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension, embedColorProfile: true));
             using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
             encoder.Save(stream);
         }
@@ -952,6 +989,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             UnmarkSelfSavedOutputPath(outputPath);
             System.Windows.MessageBox.Show(this, $"저장 실패: {ex.Message}", "저장", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void SaveCurrentPhotoWithDialog()
+    {
+        if (!CanSaveCurrentPhoto ||
+            SelectedPhoto is not PhotoItem photo ||
+            GetCurrentSaveBitmapSource(photo) is not BitmapSource image)
+        {
+            return;
+        }
+
+        string sourceExtension = Path.GetExtension(photo.Path);
+        string outputExtension = GetSaveOutputExtension(sourceExtension);
+        Microsoft.Win32.SaveFileDialog dialog = new()
+        {
+            AddExtension = true,
+            DefaultExt = outputExtension,
+            FileName = $"{Path.GetFileNameWithoutExtension(photo.FileName)}{outputExtension}",
+            Filter = "JPEG image|*.jpg;*.jpeg|PNG image|*.png|All files|*.*",
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        string outputPath = dialog.FileName;
+        string selectedExtension = Path.GetExtension(outputPath);
+        outputExtension = GetSaveOutputExtension(selectedExtension);
+        if (!IsSaveOutputExtension(selectedExtension))
+        {
+            outputPath = Path.ChangeExtension(outputPath, outputExtension);
+        }
+
+        int jpegQualityLevel = 100;
+        bool embedColorProfile = true;
+        if (IsJpegExtension(outputExtension) &&
+            !TryShowJpegSaveOptionsDialog(out jpegQualityLevel, out embedColorProfile))
+        {
+            return;
+        }
+
+        try
+        {
+            MarkSelfSavedOutputPath(outputPath);
+            BitmapEncoder encoder = CreateSaveEncoder(outputExtension, jpegQualityLevel);
+            encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension, embedColorProfile));
+            using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            encoder.Save(stream);
+        }
+        catch (Exception ex)
+        {
+            UnmarkSelfSavedOutputPath(outputPath);
+            System.Windows.MessageBox.Show(this, $"저장 실패: {ex.Message}", "Save As", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -991,27 +1084,153 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         throw new IOException("save_output_name_exhausted");
     }
 
-    private static BitmapEncoder CreateSaveEncoder(string outputExtension)
+    private bool TryShowJpegSaveOptionsDialog(out int jpegQualityLevel, out bool embedColorProfile)
+    {
+        int selectedQuality = Math.Clamp(_jpegSaveQuality, 1, 12);
+        bool selectedEmbedProfile = _jpegSaveEmbedColorProfile;
+
+        Window dialog = new()
+        {
+            Title = "JPEG Options",
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            Background = (System.Windows.Media.Brush)FindResource("SurfaceSecondary")
+        };
+
+        System.Windows.Controls.TextBlock qualityValueText = new()
+        {
+            Text = selectedQuality.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMain"),
+            Width = 28,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        System.Windows.Controls.Slider qualitySlider = new()
+        {
+            Minimum = 1,
+            Maximum = 12,
+            Value = selectedQuality,
+            TickFrequency = 1,
+            IsSnapToTickEnabled = true,
+            Width = 180,
+            Margin = new Thickness(10, 0, 0, 0)
+        };
+        qualitySlider.ValueChanged += (_, _) =>
+        {
+            selectedQuality = Math.Clamp((int)Math.Round(qualitySlider.Value), 1, 12);
+            qualityValueText.Text = selectedQuality.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        };
+
+        System.Windows.Controls.CheckBox embedProfileCheckBox = new()
+        {
+            Content = "Embed ICC Profile: sRGB IEC61966-2.1",
+            IsChecked = selectedEmbedProfile,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMain"),
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+
+        System.Windows.Controls.Button okButton = new()
+        {
+            Content = "OK",
+            IsDefault = true,
+            MinWidth = 72,
+            Margin = new Thickness(0, 16, 6, 0)
+        };
+        System.Windows.Controls.Button cancelButton = new()
+        {
+            Content = "Cancel",
+            IsCancel = true,
+            MinWidth = 72,
+            Margin = new Thickness(6, 16, 0, 0)
+        };
+
+        System.Windows.Controls.StackPanel qualityRow = new()
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal
+        };
+        qualityRow.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = "Quality",
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMain"),
+            Width = 72,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        qualityRow.Children.Add(qualityValueText);
+        qualityRow.Children.Add(qualitySlider);
+
+        System.Windows.Controls.StackPanel buttonRow = new()
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+        };
+        buttonRow.Children.Add(okButton);
+        buttonRow.Children.Add(cancelButton);
+
+        System.Windows.Controls.StackPanel panel = new()
+        {
+            Margin = new Thickness(16),
+            MinWidth = 330
+        };
+        panel.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = "Image Options",
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMain"),
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+        panel.Children.Add(qualityRow);
+        panel.Children.Add(embedProfileCheckBox);
+        panel.Children.Add(buttonRow);
+
+        dialog.Content = panel;
+        okButton.Click += (_, _) => dialog.DialogResult = true;
+
+        if (dialog.ShowDialog() != true)
+        {
+            jpegQualityLevel = 100;
+            embedColorProfile = true;
+            return false;
+        }
+
+        _jpegSaveQuality = selectedQuality;
+        _jpegSaveEmbedColorProfile = embedProfileCheckBox.IsChecked == true;
+        jpegQualityLevel = ConvertJpegQualityToEncoderLevel(_jpegSaveQuality);
+        embedColorProfile = _jpegSaveEmbedColorProfile;
+        return true;
+    }
+
+    private static int ConvertJpegQualityToEncoderLevel(int quality)
+    {
+        int clamped = Math.Clamp(quality, 1, 12);
+        return Math.Clamp((int)Math.Round(clamped / 12.0 * 100.0), 1, 100);
+    }
+
+    private static BitmapEncoder CreateSaveEncoder(string outputExtension, int jpegQualityLevel)
     {
         if (outputExtension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
             outputExtension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
         {
             return new JpegBitmapEncoder
             {
-                QualityLevel = 100
+                QualityLevel = Math.Clamp(jpegQualityLevel, 1, 100)
             };
         }
 
         return new PngBitmapEncoder();
     }
 
-    private static BitmapFrame CreateSrgbSaveFrame(BitmapSource image, string outputExtension)
+    private static BitmapFrame CreateSrgbSaveFrame(BitmapSource image, string outputExtension, bool embedColorProfile)
     {
         PixelFormat outputFormat = IsJpegExtension(outputExtension)
             ? PixelFormats.Rgb24
             : PixelFormats.Bgra32;
         BitmapSource outputImage = EnsureBitmapFormat(image, outputFormat);
-        ReadOnlyCollection<ColorContext> colorContexts = new(new[] { new ColorContext(outputFormat) });
+        ReadOnlyCollection<ColorContext>? colorContexts = embedColorProfile
+            ? new ReadOnlyCollection<ColorContext>(new[] { new ColorContext(outputFormat) })
+            : null;
         return BitmapFrame.Create(outputImage, null, null, colorContexts);
     }
 
@@ -1019,6 +1238,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
                extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSaveOutputExtension(string extension)
+    {
+        return IsJpegExtension(extension) ||
+               extension.Equals(".png", StringComparison.OrdinalIgnoreCase);
     }
 
     private void WorkAreaMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1852,6 +2077,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
 
+        if (e.Key == Key.S && CanSaveCurrentPhoto)
+        {
+            ModifierKeys modifiers = Keyboard.Modifiers;
+            if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+            {
+                SaveCurrentPhotoWithDialog();
+                e.Handled = true;
+                return;
+            }
+
+            if (modifiers == ModifierKeys.Control)
+            {
+                SaveCurrentPhotoToProtectedOutput();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (TryHandleToolScaleShortcut(e))
         {
             e.Handled = true;
@@ -2202,6 +2445,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             and not System.Windows.Controls.PasswordBox
             and not System.Windows.Controls.ComboBox
             and not System.Windows.Controls.ComboBoxItem;
+    }
+
+    private void ToolboxSettingTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        FocusPreviewSurfaceForToolInput();
+        e.Handled = true;
+    }
+
+    private void FocusPreviewSurfaceForToolInput()
+    {
+        if (Keyboard.FocusedElement is System.Windows.Controls.TextBox textBox)
+        {
+            textBox.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+        }
+
+        Keyboard.Focus(PreviewSurface);
     }
 
     private bool CanUseEditorHistoryShortcuts()
@@ -2930,6 +3194,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncColorManagementSettingsFromConfig();
         LoadBackgroundSettingsFromConfig();
         LoadCropPresetSettingsFromConfig();
+        LoadToolboxDefaultsFromConfig();
         if (string.IsNullOrWhiteSpace(_appConfig.WorkAreaFolderPath) &&
             File.Exists(LegacyWorkAreaSettingsPath))
         {
@@ -2966,6 +3231,215 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ColorManagementSettings.ManualDisplayProfilePath = string.IsNullOrWhiteSpace(_appConfig.ManualDisplayColorProfilePath)
             ? null
             : _appConfig.ManualDisplayColorProfilePath;
+    }
+
+    private void LoadToolboxDefaultsFromConfig()
+    {
+        _isLoadingToolboxDefaults = true;
+        ToolboxDefaultSettings settings = _appConfig.ToolboxDefaults ??= new ToolboxDefaultSettings();
+
+        _brushMode = NormalizeToolMode(settings.BrushMode, "brush", "brush", "pencil");
+        _brushSize = Math.Clamp(settings.BrushSize, 1, 600);
+        _brushSoftness = Math.Clamp(settings.BrushSoftness, 0, 100);
+        _showBrushCircle = settings.ShowBrushCircle;
+        _brushCircleSize = _brushSize;
+
+        _fillToolMode = NormalizeToolMode(settings.FillToolMode, "bucket", "bucket", "gradient");
+        _fillToolOpacity = Math.Clamp(Math.Round(settings.FillToolOpacity), 0, 100);
+
+        _eraserSize = Math.Clamp(settings.EraserSize, 1, 600);
+        _eraserSoftness = Math.Clamp(settings.EraserSoftness, 0, 100);
+        _showEraserCircle = settings.ShowEraserCircle;
+        _eraserCircleSize = _eraserSize;
+
+        _stampSize = Math.Clamp(settings.StampSize, 1, 600);
+        _stampSoftness = Math.Clamp(settings.StampSoftness, 0, 100);
+        _showStampCircle = settings.ShowStampCircle;
+        _stampCircleSize = _stampSize;
+
+        _healingMode = NormalizeToolMode(settings.HealingMode, "healing", "healing", "patch", "spot");
+        _healingSize = Math.Clamp(settings.HealingSize, 1, 600);
+        _healingSoftness = Math.Clamp(settings.HealingSoftness, 0, 100);
+        _healingStrength = Math.Clamp(settings.HealingStrength, 0, 100);
+        _showHealingCircle = settings.ShowHealingCircle;
+        _healingCircleSize = _healingSize;
+
+        _blurSharpMode = NormalizeToolMode(settings.BlurSharpMode, "blur", "blur", "sharpen");
+        _blurSharpSize = Math.Clamp(settings.BlurSharpSize, 1, 600);
+        _blurSharpSoftness = Math.Clamp(settings.BlurSharpSoftness, 0, 100);
+        _blurSharpStrength = Math.Clamp(settings.BlurSharpStrength, 0, 100);
+        _blurSharpRadius = Math.Clamp(settings.BlurSharpRadius, 0.1, 100);
+        _showBlurSharpCircle = settings.ShowBlurSharpCircle;
+        _blurSharpCircleSize = _blurSharpSize;
+
+        _dodgeBurnMode = NormalizeToolMode(settings.DodgeBurnMode, "dodge", "dodge", "burn");
+        _dodgeBurnSize = Math.Clamp(Math.Round(settings.DodgeBurnSize), 4, 512);
+        _dodgeBurnSoftness = Math.Clamp(Math.Round(settings.DodgeBurnSoftness), 0, 100);
+        _dodgeBurnStrength = Math.Clamp(Math.Round(settings.DodgeBurnStrength), 1, 100);
+        _showDodgeBurnCircle = settings.ShowDodgeBurnCircle;
+        _dodgeBurnCircleSize = _dodgeBurnSize;
+
+        _historyBrushSize = Math.Clamp(settings.HistoryBrushSize, 1, 600);
+        _historyBrushSoftness = Math.Clamp(settings.HistoryBrushSoftness, 0, 100);
+        _historyBrushStrength = Math.Clamp(settings.HistoryBrushStrength, 0, 100);
+        _showHistoryBrushCircle = settings.ShowHistoryBrushCircle;
+        _historyBrushCircleSize = _historyBrushSize;
+
+        _sampleRange = Math.Clamp(Math.Round(settings.SampleRange), 1, 501);
+
+        _magicToolMode = NormalizeToolMode(settings.MagicToolMode, "wand", "wand", "quickselect");
+        _magicTolerance = Math.Clamp(Math.Round(settings.MagicTolerance), 0, 765);
+        _magicSampleRange = Math.Clamp(Math.Round(settings.MagicSampleRange), 1, 101);
+
+        _liquifySize = Math.Clamp(Math.Round(settings.LiquifySize), 4, 512);
+        _liquifySoftness = Math.Clamp(Math.Round(settings.LiquifySoftness), 0, 100);
+        _liquifyStrength = Math.Clamp(Math.Round(settings.LiquifyStrength), 1, 100);
+        _showLiquifyCircle = settings.ShowLiquifyCircle;
+        _liquifyCircleSize = _liquifySize;
+
+        _isLoadingToolboxDefaults = false;
+        RaiseToolboxDefaultsPropertyChanged();
+    }
+
+    private static string NormalizeToolMode(string? value, string fallback, params string[] allowedValues)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        return allowedValues.Any(allowed => string.Equals(allowed, value, StringComparison.OrdinalIgnoreCase))
+            ? value
+            : fallback;
+    }
+
+    private void SaveToolboxDefaults()
+    {
+        if (_isLoadingToolboxDefaults)
+        {
+            return;
+        }
+
+        ToolboxDefaultSettings settings = _appConfig.ToolboxDefaults ??= new ToolboxDefaultSettings();
+        settings.BrushMode = BrushMode;
+        settings.BrushSize = BrushSize;
+        settings.BrushSoftness = BrushSoftness;
+        settings.ShowBrushCircle = ShowBrushCircle;
+        settings.FillToolMode = FillToolMode;
+        settings.FillToolOpacity = FillToolOpacity;
+        settings.EraserSize = EraserSize;
+        settings.EraserSoftness = EraserSoftness;
+        settings.ShowEraserCircle = ShowEraserCircle;
+        settings.StampSize = StampSize;
+        settings.StampSoftness = StampSoftness;
+        settings.ShowStampCircle = ShowStampCircle;
+        settings.HealingMode = HealingMode;
+        settings.HealingSize = HealingSize;
+        settings.HealingSoftness = HealingSoftness;
+        settings.HealingStrength = HealingStrength;
+        settings.ShowHealingCircle = ShowHealingCircle;
+        settings.BlurSharpMode = BlurSharpMode;
+        settings.BlurSharpSize = BlurSharpSize;
+        settings.BlurSharpSoftness = BlurSharpSoftness;
+        settings.BlurSharpStrength = BlurSharpStrength;
+        settings.BlurSharpRadius = BlurSharpRadius;
+        settings.ShowBlurSharpCircle = ShowBlurSharpCircle;
+        settings.DodgeBurnMode = DodgeBurnMode;
+        settings.DodgeBurnSize = DodgeBurnSize;
+        settings.DodgeBurnSoftness = DodgeBurnSoftness;
+        settings.DodgeBurnStrength = DodgeBurnStrength;
+        settings.ShowDodgeBurnCircle = ShowDodgeBurnCircle;
+        settings.HistoryBrushSize = HistoryBrushSize;
+        settings.HistoryBrushSoftness = HistoryBrushSoftness;
+        settings.HistoryBrushStrength = HistoryBrushStrength;
+        settings.ShowHistoryBrushCircle = ShowHistoryBrushCircle;
+        settings.SampleRange = SampleRange;
+        settings.MagicToolMode = MagicToolMode;
+        settings.MagicTolerance = MagicTolerance;
+        settings.MagicSampleRange = MagicSampleRange;
+        settings.LiquifySize = LiquifySize;
+        settings.LiquifySoftness = LiquifySoftness;
+        settings.LiquifyStrength = LiquifyStrength;
+        settings.ShowLiquifyCircle = ShowLiquifyCircle;
+
+        QueueToolboxDefaultsSave();
+    }
+
+    private void QueueToolboxDefaultsSave()
+    {
+        if (_toolboxDefaultsSaveTimer is null)
+        {
+            _toolboxDefaultsSaveTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _toolboxDefaultsSaveTimer.Tick += ToolboxDefaultsSaveTimer_Tick;
+        }
+
+        _toolboxDefaultsSaveTimer.Stop();
+        _toolboxDefaultsSaveTimer.Start();
+    }
+
+    private void ToolboxDefaultsSaveTimer_Tick(object? sender, EventArgs e)
+    {
+        FlushToolboxDefaultsSave();
+    }
+
+    private void FlushToolboxDefaultsSave()
+    {
+        if (_toolboxDefaultsSaveTimer is null || !_toolboxDefaultsSaveTimer.IsEnabled)
+        {
+            return;
+        }
+
+        _toolboxDefaultsSaveTimer.Stop();
+        SaveAppConfig();
+    }
+
+    private void RaiseToolboxDefaultsPropertyChanged()
+    {
+        OnPropertyChanged(nameof(BrushMode));
+        OnPropertyChanged(nameof(BrushSize));
+        OnPropertyChanged(nameof(BrushSoftness));
+        OnPropertyChanged(nameof(ShowBrushCircle));
+        OnPropertyChanged(nameof(FillToolMode));
+        OnPropertyChanged(nameof(FillToolOpacity));
+        OnPropertyChanged(nameof(EraserSize));
+        OnPropertyChanged(nameof(EraserSoftness));
+        OnPropertyChanged(nameof(ShowEraserCircle));
+        OnPropertyChanged(nameof(StampSize));
+        OnPropertyChanged(nameof(StampSoftness));
+        OnPropertyChanged(nameof(ShowStampCircle));
+        OnPropertyChanged(nameof(HealingMode));
+        OnPropertyChanged(nameof(HealingModeHintText));
+        OnPropertyChanged(nameof(HealingSize));
+        OnPropertyChanged(nameof(HealingSoftness));
+        OnPropertyChanged(nameof(HealingStrength));
+        OnPropertyChanged(nameof(ShowHealingCircle));
+        OnPropertyChanged(nameof(BlurSharpMode));
+        OnPropertyChanged(nameof(BlurSharpSize));
+        OnPropertyChanged(nameof(BlurSharpSoftness));
+        OnPropertyChanged(nameof(BlurSharpStrength));
+        OnPropertyChanged(nameof(BlurSharpRadius));
+        OnPropertyChanged(nameof(ShowBlurSharpCircle));
+        OnPropertyChanged(nameof(DodgeBurnMode));
+        OnPropertyChanged(nameof(DodgeBurnCircleStroke));
+        OnPropertyChanged(nameof(DodgeBurnSize));
+        OnPropertyChanged(nameof(DodgeBurnSoftness));
+        OnPropertyChanged(nameof(DodgeBurnStrength));
+        OnPropertyChanged(nameof(ShowDodgeBurnCircle));
+        OnPropertyChanged(nameof(HistoryBrushSize));
+        OnPropertyChanged(nameof(HistoryBrushSoftness));
+        OnPropertyChanged(nameof(HistoryBrushStrength));
+        OnPropertyChanged(nameof(ShowHistoryBrushCircle));
+        OnPropertyChanged(nameof(SampleRange));
+        OnPropertyChanged(nameof(MagicToolMode));
+        OnPropertyChanged(nameof(MagicTolerance));
+        OnPropertyChanged(nameof(MagicSampleRange));
+        OnPropertyChanged(nameof(LiquifySize));
+        OnPropertyChanged(nameof(LiquifySoftness));
+        OnPropertyChanged(nameof(LiquifyStrength));
+        OnPropertyChanged(nameof(ShowLiquifyCircle));
     }
 
     private void RaiseColorManagementPropertyChanged()
@@ -3091,6 +3565,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
+        FlushToolboxDefaultsSave();
         CancelToneCurvePreviewRender();
         ResetPreviewProxy1200BuildQueue();
         MediaPipeConnectionService.ShutdownWorker();
@@ -4190,6 +4665,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        FocusPreviewSurfaceForToolInput();
+
         if (CanUseBackgroundColorPickPreview())
         {
             ApplyBackgroundPickedColorAtPreviewPoint(e.GetPosition(PreviewSurface));
@@ -4304,7 +4781,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (CanUseMagicPreview())
         {
-            ApplyMagicSelectAtPreviewPoint(e.GetPosition(PreviewSurface));
+            bool addToSelection = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            ApplyMagicSelectAtPreviewPoint(e.GetPosition(PreviewSurface), addToSelection);
             e.Handled = true;
             return;
         }

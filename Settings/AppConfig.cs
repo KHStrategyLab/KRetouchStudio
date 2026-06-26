@@ -21,6 +21,62 @@ public sealed class AppConfig
     public BackgroundSettings Background { get; set; } = new();
 
     public MediaPipeSettings MediaPipe { get; set; } = new();
+
+    public ToolboxDefaultSettings ToolboxDefaults { get; set; } = new();
+}
+
+public sealed class ToolboxDefaultSettings
+{
+    public string BrushMode { get; set; } = "brush";
+    public double BrushSize { get; set; } = 80;
+    public double BrushSoftness { get; set; } = 50;
+    public bool ShowBrushCircle { get; set; } = true;
+
+    public string FillToolMode { get; set; } = "bucket";
+    public double FillToolOpacity { get; set; } = 100;
+
+    public double EraserSize { get; set; } = 80;
+    public double EraserSoftness { get; set; } = 50;
+    public bool ShowEraserCircle { get; set; } = true;
+
+    public double StampSize { get; set; } = 80;
+    public double StampSoftness { get; set; } = 50;
+    public bool ShowStampCircle { get; set; } = true;
+
+    public string HealingMode { get; set; } = "healing";
+    public double HealingSize { get; set; } = 80;
+    public double HealingSoftness { get; set; } = 50;
+    public double HealingStrength { get; set; } = 50;
+    public bool ShowHealingCircle { get; set; } = true;
+
+    public string BlurSharpMode { get; set; } = "blur";
+    public double BlurSharpSize { get; set; } = 80;
+    public double BlurSharpSoftness { get; set; } = 50;
+    public double BlurSharpStrength { get; set; } = 50;
+    public double BlurSharpRadius { get; set; } = 8;
+    public bool ShowBlurSharpCircle { get; set; } = true;
+
+    public string DodgeBurnMode { get; set; } = "dodge";
+    public double DodgeBurnSize { get; set; } = 96;
+    public double DodgeBurnSoftness { get; set; } = 55;
+    public double DodgeBurnStrength { get; set; } = 22;
+    public bool ShowDodgeBurnCircle { get; set; } = true;
+
+    public double HistoryBrushSize { get; set; } = 80;
+    public double HistoryBrushSoftness { get; set; } = 50;
+    public double HistoryBrushStrength { get; set; } = 50;
+    public bool ShowHistoryBrushCircle { get; set; } = true;
+
+    public double SampleRange { get; set; } = 5;
+
+    public string MagicToolMode { get; set; } = "wand";
+    public double MagicTolerance { get; set; } = 60;
+    public double MagicSampleRange { get; set; } = 5;
+
+    public double LiquifySize { get; set; } = 96;
+    public double LiquifySoftness { get; set; } = 55;
+    public double LiquifyStrength { get; set; } = 65;
+    public bool ShowLiquifyCircle { get; set; } = true;
 }
 
 public sealed class BackgroundSettings

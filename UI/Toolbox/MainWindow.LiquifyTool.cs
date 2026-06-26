@@ -26,6 +26,7 @@ public partial class MainWindow
             _liquifySize = clamped;
             LiquifyCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -42,6 +43,7 @@ public partial class MainWindow
 
             _liquifySoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -58,6 +60,7 @@ public partial class MainWindow
 
             _liquifyStrength = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -74,6 +77,7 @@ public partial class MainWindow
             _showLiquifyCircle = value;
             OnPropertyChanged();
             UpdateLiquifyCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 

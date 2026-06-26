@@ -23,6 +23,7 @@ public partial class MainWindow
             _eraserSize = clamped;
             EraserCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -39,6 +40,7 @@ public partial class MainWindow
 
             _eraserSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -55,6 +57,7 @@ public partial class MainWindow
             _showEraserCircle = value;
             OnPropertyChanged();
             UpdateEraserCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 

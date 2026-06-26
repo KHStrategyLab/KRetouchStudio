@@ -24,6 +24,7 @@ public partial class MainWindow
 
             _brushMode = value;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -41,6 +42,7 @@ public partial class MainWindow
             _brushSize = clamped;
             BrushCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -57,6 +59,7 @@ public partial class MainWindow
 
             _brushSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -73,6 +76,7 @@ public partial class MainWindow
             _showBrushCircle = value;
             OnPropertyChanged();
             UpdateBrushCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 
@@ -213,6 +217,7 @@ public partial class MainWindow
         }
 
         _isBrushDragging = true;
+        _brushLastImagePoint = imagePoint;
         ApplyPaintDab(target, imagePoint, BrushSize, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, 1.0);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
@@ -226,7 +231,8 @@ public partial class MainWindow
             return;
         }
 
-        ApplyPaintDab(target, imagePoint, BrushSize, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, 1.0);
+        ApplyBrushStrokeSegment(target, _brushLastImagePoint, imagePoint);
+        _brushLastImagePoint = imagePoint;
     }
 
     private void StopBrushStroke()
@@ -257,6 +263,18 @@ public partial class MainWindow
         BrushCircleVisibility = CanUseBrushPreview() && ShowBrushCircle
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void ApplyBrushStrokeSegment(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Point fromImagePoint,
+        System.Windows.Point toImagePoint)
+    {
+        System.Windows.Media.Color color = GetCurrentBrushColor();
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, BrushSize, point =>
+        {
+            ApplyPaintDab(target, point, BrushSize, BrushSoftness, color, IsPencilBrushMode, 1.0);
+        });
     }
 
     private bool IsPencilBrushMode => string.Equals(BrushMode, "pencil", StringComparison.OrdinalIgnoreCase);
@@ -599,6 +617,26 @@ public partial class MainWindow
         }
 
         return Math.Clamp((int)Math.Round(value * (targetSize - 1.0) / (sourceSize - 1.0)), 0, targetSize - 1);
+    }
+
+    private static void ForEachToolStrokePoint(
+        System.Windows.Point fromImagePoint,
+        System.Windows.Point toImagePoint,
+        double brushSize,
+        Action<System.Windows.Point> apply)
+    {
+        double dx = toImagePoint.X - fromImagePoint.X;
+        double dy = toImagePoint.Y - fromImagePoint.Y;
+        double distance = Math.Sqrt((dx * dx) + (dy * dy));
+        double spacing = Math.Max(1.0, brushSize * 0.22);
+        int steps = Math.Clamp((int)Math.Ceiling(distance / spacing), 1, 160);
+        for (int step = 1; step <= steps; step++)
+        {
+            double t = step / (double)steps;
+            apply(new System.Windows.Point(
+                fromImagePoint.X + (dx * t),
+                fromImagePoint.Y + (dy * t)));
+        }
     }
 
     private static byte BlendByte(byte current, byte target, double alpha)

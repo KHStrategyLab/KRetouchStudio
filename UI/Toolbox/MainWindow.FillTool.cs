@@ -34,6 +34,7 @@ public partial class MainWindow
 
             _fillToolMode = value;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -50,6 +51,7 @@ public partial class MainWindow
 
             _fillToolOpacity = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 

@@ -25,6 +25,7 @@ public partial class MainWindow
             _dodgeBurnMode = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(DodgeBurnCircleStroke));
+            SaveToolboxDefaults();
         }
     }
 
@@ -42,6 +43,7 @@ public partial class MainWindow
             _dodgeBurnSize = clamped;
             DodgeBurnCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -58,6 +60,7 @@ public partial class MainWindow
 
             _dodgeBurnSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -74,6 +77,7 @@ public partial class MainWindow
 
             _dodgeBurnStrength = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -90,6 +94,7 @@ public partial class MainWindow
             _showDodgeBurnCircle = value;
             OnPropertyChanged();
             UpdateDodgeBurnCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 

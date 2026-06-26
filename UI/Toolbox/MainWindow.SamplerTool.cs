@@ -24,6 +24,7 @@ public partial class MainWindow
 
             _sampleRange = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 

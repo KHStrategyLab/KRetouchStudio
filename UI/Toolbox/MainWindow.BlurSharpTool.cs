@@ -17,6 +17,7 @@ public partial class MainWindow
         {
             _blurSharpMode = value;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -34,6 +35,7 @@ public partial class MainWindow
             _blurSharpSize = clamped;
             BlurSharpCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -50,6 +52,7 @@ public partial class MainWindow
 
             _blurSharpSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -66,6 +69,7 @@ public partial class MainWindow
 
             _blurSharpStrength = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -82,6 +86,7 @@ public partial class MainWindow
 
             _blurSharpRadius = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -98,6 +103,7 @@ public partial class MainWindow
             _showBlurSharpCircle = value;
             OnPropertyChanged();
             UpdateBlurSharpCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 

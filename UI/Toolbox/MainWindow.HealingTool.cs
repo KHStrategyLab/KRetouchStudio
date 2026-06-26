@@ -23,6 +23,7 @@ public partial class MainWindow
             _healingMode = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HealingModeHintText));
+            SaveToolboxDefaults();
         }
     }
 
@@ -47,6 +48,7 @@ public partial class MainWindow
             _healingSize = clamped;
             HealingCircleSize = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -63,6 +65,7 @@ public partial class MainWindow
 
             _healingSoftness = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -79,6 +82,7 @@ public partial class MainWindow
 
             _healingStrength = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -95,6 +99,7 @@ public partial class MainWindow
             _showHealingCircle = value;
             OnPropertyChanged();
             UpdateHealingCircleVisibility();
+            SaveToolboxDefaults();
         }
     }
 
@@ -147,6 +152,17 @@ public partial class MainWindow
 
         HealingMode = mode;
         UpdateHealingModeSelection();
+    }
+
+    private void HealingResetButton_Click(object sender, RoutedEventArgs e)
+    {
+        HealingMode = "healing";
+        HealingSize = 80;
+        HealingSoftness = 50;
+        HealingStrength = 50;
+        ShowHealingCircle = true;
+        UpdateHealingModeSelection();
+        SaveToolboxDefaults();
     }
 
     private void UpdateHealingModeSelection()
@@ -207,6 +223,7 @@ public partial class MainWindow
         _isHealingDragging = true;
         _healingStrokeStartSourcePoint = _healingSourceImagePoint;
         _healingStrokeStartTargetPoint = imagePoint;
+        _healingLastImagePoint = imagePoint;
         if (!isSpot && _healingSourceBitmap is not null)
         {
             BeginSourceCopyStroke(target);
@@ -225,7 +242,8 @@ public partial class MainWindow
             return;
         }
 
-        ApplyHealingDab(target, imagePoint);
+        ApplyHealingStrokeSegment(target, _healingLastImagePoint, imagePoint);
+        _healingLastImagePoint = imagePoint;
     }
 
     private void StopHealingStroke()
@@ -272,5 +290,16 @@ public partial class MainWindow
         HealingCircleVisibility = CanUseHealingPreview() && ShowHealingCircle
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void ApplyHealingStrokeSegment(
+        System.Windows.Media.Imaging.WriteableBitmap target,
+        System.Windows.Point fromImagePoint,
+        System.Windows.Point toImagePoint)
+    {
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, HealingSize, point =>
+        {
+            ApplyHealingDab(target, point);
+        });
     }
 }

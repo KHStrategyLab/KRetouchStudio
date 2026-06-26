@@ -26,6 +26,7 @@ public partial class MainWindow
 
             _magicToolMode = value;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -42,6 +43,7 @@ public partial class MainWindow
 
             _magicTolerance = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -63,6 +65,7 @@ public partial class MainWindow
 
             _magicSampleRange = clamped;
             OnPropertyChanged();
+            SaveToolboxDefaults();
         }
     }
 
@@ -142,7 +145,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void ApplyMagicSelectAtPreviewPoint(System.Windows.Point previewPoint)
+    private void ApplyMagicSelectAtPreviewPoint(System.Windows.Point previewPoint, bool addToSelection)
     {
         if (SelectedPhoto is not PhotoItem photo ||
             PreviewImageWidth <= 0 ||
@@ -318,8 +321,25 @@ public partial class MainWindow
 
         if (selectedCount <= 0)
         {
-            ClearMagicSelection();
+            if (!addToSelection || !HasReusableMagicSelection(width, height))
+            {
+                ClearMagicSelection();
+            }
+
             return;
+        }
+
+        int finalSelectedCount = selectedCount;
+        if (addToSelection && HasReusableMagicSelection(width, height) && _magicSelectionMask is not null)
+        {
+            for (int index = 0; index < selected.Length; index++)
+            {
+                if (_magicSelectionMask[index] && !selected[index])
+                {
+                    selected[index] = true;
+                    finalSelectedCount++;
+                }
+            }
         }
 
         byte[] overlayPixels = new byte[pixels.Length];
@@ -364,16 +384,35 @@ public partial class MainWindow
         overlayBitmap.Freeze();
 
         MagicSelectionOverlayImage = overlayBitmap;
+        _magicSelectionMask = selected;
+        _magicSelectionMaskWidth = width;
+        _magicSelectionMaskHeight = height;
+        _magicSelectionCount = finalSelectedCount;
         string modeLabel = string.Equals(MagicToolMode, "quickselect", StringComparison.OrdinalIgnoreCase)
             ? "Quick"
             : "Wand";
-        MagicSelectionInfoText = $"{modeLabel}  Selected {selectedCount:N0} px  Seed #{seedR:X2}{seedG:X2}{seedB:X2}  Tol {tolerance}  Proxy {width}x{height}";
+        string addLabel = addToSelection && finalSelectedCount > selectedCount
+            ? $"  Added {selectedCount:N0} px"
+            : string.Empty;
+        MagicSelectionInfoText = $"{modeLabel}  Selected {finalSelectedCount:N0} px{addLabel}  Seed #{seedR:X2}{seedG:X2}{seedB:X2}  Tol {tolerance}  Proxy {width}x{height}";
         UpdateMagicSelectionVisibility();
+    }
+
+    private bool HasReusableMagicSelection(int width, int height)
+    {
+        return _magicSelectionMask is not null &&
+               _magicSelectionMaskWidth == width &&
+               _magicSelectionMaskHeight == height &&
+               _magicSelectionCount > 0;
     }
 
     private void ClearMagicSelection()
     {
         MagicSelectionOverlayImage = null;
+        _magicSelectionMask = null;
+        _magicSelectionMaskWidth = 0;
+        _magicSelectionMaskHeight = 0;
+        _magicSelectionCount = 0;
         MagicSelectionInfoText = "No selection";
         UpdateMagicSelectionVisibility();
     }

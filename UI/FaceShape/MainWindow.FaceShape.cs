@@ -351,6 +351,8 @@ public partial class MainWindow
     private BitmapSource? _faceShapeHeadPoseDragProxySource;
     private int _faceShapeSymmetryRenderVersion;
     private int _faceShapeUpperPrewarmVersion;
+    private bool _isFaceShapeCommitRunning;
+    private bool _hasPendingFaceShapeCommitRequest;
 
     private readonly struct FaceShapePointArray(Point[] points, double[] zValues, bool[] hasPoint, int count)
     {
@@ -398,6 +400,36 @@ public partial class MainWindow
     }
 
     private async void FaceShapeRetouchTab_FaceShapeAdjustmentCommitted(object? sender, EventArgs e)
+    {
+        await ApplyFaceShapeCommittedAsync();
+    }
+
+    private async Task ApplyFaceShapeCommittedAsync()
+    {
+        if (_isFaceShapeCommitRunning)
+        {
+            _hasPendingFaceShapeCommitRequest = true;
+            Interlocked.Increment(ref _faceShapeSymmetryRenderVersion);
+            return;
+        }
+
+        _isFaceShapeCommitRunning = true;
+        try
+        {
+            do
+            {
+                _hasPendingFaceShapeCommitRequest = false;
+                await ApplyFaceShapeCommittedCoreAsync();
+            }
+            while (_hasPendingFaceShapeCommitRequest);
+        }
+        finally
+        {
+            _isFaceShapeCommitRunning = false;
+        }
+    }
+
+    private async Task ApplyFaceShapeCommittedCoreAsync()
     {
         if (FaceShapeRetouchTab is null)
         {
