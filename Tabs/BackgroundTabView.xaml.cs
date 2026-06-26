@@ -15,6 +15,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 {
     private enum BackgroundMode
     {
+        None,
         White,
         Gray,
         Color,
@@ -22,7 +23,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         Image
     }
 
-    private BackgroundMode _activeBackgroundMode = BackgroundMode.White;
+    private BackgroundMode _activeBackgroundMode = BackgroundMode.None;
     private double _backgroundOpacity = 100;
     private double _boundaryProbeStrength;
     private double _boundaryCleanStrength;
@@ -336,7 +337,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         {
             SelectedBackgroundImagePath = null;
             OnPropertyChanged(nameof(SelectedBackgroundImagePath));
-            SetActiveBackgroundMode(BackgroundMode.White, forceRefresh: true);
+            SetActiveBackgroundMode(BackgroundMode.None, forceRefresh: true);
         }
 
         BackgroundImageRemoved?.Invoke(this, new BackgroundImageRemovedEventArgs(path, wasSelected));

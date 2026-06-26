@@ -196,7 +196,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartHealingStroke(System.Windows.Point previewPoint)
+    private void StartHealingStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseHealingPreview() ||
             SelectedPhoto is not PhotoItem photo ||
@@ -229,11 +229,11 @@ public partial class MainWindow
             BeginSourceCopyStroke(target);
         }
 
-        ApplyHealingDab(target, imagePoint);
+        ApplyHealingDab(target, imagePoint, pressure);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueHealingStroke(System.Windows.Point previewPoint)
+    private void ContinueHealingStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isHealingDragging ||
             !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
@@ -242,7 +242,7 @@ public partial class MainWindow
             return;
         }
 
-        ApplyHealingStrokeSegment(target, _healingLastImagePoint, imagePoint);
+        ApplyHealingStrokeSegment(target, _healingLastImagePoint, imagePoint, pressure);
         _healingLastImagePoint = imagePoint;
     }
 
@@ -259,25 +259,26 @@ public partial class MainWindow
         PushEditorHistorySnapshot("Healing", $"{HealingMode} {HealingSize:0}px / {HealingStrength:0}%");
     }
 
-    private void ApplyHealingDab(System.Windows.Media.Imaging.WriteableBitmap target, System.Windows.Point imagePoint)
+    private void ApplyHealingDab(System.Windows.Media.Imaging.WriteableBitmap target, System.Windows.Point imagePoint, double pressure)
     {
-        double opacity = Math.Clamp(HealingStrength / 100.0, 0.0, 1.0);
+        double size = ApplyToolPressureToSize(HealingSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(Math.Clamp(HealingStrength / 100.0, 0.0, 1.0), pressure);
         if (string.Equals(HealingMode, "spot", StringComparison.OrdinalIgnoreCase) || _healingSourceBitmap is null)
         {
-            ApplyBlurSharpDab(target, imagePoint, HealingSize, HealingSoftness, HealingSize * 0.18, HealingStrength, false);
+            ApplyBlurSharpDab(target, imagePoint, size, HealingSoftness, size * 0.18, opacity * 100.0, false);
             return;
         }
 
         System.Windows.Point sourcePoint = new(
             _healingStrokeStartSourcePoint.X + (imagePoint.X - _healingStrokeStartTargetPoint.X),
             _healingStrokeStartSourcePoint.Y + (imagePoint.Y - _healingStrokeStartTargetPoint.Y));
-        ApplySourceCopyDab(target, _healingSourceBitmap, imagePoint, sourcePoint, HealingSize, HealingSoftness, opacity);
+        ApplySourceCopyDab(target, _healingSourceBitmap, imagePoint, sourcePoint, size, HealingSoftness, opacity);
     }
 
-    private void UpdateHealingCircle(System.Windows.Point previewPoint)
+    private void UpdateHealingCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, HealingSize);
+        double size = ApplyToolPressureToSize(HealingSize, pressure);
         HealingCircleSize = size;
         HealingCircleLeft = center.X - (size * 0.5);
         HealingCircleTop = center.Y - (size * 0.5);
@@ -295,11 +296,13 @@ public partial class MainWindow
     private void ApplyHealingStrokeSegment(
         System.Windows.Media.Imaging.WriteableBitmap target,
         System.Windows.Point fromImagePoint,
-        System.Windows.Point toImagePoint)
+        System.Windows.Point toImagePoint,
+        double pressure)
     {
-        ForEachToolStrokePoint(fromImagePoint, toImagePoint, HealingSize, point =>
+        double size = ApplyToolPressureToSize(HealingSize, pressure);
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, size, point =>
         {
-            ApplyHealingDab(target, point);
+            ApplyHealingDab(target, point, pressure);
         });
     }
 }

@@ -27,9 +27,11 @@ public partial class MainWindow
         RotateBottomRight
     }
 
-    private const double CropRotateHandleSize = 10;
+    private const double CropRotateHandleSize = 6;
+    private const double CropRotateIconSize = 16;
     private const double CropRotateOutsideHitRadius = 26;
     private const double CropRotateCursorSize = 24;
+    private const double CropRotateSnapAngle = 15.0;
     private const double RectangleSelectionHitTolerance = 8;
 
     public Visibility RectangleToolOptionsVisibility => string.Equals(ActiveToolId, "rectangle", StringComparison.OrdinalIgnoreCase)
@@ -40,13 +42,60 @@ public partial class MainWindow
         string.Equals(ActiveToolId, "rectangle", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(ActiveToolId, "crop", StringComparison.OrdinalIgnoreCase);
 
-    public Visibility RectangleOutlineSelectionVisibility =>
+    public Visibility CropOutlineSelectionVisibility =>
         RectangleSelectionVisibility == Visibility.Visible &&
-        IsCropOrRectangleToolActive &&
-        (string.Equals(ActiveToolId, "crop", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(RectangleShapeMode, "rectangle", StringComparison.OrdinalIgnoreCase))
+        string.Equals(ActiveToolId, "crop", StringComparison.OrdinalIgnoreCase)
             ? Visibility.Visible
             : Visibility.Collapsed;
+
+    public Visibility RectangleOutlineSelectionVisibility =>
+        RectangleSelectionVisibility == Visibility.Visible &&
+        string.Equals(ActiveToolId, "rectangle", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(RectangleShapeMode, "rectangle", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public Visibility CropOutsideOverlayVisibility =>
+        CropOutlineSelectionVisibility == Visibility.Visible &&
+        CropOutsideOverlayOpacityPercent > 0 &&
+        CropOutsideSelectionGeometry != Geometry.Empty
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public Geometry CropOutsideSelectionGeometry
+    {
+        get
+        {
+            if (PreviewImageWidth <= 0 ||
+                PreviewImageHeight <= 0 ||
+                RectangleSelectionVisibility != Visibility.Visible ||
+                RectangleSelectionWidth < 4 ||
+                RectangleSelectionHeight < 4 ||
+                !string.Equals(ActiveToolId, "crop", StringComparison.OrdinalIgnoreCase))
+            {
+                return Geometry.Empty;
+            }
+
+            RectangleGeometry imageGeometry = new(new Rect(
+                PreviewImageLeft,
+                PreviewImageTop,
+                PreviewImageWidth,
+                PreviewImageHeight));
+            RectangleGeometry cropGeometry = new(new Rect(
+                RectangleSelectionLeft,
+                RectangleSelectionTop,
+                RectangleSelectionWidth,
+                RectangleSelectionHeight));
+
+            if (Math.Abs(RectangleSelectionRotationAngle) >= 0.01)
+            {
+                WpfPoint center = GetRectangleSelectionCenter();
+                cropGeometry.Transform = new RotateTransform(RectangleSelectionRotationAngle, center.X, center.Y);
+            }
+
+            return new CombinedGeometry(GeometryCombineMode.Exclude, imageGeometry, cropGeometry);
+        }
+    }
 
     public Visibility RectangleEllipseSelectionVisibility =>
         RectangleSelectionVisibility == Visibility.Visible &&
@@ -94,17 +143,33 @@ public partial class MainWindow
 
     public double CropRotateTopLeftHandleTop => GetCropRotateHandleTop(GetCropSelectionCornerPoints()[0]);
 
+    public double CropRotateTopLeftIconLeft => GetCropRotateIconLeft(GetCropSelectionCornerPoints()[0]);
+
+    public double CropRotateTopLeftIconTop => GetCropRotateIconTop(GetCropSelectionCornerPoints()[0]);
+
     public double CropRotateTopRightHandleLeft => GetCropRotateHandleLeft(GetCropSelectionCornerPoints()[1]);
 
     public double CropRotateTopRightHandleTop => GetCropRotateHandleTop(GetCropSelectionCornerPoints()[1]);
+
+    public double CropRotateTopRightIconLeft => GetCropRotateIconLeft(GetCropSelectionCornerPoints()[1]);
+
+    public double CropRotateTopRightIconTop => GetCropRotateIconTop(GetCropSelectionCornerPoints()[1]);
 
     public double CropRotateBottomRightHandleLeft => GetCropRotateHandleLeft(GetCropSelectionCornerPoints()[2]);
 
     public double CropRotateBottomRightHandleTop => GetCropRotateHandleTop(GetCropSelectionCornerPoints()[2]);
 
+    public double CropRotateBottomRightIconLeft => GetCropRotateIconLeft(GetCropSelectionCornerPoints()[2]);
+
+    public double CropRotateBottomRightIconTop => GetCropRotateIconTop(GetCropSelectionCornerPoints()[2]);
+
     public double CropRotateBottomLeftHandleLeft => GetCropRotateHandleLeft(GetCropSelectionCornerPoints()[3]);
 
     public double CropRotateBottomLeftHandleTop => GetCropRotateHandleTop(GetCropSelectionCornerPoints()[3]);
+
+    public double CropRotateBottomLeftIconLeft => GetCropRotateIconLeft(GetCropSelectionCornerPoints()[3]);
+
+    public double CropRotateBottomLeftIconTop => GetCropRotateIconTop(GetCropSelectionCornerPoints()[3]);
 
     public Visibility CropRotateCursorVisibility => _cropRotateCursorVisibility;
 
@@ -215,6 +280,9 @@ public partial class MainWindow
             _rectangleSelectionVisibility = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(RectangleOutlineSelectionVisibility));
+            OnPropertyChanged(nameof(CropOutlineSelectionVisibility));
+            OnPropertyChanged(nameof(CropOutsideOverlayVisibility));
+            OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
             OnPropertyChanged(nameof(RectangleEllipseSelectionVisibility));
             OnPropertyChanged(nameof(RectanglePolygonSelectionVisibility));
             OnPropertyChanged(nameof(RectangleSelectionPolygonPoints));
@@ -754,7 +822,13 @@ public partial class MainWindow
     private void RotateRectangleSelection(System.Windows.Point currentPoint)
     {
         double currentAngle = GetRectangleSelectionPointerAngle(currentPoint);
-        CropRotationAngle = _rectangleSelectionRotateStartRotationAngle + (currentAngle - _rectangleSelectionRotateStartAngle);
+        double nextAngle = _rectangleSelectionRotateStartRotationAngle + (currentAngle - _rectangleSelectionRotateStartAngle);
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            nextAngle = Math.Round(nextAngle / CropRotateSnapAngle) * CropRotateSnapAngle;
+        }
+
+        CropRotationAngle = nextAngle;
         HideCropRotateCursor();
         PreviewSurface.Cursor = GetCropRotateCursor();
     }
@@ -1055,20 +1129,42 @@ public partial class MainWindow
         return centerPoint.Y - (CropRotateHandleSize * 0.5);
     }
 
+    private double GetCropRotateIconLeft(WpfPoint centerPoint)
+    {
+        return centerPoint.X - (CropRotateIconSize * 0.5);
+    }
+
+    private double GetCropRotateIconTop(WpfPoint centerPoint)
+    {
+        return centerPoint.Y - (CropRotateIconSize * 0.5);
+    }
+
     private void RaiseRectangleSelectionHandlePropertyChanged()
     {
+        OnPropertyChanged(nameof(CropOutlineSelectionVisibility));
+        OnPropertyChanged(nameof(RectangleOutlineSelectionVisibility));
+        OnPropertyChanged(nameof(CropOutsideOverlayVisibility));
+        OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
         OnPropertyChanged(nameof(CropRotateHandleVisibility));
         OnPropertyChanged(nameof(CropRotateCursorVisibility));
         OnPropertyChanged(nameof(CropRotateCursorLeft));
         OnPropertyChanged(nameof(CropRotateCursorTop));
         OnPropertyChanged(nameof(CropRotateTopLeftHandleLeft));
         OnPropertyChanged(nameof(CropRotateTopLeftHandleTop));
+        OnPropertyChanged(nameof(CropRotateTopLeftIconLeft));
+        OnPropertyChanged(nameof(CropRotateTopLeftIconTop));
         OnPropertyChanged(nameof(CropRotateTopRightHandleLeft));
         OnPropertyChanged(nameof(CropRotateTopRightHandleTop));
+        OnPropertyChanged(nameof(CropRotateTopRightIconLeft));
+        OnPropertyChanged(nameof(CropRotateTopRightIconTop));
         OnPropertyChanged(nameof(CropRotateBottomRightHandleLeft));
         OnPropertyChanged(nameof(CropRotateBottomRightHandleTop));
+        OnPropertyChanged(nameof(CropRotateBottomRightIconLeft));
+        OnPropertyChanged(nameof(CropRotateBottomRightIconTop));
         OnPropertyChanged(nameof(CropRotateBottomLeftHandleLeft));
         OnPropertyChanged(nameof(CropRotateBottomLeftHandleTop));
+        OnPropertyChanged(nameof(CropRotateBottomLeftIconLeft));
+        OnPropertyChanged(nameof(CropRotateBottomLeftIconTop));
         OnPropertyChanged(nameof(CropCenterGuideVisibility));
         OnPropertyChanged(nameof(CropCenterGuideCenterX));
         OnPropertyChanged(nameof(CropCenterGuideCenterY));

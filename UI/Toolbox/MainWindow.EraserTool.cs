@@ -44,6 +44,23 @@ public partial class MainWindow
         }
     }
 
+    public double EraserOpacity
+    {
+        get => _eraserOpacity;
+        set
+        {
+            double clamped = Math.Clamp(value, 0, 100);
+            if (Math.Abs(_eraserOpacity - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _eraserOpacity = clamped;
+            OnPropertyChanged();
+            SaveToolboxDefaults();
+        }
+    }
+
     public bool ShowEraserCircle
     {
         get => _showEraserCircle;
@@ -107,7 +124,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartEraserStroke(System.Windows.Point previewPoint)
+    private void StartEraserStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseEraserPreview() ||
             SelectedPhoto is not PhotoItem photo ||
@@ -118,11 +135,13 @@ public partial class MainWindow
         }
 
         _isEraserDragging = true;
-        ApplyRestoreDab(target, photo.BaseImage, imagePoint, EraserSize, EraserSoftness, 1.0);
+        double size = ApplyToolPressureToSize(EraserSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(EraserOpacity / 100.0, pressure);
+        ApplyRestoreDab(target, photo.BaseImage, imagePoint, size, EraserSoftness, opacity);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueEraserStroke(System.Windows.Point previewPoint)
+    private void ContinueEraserStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isEraserDragging ||
             SelectedPhoto is not PhotoItem photo ||
@@ -132,7 +151,9 @@ public partial class MainWindow
             return;
         }
 
-        ApplyRestoreDab(target, photo.BaseImage, imagePoint, EraserSize, EraserSoftness, 1.0);
+        double size = ApplyToolPressureToSize(EraserSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(EraserOpacity / 100.0, pressure);
+        ApplyRestoreDab(target, photo.BaseImage, imagePoint, size, EraserSoftness, opacity);
     }
 
     private void StopEraserStroke()
@@ -147,10 +168,10 @@ public partial class MainWindow
         PushEditorHistorySnapshot("Eraser", $"{EraserSize:0}px");
     }
 
-    private void UpdateEraserCircle(System.Windows.Point previewPoint)
+    private void UpdateEraserCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, EraserSize);
+        double size = ApplyToolPressureToSize(EraserSize, pressure);
         EraserCircleSize = size;
         EraserCircleLeft = center.X - (size * 0.5);
         EraserCircleTop = center.Y - (size * 0.5);

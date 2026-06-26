@@ -30,6 +30,7 @@ public sealed class ToolboxDefaultSettings
     public string BrushMode { get; set; } = "brush";
     public double BrushSize { get; set; } = 80;
     public double BrushSoftness { get; set; } = 50;
+    public double BrushOpacity { get; set; } = 100;
     public bool ShowBrushCircle { get; set; } = true;
 
     public string FillToolMode { get; set; } = "bucket";
@@ -37,10 +38,12 @@ public sealed class ToolboxDefaultSettings
 
     public double EraserSize { get; set; } = 80;
     public double EraserSoftness { get; set; } = 50;
+    public double EraserOpacity { get; set; } = 100;
     public bool ShowEraserCircle { get; set; } = true;
 
     public double StampSize { get; set; } = 80;
     public double StampSoftness { get; set; } = 50;
+    public double StampOpacity { get; set; } = 100;
     public bool ShowStampCircle { get; set; } = true;
 
     public string HealingMode { get; set; } = "healing";

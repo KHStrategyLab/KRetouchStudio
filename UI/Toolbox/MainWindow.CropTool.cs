@@ -169,6 +169,26 @@ public partial class MainWindow
         }
     }
 
+    public double CropOutsideOverlayOpacityPercent
+    {
+        get => _cropOutsideOverlayOpacityPercent;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value), 0, 90);
+            if (Math.Abs(_cropOutsideOverlayOpacityPercent - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _cropOutsideOverlayOpacityPercent = clamped;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CropOutsideOverlayOpacity));
+            OnPropertyChanged(nameof(CropOutsideOverlayVisibility));
+        }
+    }
+
+    public double CropOutsideOverlayOpacity => Math.Clamp(CropOutsideOverlayOpacityPercent / 100.0, 0.0, 0.9);
+
     public double SinglePreviewImageRotationAngle =>
         string.Equals(ActiveToolId, "crop", StringComparison.OrdinalIgnoreCase) &&
         CropRotateImageEnabled

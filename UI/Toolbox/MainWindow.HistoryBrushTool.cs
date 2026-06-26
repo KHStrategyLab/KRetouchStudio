@@ -124,7 +124,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartHistoryBrushStroke(System.Windows.Point previewPoint)
+    private void StartHistoryBrushStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseHistoryBrushPreview() ||
             SelectedPhoto is not PhotoItem photo ||
@@ -135,11 +135,13 @@ public partial class MainWindow
         }
 
         _isHistoryBrushDragging = true;
-        ApplyRestoreDab(target, photo.BaseImage, imagePoint, HistoryBrushSize, HistoryBrushSoftness, HistoryBrushStrength / 100.0);
+        double size = ApplyToolPressureToSize(HistoryBrushSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(HistoryBrushStrength / 100.0, pressure);
+        ApplyRestoreDab(target, photo.BaseImage, imagePoint, size, HistoryBrushSoftness, opacity);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueHistoryBrushStroke(System.Windows.Point previewPoint)
+    private void ContinueHistoryBrushStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isHistoryBrushDragging ||
             SelectedPhoto is not PhotoItem photo ||
@@ -149,7 +151,9 @@ public partial class MainWindow
             return;
         }
 
-        ApplyRestoreDab(target, photo.BaseImage, imagePoint, HistoryBrushSize, HistoryBrushSoftness, HistoryBrushStrength / 100.0);
+        double size = ApplyToolPressureToSize(HistoryBrushSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(HistoryBrushStrength / 100.0, pressure);
+        ApplyRestoreDab(target, photo.BaseImage, imagePoint, size, HistoryBrushSoftness, opacity);
     }
 
     private void StopHistoryBrushStroke()
@@ -164,10 +168,10 @@ public partial class MainWindow
         PushEditorHistorySnapshot("History Brush", $"{HistoryBrushSize:0}px / {HistoryBrushStrength:0}%");
     }
 
-    private void UpdateHistoryBrushCircle(System.Windows.Point previewPoint)
+    private void UpdateHistoryBrushCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, HistoryBrushSize);
+        double size = ApplyToolPressureToSize(HistoryBrushSize, pressure);
         HistoryBrushCircleSize = size;
         HistoryBrushCircleLeft = center.X - (size * 0.5);
         HistoryBrushCircleTop = center.Y - (size * 0.5);

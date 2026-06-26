@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 namespace KRetouchStudio;
@@ -14,6 +15,13 @@ public partial class MainWindow
     {
         return string.Equals(ActiveToolId, "hand", StringComparison.OrdinalIgnoreCase) &&
                CanUseSinglePreviewTool();
+    }
+
+    private bool CanUseTemporaryHandPreview()
+    {
+        return CanUseSinglePreviewTool() &&
+               _isSpacePressed &&
+               (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control;
     }
 
     private void PreviewFitInButton_Click(object sender, RoutedEventArgs e)

@@ -958,6 +958,28 @@
                                       FontSize="11"
                                       VerticalAlignment="Center"
                                       Margin="0,0,4,0"/>
+                            <TextBlock Text="Outside"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0,6,0"/>
+                            <Slider Width="82"
+                                    Minimum="0"
+                                    Maximum="90"
+                                    TickFrequency="1"
+                                    Value="{Binding CropOutsideOverlayOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding CropOutsideOverlayOpacityPercent, StringFormat={}{0:0}}"
+                                       Foreground="{StaticResource TextMain}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       MinWidth="22"
+                                       TextAlignment="Right"
+                                       Margin="0,0,2,0"/>
+                            <TextBlock Text="%"
+                                       Foreground="{StaticResource TextSub}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
                             <TextBlock Text="{Binding CropFaceMetricText}"
                                        Visibility="{Binding CropFaceMetricVisibility}"
                                        Foreground="{StaticResource TextMain}"
@@ -1328,8 +1350,14 @@
                                     Tag="pencil"
                                     Height="26"
                                     Padding="12,0"
-                                    Margin="0,0,12,0"
+                                    Margin="0,0,6,0"
                                     Click="BrushModeButton_Click"/>
+                            <Button Style="{StaticResource AppActionButtonStyle}"
+                                    Content="Reset"
+                                    Height="26"
+                                    Padding="12,0"
+                                    Margin="0,0,12,0"
+                                    Click="BrushResetButton_Click"/>
                             <StackPanel Width="112"
                                         Margin="0,0,14,0">
                                 <StackPanel Orientation="Horizontal"
@@ -1382,6 +1410,33 @@
                                 <Slider Minimum="0"
                                         Maximum="100"
                                         Value="{Binding BrushSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Opacity"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding BrushOpacity, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding BrushOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         Focusable="False"/>
                             </StackPanel>
                             <CheckBox Content="Show Circle"
@@ -1545,6 +1600,33 @@
                                         Value="{Binding EraserSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         Focusable="False"/>
                             </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Opacity"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding EraserOpacity, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding EraserOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
                             <CheckBox Content="Show Circle"
                                       IsChecked="{Binding ShowEraserCircle, Mode=TwoWay}"
                                       Foreground="{StaticResource TextSub}"
@@ -1614,6 +1696,33 @@
                                 <Slider Minimum="0"
                                         Maximum="100"
                                         Value="{Binding StampSoftness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        Focusable="False"/>
+                            </StackPanel>
+                            <StackPanel Width="112"
+                                        Margin="0,0,14,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,2">
+                                    <TextBlock Text="Opacity"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,3,0"/>
+                                    <TextBlock Width="34"
+                                               Height="18"
+                                               Foreground="{StaticResource TextMain}"
+                                               Text="{Binding StampOpacity, StringFormat={}{0:0}}"
+                                               VerticalAlignment="Bottom"
+                                               TextAlignment="Center"
+                                               Padding="0,0,0,2"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="%"
+                                               Height="18"
+                                               Foreground="{StaticResource TextSub}"
+                                               VerticalAlignment="Bottom"/>
+                                </StackPanel>
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding StampOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         Focusable="False"/>
                             </StackPanel>
                             <CheckBox Content="Show Circle"
@@ -2689,6 +2798,26 @@
                                  Stroke="{StaticResource Accent}"
                                  StrokeThickness="1.5"
                                  Fill="Transparent"/>
+                        <Path Visibility="{Binding CropOutsideOverlayVisibility}"
+                              IsHitTestVisible="False"
+                              Data="{Binding CropOutsideSelectionGeometry}"
+                              Fill="Black"
+                              Opacity="{Binding CropOutsideOverlayOpacity}"/>
+                        <Rectangle Visibility="{Binding CropOutlineSelectionVisibility}"
+                                   IsHitTestVisible="False"
+                                   Canvas.Left="{Binding RectangleSelectionLeft}"
+                                   Canvas.Top="{Binding RectangleSelectionTop}"
+                                   Width="{Binding RectangleSelectionWidth}"
+                                   Height="{Binding RectangleSelectionHeight}"
+                                   RenderTransformOrigin="0.5,0.5"
+                                   Stroke="#808080"
+                                   StrokeThickness="1"
+                                   StrokeDashArray="3,2"
+                                   Fill="Transparent">
+                            <Rectangle.RenderTransform>
+                                <RotateTransform Angle="{Binding RectangleSelectionRotationAngle}"/>
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
                         <Rectangle Visibility="{Binding RectangleOutlineSelectionVisibility}"
                                    IsHitTestVisible="False"
                                    Canvas.Left="{Binding RectangleSelectionLeft}"
@@ -2736,47 +2865,107 @@
                                                  CenterY="{Binding CropCenterGuideCenterY}"/>
                             </Line.RenderTransform>
                         </Line>
+                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateTopLeftIconLeft}"
+                                Canvas.Top="{Binding CropRotateTopLeftIconTop}"
+                                Width="16"
+                                Height="16">
+                            <Path Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateTopRightIconLeft}"
+                                Canvas.Top="{Binding CropRotateTopRightIconTop}"
+                                Width="16"
+                                Height="16"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Canvas.RenderTransform>
+                                <RotateTransform Angle="90"/>
+                            </Canvas.RenderTransform>
+                            <Path Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateBottomRightIconLeft}"
+                                Canvas.Top="{Binding CropRotateBottomRightIconTop}"
+                                Width="16"
+                                Height="16"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Canvas.RenderTransform>
+                                <RotateTransform Angle="180"/>
+                            </Canvas.RenderTransform>
+                            <Path Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                IsHitTestVisible="False"
+                                Canvas.Left="{Binding CropRotateBottomLeftIconLeft}"
+                                Canvas.Top="{Binding CropRotateBottomLeftIconTop}"
+                                Width="16"
+                                Height="16"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Canvas.RenderTransform>
+                                <RotateTransform Angle="270"/>
+                            </Canvas.RenderTransform>
+                            <Path Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#F4F4F4" StrokeThickness="3.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 3 13 C 3 7 7 3 13 3"/>
+                            <Polyline Points="13,3 10.8,1 10.8,5" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Polyline Points="3,13 1,10.8 5,10.8" Stroke="#202020" StrokeThickness="1.55" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
                         <Border Visibility="{Binding CropRotateHandleVisibility}"
                                 IsHitTestVisible="False"
                                 Canvas.Left="{Binding CropRotateTopLeftHandleLeft}"
                                 Canvas.Top="{Binding CropRotateTopLeftHandleTop}"
-                                Width="10"
-                                Height="10"
-                                CornerRadius="5"
-                                Background="{StaticResource SurfacePrimary}"
-                                BorderBrush="#F1D35A"
-                                BorderThickness="1.5"/>
+                                Width="6"
+                                Height="6"
+                                Background="Transparent"
+                                BorderBrush="#808080"
+                                BorderThickness="1"/>
                         <Border Visibility="{Binding CropRotateHandleVisibility}"
                                 IsHitTestVisible="False"
                                 Canvas.Left="{Binding CropRotateTopRightHandleLeft}"
                                 Canvas.Top="{Binding CropRotateTopRightHandleTop}"
-                                Width="10"
-                                Height="10"
-                                CornerRadius="5"
-                                Background="{StaticResource SurfacePrimary}"
-                                BorderBrush="#F1D35A"
-                                BorderThickness="1.5"/>
+                                Width="6"
+                                Height="6"
+                                Background="Transparent"
+                                BorderBrush="#808080"
+                                BorderThickness="1"/>
                         <Border Visibility="{Binding CropRotateHandleVisibility}"
                                 IsHitTestVisible="False"
                                 Canvas.Left="{Binding CropRotateBottomRightHandleLeft}"
                                 Canvas.Top="{Binding CropRotateBottomRightHandleTop}"
-                                Width="10"
-                                Height="10"
-                                CornerRadius="5"
-                                Background="{StaticResource SurfacePrimary}"
-                                BorderBrush="#F1D35A"
-                                BorderThickness="1.5"/>
+                                Width="6"
+                                Height="6"
+                                Background="Transparent"
+                                BorderBrush="#808080"
+                                BorderThickness="1"/>
                         <Border Visibility="{Binding CropRotateHandleVisibility}"
                                 IsHitTestVisible="False"
                                 Canvas.Left="{Binding CropRotateBottomLeftHandleLeft}"
                                 Canvas.Top="{Binding CropRotateBottomLeftHandleTop}"
-                                Width="10"
-                                Height="10"
-                                CornerRadius="5"
-                                Background="{StaticResource SurfacePrimary}"
-                                BorderBrush="#F1D35A"
-                                BorderThickness="1.5"/>
-                        <Canvas Visibility="{Binding CropRotateCursorVisibility}"
+                                Width="6"
+                                Height="6"
+                                Background="Transparent"
+                                BorderBrush="#808080"
+                                BorderThickness="1"/>
+                        <Canvas Visibility="Collapsed"
                                 IsHitTestVisible="False"
                                 Canvas.Left="{Binding CropRotateCursorLeft}"
                                 Canvas.Top="{Binding CropRotateCursorTop}"
@@ -2943,8 +3132,9 @@
                                  Canvas.Top="{Binding BrushCircleTop}"
                                  Width="{Binding BrushCircleSize}"
                                  Height="{Binding BrushCircleSize}"
-                                 Stroke="{Binding BrushColorPreview}"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding EraserCircleVisibility}"
                                  IsHitTestVisible="False"
@@ -2952,8 +3142,8 @@
                                  Canvas.Top="{Binding EraserCircleTop}"
                                  Width="{Binding EraserCircleSize}"
                                  Height="{Binding EraserCircleSize}"
-                                 Stroke="#E5E5E5"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
                                  StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding StampCircleVisibility}"
@@ -2962,9 +3152,9 @@
                                  Canvas.Top="{Binding StampCircleTop}"
                                  Width="{Binding StampCircleSize}"
                                  Height="{Binding StampCircleSize}"
-                                 Stroke="{StaticResource Accent}"
-                                 StrokeThickness="1.5"
-                                 StrokeDashArray="4,3"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding HealingCircleVisibility}"
                                  IsHitTestVisible="False"
@@ -2972,8 +3162,9 @@
                                  Canvas.Top="{Binding HealingCircleTop}"
                                  Width="{Binding HealingCircleSize}"
                                  Height="{Binding HealingCircleSize}"
-                                 Stroke="#75F5B8"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding BlurSharpCircleVisibility}"
                                  IsHitTestVisible="False"
@@ -2981,9 +3172,9 @@
                                  Canvas.Top="{Binding BlurSharpCircleTop}"
                                  Width="{Binding BlurSharpCircleSize}"
                                  Height="{Binding BlurSharpCircleSize}"
-                                 Stroke="#D9D9D9"
-                                 StrokeThickness="1.5"
-                                 StrokeDashArray="2,2"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding DodgeBurnCircleVisibility}"
                                  IsHitTestVisible="False"
@@ -2991,8 +3182,9 @@
                                  Canvas.Top="{Binding DodgeBurnCircleTop}"
                                  Width="{Binding DodgeBurnCircleSize}"
                                  Height="{Binding DodgeBurnCircleSize}"
-                                 Stroke="{Binding DodgeBurnCircleStroke}"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Ellipse Visibility="{Binding HistoryBrushCircleVisibility}"
                                  IsHitTestVisible="False"
@@ -3000,8 +3192,9 @@
                                  Canvas.Top="{Binding HistoryBrushCircleTop}"
                                  Width="{Binding HistoryBrushCircleSize}"
                                  Height="{Binding HistoryBrushCircleSize}"
-                                 Stroke="#F1D35A"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                         <Border Visibility="{Binding FreeTransformOverlayVisibility}"
                                 IsHitTestVisible="False"
@@ -3123,8 +3316,9 @@
                                  Canvas.Top="{Binding LiquifyCircleTop}"
                                  Width="{Binding LiquifyCircleSize}"
                                  Height="{Binding LiquifyCircleSize}"
-                                 Stroke="#F08A5D"
-                                 StrokeThickness="1.5"
+                                 Stroke="White"
+                                 StrokeThickness="1"
+                                 StrokeDashArray="3,2"
                                  Fill="Transparent"/>
                     </Canvas>
 

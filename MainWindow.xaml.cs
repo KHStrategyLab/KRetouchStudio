@@ -131,6 +131,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _rectangleSelectionImageHeight;
     private double _cropRotationAngle;
     private bool _cropRotateImageEnabled;
+    private double _cropOutsideOverlayOpacityPercent = 45;
     private double _cropPresetWidth = 3.5;
     private double _cropPresetHeight = 4.5;
     private string _cropPresetUnit = "cm";
@@ -175,6 +176,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _typeToolStatusText = "No text";
     private double _brushSize = 80;
     private double _brushSoftness = 50;
+    private double _brushOpacity = 100;
     private bool _showBrushCircle = true;
     private System.Windows.Media.Brush _brushColorPreview = new SolidColorBrush(System.Windows.Media.Color.FromRgb(241, 211, 90));
     private double _brushCircleLeft;
@@ -185,6 +187,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private System.Windows.Point _brushLastImagePoint;
     private double _eraserSize = 80;
     private double _eraserSoftness = 50;
+    private double _eraserOpacity = 100;
     private bool _showEraserCircle = true;
     private double _eraserCircleLeft;
     private double _eraserCircleTop;
@@ -193,6 +196,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _isEraserDragging;
     private double _stampSize = 80;
     private double _stampSoftness = 50;
+    private double _stampOpacity = 100;
     private bool _showStampCircle = true;
     private string _stampSourceText = "Source: Not Set";
     private double _stampCircleLeft;
@@ -264,6 +268,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _isHistoryBrushDragging;
     private bool _isZoomSelectionDragging;
     private bool _isTemporaryZoomSelectionDragging;
+    private PhotoItem? _zoomSelectionMultiPhoto;
+    private FrameworkElement? _zoomSelectionMultiTile;
     private System.Windows.Point _zoomSelectionStartPoint;
     private double _zoomSelectionLeft;
     private double _zoomSelectionTop;
@@ -770,6 +776,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _previewImageLeft = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
         }
     }
 
@@ -780,6 +787,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _previewImageTop = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
         }
     }
 
@@ -790,6 +798,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _previewImageWidth = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
         }
     }
 
@@ -800,6 +809,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _previewImageHeight = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CropOutsideSelectionGeometry));
         }
     }
 
@@ -1980,6 +1990,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (e.Key == Key.Space)
         {
             _isSpacePressed = true;
+            if (CanHandleToolShortcuts())
+            {
+                if (CanUseTemporaryZoomGesture())
+                {
+                    PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
+                    e.Handled = true;
+                    return;
+                }
+
+                if (CanUseTemporaryHandPreview())
+                {
+                    PreviewSurface.Cursor = System.Windows.Input.Cursors.Hand;
+                    e.Handled = true;
+                    return;
+                }
+            }
         }
 
         if (e.Key == Key.Escape)
@@ -2220,7 +2246,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (e.Key == Key.Space)
         {
+            bool wasTemporaryPanDragging = _isSinglePreviewPanDragging && !CanUseHandPreview();
             _isSpacePressed = false;
+            if (wasTemporaryPanDragging)
+            {
+                StopSinglePreviewPan();
+            }
+
+            if (CanHandleToolShortcuts() && !CanUseHandPreview())
+            {
+                PreviewSurface.Cursor = null;
+                e.Handled = true;
+            }
         }
     }
 
@@ -2764,6 +2801,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (sender is FrameworkElement zoomTile && CanUseTemporaryZoomGesture())
+        {
+            StartMultiPreviewZoomSelection(photo, zoomTile, e.GetPosition(PreviewSurface));
+            e.Handled = true;
+            return;
+        }
+
         if (e.ClickCount >= 2)
         {
             if (CanUseSelectTool())
@@ -2876,7 +2920,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _singlePreviewPanStartPoint = startPoint;
         _singlePreviewImageLeftStart = PreviewImageLeft;
         _singlePreviewImageTopStart = PreviewImageTop;
-        PreviewSurface.Cursor = System.Windows.Input.Cursors.SizeAll;
+        PreviewSurface.Cursor = CanUseTemporaryHandPreview()
+            ? System.Windows.Input.Cursors.Hand
+            : System.Windows.Input.Cursors.SizeAll;
         Mouse.Capture(PreviewSurface);
     }
 
@@ -3266,6 +3312,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _brushMode = NormalizeToolMode(settings.BrushMode, "brush", "brush", "pencil");
         _brushSize = Math.Clamp(settings.BrushSize, 1, 600);
         _brushSoftness = Math.Clamp(settings.BrushSoftness, 0, 100);
+        _brushOpacity = Math.Clamp(settings.BrushOpacity, 0, 100);
         _showBrushCircle = settings.ShowBrushCircle;
         _brushCircleSize = _brushSize;
 
@@ -3274,11 +3321,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _eraserSize = Math.Clamp(settings.EraserSize, 1, 600);
         _eraserSoftness = Math.Clamp(settings.EraserSoftness, 0, 100);
+        _eraserOpacity = Math.Clamp(settings.EraserOpacity, 0, 100);
         _showEraserCircle = settings.ShowEraserCircle;
         _eraserCircleSize = _eraserSize;
 
         _stampSize = Math.Clamp(settings.StampSize, 1, 600);
         _stampSoftness = Math.Clamp(settings.StampSoftness, 0, 100);
+        _stampOpacity = Math.Clamp(settings.StampOpacity, 0, 100);
         _showStampCircle = settings.ShowStampCircle;
         _stampCircleSize = _stampSize;
 
@@ -3349,14 +3398,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         settings.BrushMode = BrushMode;
         settings.BrushSize = BrushSize;
         settings.BrushSoftness = BrushSoftness;
+        settings.BrushOpacity = BrushOpacity;
         settings.ShowBrushCircle = ShowBrushCircle;
         settings.FillToolMode = FillToolMode;
         settings.FillToolOpacity = FillToolOpacity;
         settings.EraserSize = EraserSize;
         settings.EraserSoftness = EraserSoftness;
+        settings.EraserOpacity = EraserOpacity;
         settings.ShowEraserCircle = ShowEraserCircle;
         settings.StampSize = StampSize;
         settings.StampSoftness = StampSoftness;
+        settings.StampOpacity = StampOpacity;
         settings.ShowStampCircle = ShowStampCircle;
         settings.HealingMode = HealingMode;
         settings.HealingSize = HealingSize;
@@ -3426,14 +3478,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(BrushMode));
         OnPropertyChanged(nameof(BrushSize));
         OnPropertyChanged(nameof(BrushSoftness));
+        OnPropertyChanged(nameof(BrushOpacity));
         OnPropertyChanged(nameof(ShowBrushCircle));
         OnPropertyChanged(nameof(FillToolMode));
         OnPropertyChanged(nameof(FillToolOpacity));
         OnPropertyChanged(nameof(EraserSize));
         OnPropertyChanged(nameof(EraserSoftness));
+        OnPropertyChanged(nameof(EraserOpacity));
         OnPropertyChanged(nameof(ShowEraserCircle));
         OnPropertyChanged(nameof(StampSize));
         OnPropertyChanged(nameof(StampSoftness));
+        OnPropertyChanged(nameof(StampOpacity));
         OnPropertyChanged(nameof(ShowStampCircle));
         OnPropertyChanged(nameof(HealingMode));
         OnPropertyChanged(nameof(HealingModeHintText));
@@ -4392,6 +4447,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PreviewSurface_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        if (_isZoomSelectionDragging)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                UpdateZoomSelection(e.GetPosition(PreviewSurface));
+                e.Handled = true;
+                return;
+            }
+
+            StopZoomSelection();
+            e.Handled = true;
+            return;
+        }
+
+        if (CanUseTemporaryZoomGesture())
+        {
+            PreviewSurface.Cursor = System.Windows.Input.Cursors.Cross;
+            return;
+        }
+
+        if (_isSinglePreviewPanDragging)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && SelectedPreviewPhotos.Count == 1)
+            {
+                System.Windows.Point currentPoint = e.GetPosition(PreviewSurface);
+                Vector delta = currentPoint - _singlePreviewPanStartPoint;
+                if (delta.Length > 0)
+                {
+                    double nextLeft = _singlePreviewImageLeftStart + delta.X;
+                    double nextTop = _singlePreviewImageTopStart + delta.Y;
+                    UpdateSinglePreviewPan(nextLeft, nextTop);
+                }
+
+                e.Handled = true;
+                return;
+            }
+
+            StopSinglePreviewPan();
+            e.Handled = true;
+            return;
+        }
+
+        if (CanUseTemporaryHandPreview())
+        {
+            PreviewSurface.Cursor = System.Windows.Input.Cursors.Hand;
+            return;
+        }
+
         if (CanUseSelectTool())
         {
             PreviewSurface.Cursor = System.Windows.Input.Cursors.Arrow;
@@ -4414,10 +4517,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseBrushPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateBrushCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateBrushCircle(previewPoint, pressure);
             if (_isBrushDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueBrushStroke(previewPoint);
+                ContinueBrushStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4439,10 +4543,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseEraserPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateEraserCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateEraserCircle(previewPoint, pressure);
             if (_isEraserDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueEraserStroke(previewPoint);
+                ContinueEraserStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4464,10 +4569,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseStampPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateStampCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateStampCircle(previewPoint, pressure);
             if (_isStampDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueStampStroke(previewPoint);
+                ContinueStampStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4476,10 +4582,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseHealingPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateHealingCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateHealingCircle(previewPoint, pressure);
             if (_isHealingDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueHealingStroke(previewPoint);
+                ContinueHealingStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4488,10 +4595,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseBlurSharpPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateBlurSharpCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateBlurSharpCircle(previewPoint, pressure);
             if (_isBlurSharpDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueBlurSharpStroke(previewPoint);
+                ContinueBlurSharpStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4500,10 +4608,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseDodgeBurnPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateDodgeBurnCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateDodgeBurnCircle(previewPoint, pressure);
             if (_isDodgeBurnDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueDodgeBurnStroke(previewPoint);
+                ContinueDodgeBurnStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4515,10 +4624,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (CanUseHistoryBrushPreview())
         {
             System.Windows.Point previewPoint = e.GetPosition(PreviewSurface);
-            UpdateHistoryBrushCircle(previewPoint);
+            double pressure = GetToolInputPressure(e, PreviewSurface);
+            UpdateHistoryBrushCircle(previewPoint, pressure);
             if (_isHistoryBrushDragging && e.LeftButton == MouseButtonState.Pressed)
             {
-                ContinueHistoryBrushStroke(previewPoint);
+                ContinueHistoryBrushStroke(previewPoint, pressure);
                 e.Handled = true;
                 return;
             }
@@ -4704,6 +4814,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         FocusPreviewSurfaceForToolInput();
 
+        if (CanUseTemporaryZoomGesture())
+        {
+            if (SelectedPreviewPhotos.Count == 1)
+            {
+                StartZoomSelection(e.GetPosition(PreviewSurface));
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (CanUseTemporaryHandPreview())
+        {
+            StartSinglePreviewPan(e.GetPosition(PreviewSurface));
+            e.Handled = true;
+            return;
+        }
+
         if (CanUseBackgroundColorPickPreview())
         {
             ApplyBackgroundPickedColorAtPreviewPoint(e.GetPosition(PreviewSurface));
@@ -4720,7 +4848,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (CanUseBrushPreview())
         {
-            StartBrushStroke(e.GetPosition(PreviewSurface));
+            StartBrushStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
@@ -4734,7 +4862,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (CanUseEraserPreview())
         {
-            StartEraserStroke(e.GetPosition(PreviewSurface));
+            StartEraserStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
@@ -4748,35 +4876,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (CanUseStampPreview())
         {
-            StartStampStroke(e.GetPosition(PreviewSurface));
+            StartStampStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
 
         if (CanUseHealingPreview())
         {
-            StartHealingStroke(e.GetPosition(PreviewSurface));
+            StartHealingStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
 
         if (CanUseBlurSharpPreview())
         {
-            StartBlurSharpStroke(e.GetPosition(PreviewSurface));
+            StartBlurSharpStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
 
         if (CanUseDodgeBurnPreview())
         {
-            StartDodgeBurnStroke(e.GetPosition(PreviewSurface));
+            StartDodgeBurnStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }
 
         if (CanUseHistoryBrushPreview())
         {
-            StartHistoryBrushStroke(e.GetPosition(PreviewSurface));
+            StartHistoryBrushStroke(e.GetPosition(PreviewSurface), GetToolInputPressure(e, PreviewSurface));
             e.Handled = true;
             return;
         }

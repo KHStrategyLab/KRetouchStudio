@@ -44,6 +44,23 @@ public partial class MainWindow
         }
     }
 
+    public double StampOpacity
+    {
+        get => _stampOpacity;
+        set
+        {
+            double clamped = Math.Clamp(value, 0, 100);
+            if (Math.Abs(_stampOpacity - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _stampOpacity = clamped;
+            OnPropertyChanged();
+            SaveToolboxDefaults();
+        }
+    }
+
     public bool ShowStampCircle
     {
         get => _showStampCircle;
@@ -117,7 +134,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartStampStroke(System.Windows.Point previewPoint)
+    private void StartStampStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseStampPreview() ||
             SelectedPhoto is not PhotoItem photo ||
@@ -147,11 +164,13 @@ public partial class MainWindow
         _stampStrokeStartTargetPoint = imagePoint;
         _stampLastImagePoint = imagePoint;
         BeginSourceCopyStroke(target);
-        ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, _stampStrokeStartSourcePoint, StampSize, StampSoftness, 1.0);
+        double size = ApplyToolPressureToSize(StampSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(StampOpacity / 100.0, pressure);
+        ApplySourceCopyDab(target, _stampSourceBitmap, imagePoint, _stampStrokeStartSourcePoint, size, StampSoftness, opacity);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueStampStroke(System.Windows.Point previewPoint)
+    private void ContinueStampStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isStampDragging ||
             _stampSourceBitmap is null ||
@@ -161,7 +180,7 @@ public partial class MainWindow
             return;
         }
 
-        ApplyStampStrokeSegment(target, _stampLastImagePoint, imagePoint);
+        ApplyStampStrokeSegment(target, _stampLastImagePoint, imagePoint, pressure);
         _stampLastImagePoint = imagePoint;
     }
 
@@ -178,10 +197,10 @@ public partial class MainWindow
         PushEditorHistorySnapshot("Stamp", $"{StampSize:0}px");
     }
 
-    private void UpdateStampCircle(System.Windows.Point previewPoint)
+    private void UpdateStampCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, StampSize);
+        double size = ApplyToolPressureToSize(StampSize, pressure);
         StampCircleSize = size;
         StampCircleLeft = center.X - (size * 0.5);
         StampCircleTop = center.Y - (size * 0.5);
@@ -199,19 +218,22 @@ public partial class MainWindow
     private void ApplyStampStrokeSegment(
         System.Windows.Media.Imaging.WriteableBitmap target,
         System.Windows.Point fromImagePoint,
-        System.Windows.Point toImagePoint)
+        System.Windows.Point toImagePoint,
+        double pressure)
     {
         if (_stampSourceBitmap is null)
         {
             return;
         }
 
-        ForEachToolStrokePoint(fromImagePoint, toImagePoint, StampSize, point =>
+        double size = ApplyToolPressureToSize(StampSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(StampOpacity / 100.0, pressure);
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, size, point =>
         {
             System.Windows.Point sourcePoint = new(
                 _stampStrokeStartSourcePoint.X + (point.X - _stampStrokeStartTargetPoint.X),
                 _stampStrokeStartSourcePoint.Y + (point.Y - _stampStrokeStartTargetPoint.Y));
-            ApplySourceCopyDab(target, _stampSourceBitmap, point, sourcePoint, StampSize, StampSoftness, 1.0);
+            ApplySourceCopyDab(target, _stampSourceBitmap, point, sourcePoint, size, StampSoftness, opacity);
         });
     }
 }

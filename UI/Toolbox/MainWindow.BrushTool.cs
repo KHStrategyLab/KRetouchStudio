@@ -63,6 +63,23 @@ public partial class MainWindow
         }
     }
 
+    public double BrushOpacity
+    {
+        get => _brushOpacity;
+        set
+        {
+            double clamped = Math.Clamp(value, 0, 100);
+            if (Math.Abs(_brushOpacity - clamped) < 0.01)
+            {
+                return;
+            }
+
+            _brushOpacity = clamped;
+            OnPropertyChanged();
+            SaveToolboxDefaults();
+        }
+    }
+
     public bool ShowBrushCircle
     {
         get => _showBrushCircle;
@@ -141,6 +158,33 @@ public partial class MainWindow
         UpdateBrushModeSelection();
     }
 
+    private void BrushResetButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        ResetBrushPreviewToOriginal();
+    }
+
+    private void ResetBrushPreviewToOriginal()
+    {
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        _isBrushDragging = false;
+        System.Windows.Input.Mouse.Capture(null);
+        ClearDodgeBurnSession(false);
+        ClearLiquifySession(false);
+        ClearFaceShapeSymmetrySession();
+        photo.ResetAdjustedImage();
+        _editorUndoHistory.Clear();
+        _editorRedoHistory.Clear();
+        HistoryPanelItems.Clear();
+        SelectedHistoryPanelItem = null;
+        UpdatePreviewLayout();
+        PushEditorHistorySnapshot("Open Photo", $"Session restarted for {photo.FileName}");
+    }
+
     private void UpdateBrushModeSelection()
     {
         foreach (System.Windows.Controls.Button button in GetBrushModeButtons())
@@ -207,22 +251,35 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartBrushStroke(System.Windows.Point previewPoint)
+    private void StartBrushStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseBrushPreview() ||
-            !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
-            !TryGetToolWorkingBitmap(out _, out System.Windows.Media.Imaging.WriteableBitmap target))
+            !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint))
+        {
+            return;
+        }
+
+        if (!IsPencilBrushMode &&
+            (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Alt) == System.Windows.Input.ModifierKeys.Alt)
+        {
+            TrySetBrushColorFromCurrentImagePoint(imagePoint);
+            return;
+        }
+
+        if (!TryGetToolWorkingBitmap(out _, out System.Windows.Media.Imaging.WriteableBitmap target))
         {
             return;
         }
 
         _isBrushDragging = true;
         _brushLastImagePoint = imagePoint;
-        ApplyPaintDab(target, imagePoint, BrushSize, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, 1.0);
+        double size = ApplyToolPressureToSize(BrushSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(BrushOpacity / 100.0, pressure);
+        ApplyPaintDab(target, imagePoint, size, BrushSoftness, GetCurrentBrushColor(), IsPencilBrushMode, opacity);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueBrushStroke(System.Windows.Point previewPoint)
+    private void ContinueBrushStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isBrushDragging ||
             !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
@@ -231,7 +288,7 @@ public partial class MainWindow
             return;
         }
 
-        ApplyBrushStrokeSegment(target, _brushLastImagePoint, imagePoint);
+        ApplyBrushStrokeSegment(target, _brushLastImagePoint, imagePoint, pressure);
         _brushLastImagePoint = imagePoint;
     }
 
@@ -247,10 +304,10 @@ public partial class MainWindow
         PushEditorHistorySnapshot(IsPencilBrushMode ? "Pencil" : "Brush", $"{BrushSize:0}px");
     }
 
-    private void UpdateBrushCircle(System.Windows.Point previewPoint)
+    private void UpdateBrushCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, BrushSize);
+        double size = ApplyToolPressureToSize(BrushSize, pressure);
         BrushCircleSize = size;
         BrushCircleLeft = center.X - (size * 0.5);
         BrushCircleTop = center.Y - (size * 0.5);
@@ -268,16 +325,38 @@ public partial class MainWindow
     private void ApplyBrushStrokeSegment(
         System.Windows.Media.Imaging.WriteableBitmap target,
         System.Windows.Point fromImagePoint,
-        System.Windows.Point toImagePoint)
+        System.Windows.Point toImagePoint,
+        double pressure)
     {
         System.Windows.Media.Color color = GetCurrentBrushColor();
-        ForEachToolStrokePoint(fromImagePoint, toImagePoint, BrushSize, point =>
+        double size = ApplyToolPressureToSize(BrushSize, pressure);
+        double opacity = ApplyToolPressureToOpacity(BrushOpacity / 100.0, pressure);
+        ForEachToolStrokePoint(fromImagePoint, toImagePoint, size, point =>
         {
-            ApplyPaintDab(target, point, BrushSize, BrushSoftness, color, IsPencilBrushMode, 1.0);
+            ApplyPaintDab(target, point, size, BrushSoftness, color, IsPencilBrushMode, opacity);
         });
     }
 
     private bool IsPencilBrushMode => string.Equals(BrushMode, "pencil", StringComparison.OrdinalIgnoreCase);
+
+    private bool TrySetBrushColorFromCurrentImagePoint(System.Windows.Point imagePoint)
+    {
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return false;
+        }
+
+        System.Windows.Media.Imaging.BitmapSource source = EnsureBgraBitmapSource(GetCurrentDisplayBitmapSource(photo));
+        int x = Math.Clamp((int)Math.Round(imagePoint.X), 0, source.PixelWidth - 1);
+        int y = Math.Clamp((int)Math.Round(imagePoint.Y), 0, source.PixelHeight - 1);
+        byte[] pixel = new byte[4];
+        source.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
+
+        System.Windows.Media.SolidColorBrush brush = new(System.Windows.Media.Color.FromRgb(pixel[2], pixel[1], pixel[0]));
+        brush.Freeze();
+        BrushColorPreview = brush;
+        return true;
+    }
 
     private System.Windows.Media.Color GetCurrentBrushColor()
     {
@@ -628,7 +707,7 @@ public partial class MainWindow
         double dx = toImagePoint.X - fromImagePoint.X;
         double dy = toImagePoint.Y - fromImagePoint.Y;
         double distance = Math.Sqrt((dx * dx) + (dy * dy));
-        double spacing = Math.Max(1.0, brushSize * 0.22);
+        double spacing = Math.Max(0.75, brushSize * 0.08);
         int steps = Math.Clamp((int)Math.Ceiling(distance / spacing), 1, 160);
         for (int step = 1; step <= steps; step++)
         {
@@ -647,5 +726,46 @@ public partial class MainWindow
     private static byte ClampByte(double value)
     {
         return (byte)Math.Clamp((int)Math.Round(value), 0, 255);
+    }
+
+    private static double GetToolInputPressure(System.Windows.Input.MouseEventArgs e, System.Windows.IInputElement relativeTo)
+    {
+        if (e.StylusDevice is null)
+        {
+            return 1.0;
+        }
+
+        try
+        {
+            System.Windows.Input.StylusPointCollection points = e.StylusDevice.GetStylusPoints(relativeTo);
+            if (points.Count == 0)
+            {
+                return 1.0;
+            }
+
+            double pressure = points[^1].PressureFactor;
+            if (double.IsNaN(pressure) || double.IsInfinity(pressure) || pressure <= 0)
+            {
+                return 1.0;
+            }
+
+            return Math.Clamp(pressure, 0.05, 1.0);
+        }
+        catch (InvalidOperationException)
+        {
+            return 1.0;
+        }
+    }
+
+    private static double ApplyToolPressureToSize(double baseSize, double pressure)
+    {
+        double ratio = 0.25 + (Math.Clamp(pressure, 0.0, 1.0) * 0.75);
+        return Math.Max(1.0, baseSize * ratio);
+    }
+
+    private static double ApplyToolPressureToOpacity(double baseOpacity, double pressure)
+    {
+        double ratio = 0.15 + (Math.Clamp(pressure, 0.0, 1.0) * 0.85);
+        return Math.Clamp(baseOpacity * ratio, 0.0, 1.0);
     }
 }

@@ -201,10 +201,10 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void UpdateDodgeBurnCircle(System.Windows.Point previewPoint)
+    private void UpdateDodgeBurnCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, DodgeBurnSize);
+        double size = ApplyToolPressureToSize(DodgeBurnSize, pressure);
         DodgeBurnCircleSize = size;
         DodgeBurnCircleLeft = center.X - (size * 0.5);
         DodgeBurnCircleTop = center.Y - (size * 0.5);
@@ -219,7 +219,7 @@ public partial class MainWindow
             : Visibility.Collapsed;
     }
 
-    private void StartDodgeBurnStroke(System.Windows.Point previewPoint)
+    private void StartDodgeBurnStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!EnsureDodgeBurnWorkingBitmap() ||
             !TryPreviewPointToImagePixel(previewPoint, out int pixelX, out int pixelY))
@@ -229,13 +229,13 @@ public partial class MainWindow
 
         _isDodgeBurnDragging = true;
         _dodgeBurnLastImagePoint = new System.Windows.Point(pixelX, pixelY);
-        ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap!, pixelX, pixelY);
+        ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap!, pixelX, pixelY, pressure);
         DodgeBurnStatusText = $"{GetDodgeBurnActionLabel()}  X:{pixelX} Y:{pixelY}";
-        UpdateDodgeBurnCircle(previewPoint);
+        UpdateDodgeBurnCircle(previewPoint, pressure);
         Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueDodgeBurnStroke(System.Windows.Point previewPoint)
+    private void ContinueDodgeBurnStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isDodgeBurnDragging ||
             _dodgeBurnWorkingBitmap is null ||
@@ -245,10 +245,10 @@ public partial class MainWindow
         }
 
         System.Windows.Point currentImagePoint = new(pixelX, pixelY);
-        ApplyDodgeBurnStrokeSegment(_dodgeBurnLastImagePoint, currentImagePoint);
+        ApplyDodgeBurnStrokeSegment(_dodgeBurnLastImagePoint, currentImagePoint, pressure);
         _dodgeBurnLastImagePoint = currentImagePoint;
         DodgeBurnStatusText = $"{GetDodgeBurnActionLabel()}  X:{pixelX} Y:{pixelY}";
-        UpdateDodgeBurnCircle(previewPoint);
+        UpdateDodgeBurnCircle(previewPoint, pressure);
     }
 
     private void StopDodgeBurnStroke()
@@ -347,7 +347,7 @@ public partial class MainWindow
             : "Dodging";
     }
 
-    private void ApplyDodgeBurnStrokeSegment(System.Windows.Point fromImagePoint, System.Windows.Point toImagePoint)
+    private void ApplyDodgeBurnStrokeSegment(System.Windows.Point fromImagePoint, System.Windows.Point toImagePoint, double pressure)
     {
         if (_dodgeBurnWorkingBitmap is null)
         {
@@ -359,11 +359,12 @@ public partial class MainWindow
         double distance = Math.Sqrt((dx * dx) + (dy * dy));
         if (distance < 0.01)
         {
-            ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap, toImagePoint.X, toImagePoint.Y);
+            ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap, toImagePoint.X, toImagePoint.Y, pressure);
             return;
         }
 
-        double radius = Math.Max(2.0, DodgeBurnSize * 0.5);
+        double size = ApplyToolPressureToSize(DodgeBurnSize, pressure);
+        double radius = Math.Max(2.0, size * 0.5);
         double stepSpacing = Math.Max(1.0, radius * 0.18);
         int steps = Math.Max(1, (int)Math.Ceiling(distance / stepSpacing));
 
@@ -372,15 +373,16 @@ public partial class MainWindow
             double currentT = i / (double)steps;
             double currentX = fromImagePoint.X + (dx * currentT);
             double currentY = fromImagePoint.Y + (dy * currentT);
-            ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap, currentX, currentY);
+            ApplyDodgeBurnDab(_dodgeBurnWorkingBitmap, currentX, currentY, pressure);
         }
     }
 
-    private void ApplyDodgeBurnDab(WriteableBitmap target, double centerX, double centerY)
+    private void ApplyDodgeBurnDab(WriteableBitmap target, double centerX, double centerY, double pressure)
     {
-        double radius = Math.Max(2.0, DodgeBurnSize * 0.5);
+        double size = ApplyToolPressureToSize(DodgeBurnSize, pressure);
+        double radius = Math.Max(2.0, size * 0.5);
         double softness = Math.Clamp(DodgeBurnSoftness / 100.0, 0.0, 1.0);
-        double strengthScale = Math.Clamp(DodgeBurnStrength / 100.0, 0.0, 1.0);
+        double strengthScale = ApplyToolPressureToOpacity(Math.Clamp(DodgeBurnStrength / 100.0, 0.0, 1.0), pressure);
         double innerRadius = radius * (1.0 - softness);
 
         int left = Math.Max(0, (int)Math.Floor(centerX - radius - 1.0));

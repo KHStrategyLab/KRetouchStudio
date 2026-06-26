@@ -188,7 +188,7 @@ public partial class MainWindow
                CanUseSinglePreviewTool();
     }
 
-    private void StartBlurSharpStroke(System.Windows.Point previewPoint)
+    private void StartBlurSharpStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!CanUseBlurSharpPreview() ||
             !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
@@ -198,11 +198,13 @@ public partial class MainWindow
         }
 
         _isBlurSharpDragging = true;
-        ApplyBlurSharpDab(target, imagePoint, BlurSharpSize, BlurSharpSoftness, BlurSharpRadius, BlurSharpStrength, IsSharpenMode);
+        double size = ApplyToolPressureToSize(BlurSharpSize, pressure);
+        double strength = ApplyToolPressureToOpacity(BlurSharpStrength / 100.0, pressure) * 100.0;
+        ApplyBlurSharpDab(target, imagePoint, size, BlurSharpSoftness, BlurSharpRadius, strength, IsSharpenMode);
         System.Windows.Input.Mouse.Capture(PreviewSurface);
     }
 
-    private void ContinueBlurSharpStroke(System.Windows.Point previewPoint)
+    private void ContinueBlurSharpStroke(System.Windows.Point previewPoint, double pressure)
     {
         if (!_isBlurSharpDragging ||
             !TryPreviewPointToImagePoint(previewPoint, out System.Windows.Point imagePoint) ||
@@ -211,7 +213,9 @@ public partial class MainWindow
             return;
         }
 
-        ApplyBlurSharpDab(target, imagePoint, BlurSharpSize, BlurSharpSoftness, BlurSharpRadius, BlurSharpStrength, IsSharpenMode);
+        double size = ApplyToolPressureToSize(BlurSharpSize, pressure);
+        double strength = ApplyToolPressureToOpacity(BlurSharpStrength / 100.0, pressure) * 100.0;
+        ApplyBlurSharpDab(target, imagePoint, size, BlurSharpSoftness, BlurSharpRadius, strength, IsSharpenMode);
     }
 
     private void StopBlurSharpStroke()
@@ -226,10 +230,10 @@ public partial class MainWindow
         PushEditorHistorySnapshot(IsSharpenMode ? "Sharpen" : "Blur", $"{BlurSharpSize:0}px / {BlurSharpStrength:0}%");
     }
 
-    private void UpdateBlurSharpCircle(System.Windows.Point previewPoint)
+    private void UpdateBlurSharpCircle(System.Windows.Point previewPoint, double pressure)
     {
         System.Windows.Point center = ClampPointToPreviewImage(previewPoint);
-        double size = Math.Max(1, BlurSharpSize);
+        double size = ApplyToolPressureToSize(BlurSharpSize, pressure);
         BlurSharpCircleSize = size;
         BlurSharpCircleLeft = center.X - (size * 0.5);
         BlurSharpCircleTop = center.Y - (size * 0.5);
