@@ -24,8 +24,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private double _eyeSize = NeutralFaceDetailSliderValue;
     private double _leftEyeHeight = NeutralFaceDetailSliderValue;
     private double _rightEyeHeight = NeutralFaceDetailSliderValue;
-    private double _leftEyeWidth = NeutralFaceDetailSliderValue;
-    private double _rightEyeWidth = NeutralFaceDetailSliderValue;
     private double _leftEyeTilt = NeutralFaceDetailSliderValue;
     private double _rightEyeTilt = NeutralFaceDetailSliderValue;
     private double _eyeDistance = NeutralFaceDetailSliderValue;
@@ -54,13 +52,9 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private double _leftNostril = NeutralFaceDetailSliderValue;
     private double _rightNostril = NeutralFaceDetailSliderValue;
 
-    private double _mouthSize = NeutralFaceDetailSliderValue;
     private double _mouthWidth = NeutralFaceDetailSliderValue;
-    private double _mouthVertical = NeutralFaceDetailSliderValue;
     private double _leftMouthCorner = NeutralFaceDetailSliderValue;
     private double _rightMouthCorner = NeutralFaceDetailSliderValue;
-    private double _leftSmileBalance = NeutralFaceDetailSliderValue;
-    private double _rightSmileBalance = NeutralFaceDetailSliderValue;
     private double _upperLip = NeutralFaceDetailSliderValue;
     private double _lowerLip = NeutralFaceDetailSliderValue;
 
@@ -70,8 +64,8 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private double _doubleChin;
     private double _leftSideNeck = NeutralFaceDetailSliderValue;
     private double _rightSideNeck = NeutralFaceDetailSliderValue;
-    private double _leftShoulderNeck = NeutralFaceDetailSliderValue;
-    private double _rightShoulderNeck = NeutralFaceDetailSliderValue;
+    private double _leftTrapezius = NeutralFaceDetailSliderValue;
+    private double _rightTrapezius = NeutralFaceDetailSliderValue;
     private bool _isSingleSliderInteracting;
     private string? _lastSinglePreviewOperationId;
     private double _lastSinglePreviewValue = double.NaN;
@@ -141,18 +135,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     {
         get => _rightEyeHeight;
         set => SetSliderValue(ref _rightEyeHeight, value);
-    }
-
-    public double LeftEyeWidth
-    {
-        get => _leftEyeWidth;
-        set => SetSliderValue(ref _leftEyeWidth, value);
-    }
-
-    public double RightEyeWidth
-    {
-        get => _rightEyeWidth;
-        set => SetSliderValue(ref _rightEyeWidth, value);
     }
 
     public double LeftEyeTilt
@@ -305,22 +287,10 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         set => SetSliderValue(ref _rightNostril, value);
     }
 
-    public double MouthSize
-    {
-        get => _mouthSize;
-        set => SetSliderValue(ref _mouthSize, value);
-    }
-
     public double MouthWidth
     {
         get => _mouthWidth;
         set => SetSliderValue(ref _mouthWidth, value);
-    }
-
-    public double MouthVertical
-    {
-        get => _mouthVertical;
-        set => SetSliderValue(ref _mouthVertical, value);
     }
 
     public double LeftMouthCorner
@@ -333,18 +303,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     {
         get => _rightMouthCorner;
         set => SetSliderValue(ref _rightMouthCorner, value);
-    }
-
-    public double LeftSmileBalance
-    {
-        get => _leftSmileBalance;
-        set => SetSliderValue(ref _leftSmileBalance, value);
-    }
-
-    public double RightSmileBalance
-    {
-        get => _rightSmileBalance;
-        set => SetSliderValue(ref _rightSmileBalance, value);
     }
 
     public double UpperLip
@@ -395,16 +353,16 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         set => SetSliderValue(ref _rightSideNeck, value);
     }
 
-    public double LeftShoulderNeck
+    public double LeftTrapezius
     {
-        get => _leftShoulderNeck;
-        set => SetSliderValue(ref _leftShoulderNeck, value);
+        get => _leftTrapezius;
+        set => SetSliderValue(ref _leftTrapezius, value);
     }
 
-    public double RightShoulderNeck
+    public double RightTrapezius
     {
-        get => _rightShoulderNeck;
-        set => SetSliderValue(ref _rightShoulderNeck, value);
+        get => _rightTrapezius;
+        set => SetSliderValue(ref _rightTrapezius, value);
     }
 
     public void Collapse()
@@ -428,8 +386,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         _eyeSize = NeutralFaceDetailSliderValue;
         _leftEyeHeight = NeutralFaceDetailSliderValue;
         _rightEyeHeight = NeutralFaceDetailSliderValue;
-        _leftEyeWidth = NeutralFaceDetailSliderValue;
-        _rightEyeWidth = NeutralFaceDetailSliderValue;
         _leftEyeTilt = NeutralFaceDetailSliderValue;
         _rightEyeTilt = NeutralFaceDetailSliderValue;
         _eyeDistance = NeutralFaceDetailSliderValue;
@@ -458,13 +414,9 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         _leftNostril = NeutralFaceDetailSliderValue;
         _rightNostril = NeutralFaceDetailSliderValue;
 
-        _mouthSize = NeutralFaceDetailSliderValue;
         _mouthWidth = NeutralFaceDetailSliderValue;
-        _mouthVertical = NeutralFaceDetailSliderValue;
         _leftMouthCorner = NeutralFaceDetailSliderValue;
         _rightMouthCorner = NeutralFaceDetailSliderValue;
-        _leftSmileBalance = NeutralFaceDetailSliderValue;
-        _rightSmileBalance = NeutralFaceDetailSliderValue;
         _upperLip = NeutralFaceDetailSliderValue;
         _lowerLip = NeutralFaceDetailSliderValue;
 
@@ -474,8 +426,8 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         _doubleChin = 0;
         _leftSideNeck = NeutralFaceDetailSliderValue;
         _rightSideNeck = NeutralFaceDetailSliderValue;
-        _leftShoulderNeck = NeutralFaceDetailSliderValue;
-        _rightShoulderNeck = NeutralFaceDetailSliderValue;
+        _leftTrapezius = NeutralFaceDetailSliderValue;
+        _rightTrapezius = NeutralFaceDetailSliderValue;
 
         OnPropertyChanged(string.Empty);
     }
@@ -590,8 +542,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
             EyeSize,
             LeftEyeHeight,
             RightEyeHeight,
-            LeftEyeWidth,
-            RightEyeWidth,
             LeftEyeTilt,
             RightEyeTilt,
             EyeDistance,
@@ -617,13 +567,9 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
             NoseTip,
             LeftNostril,
             RightNostril,
-            MouthSize,
             MouthWidth,
-            MouthVertical,
             LeftMouthCorner,
             RightMouthCorner,
-            LeftSmileBalance,
-            RightSmileBalance,
             UpperLip,
             LowerLip,
             NeckSlim,
@@ -632,8 +578,8 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
             DoubleChin,
             LeftSideNeck,
             RightSideNeck,
-            LeftShoulderNeck,
-            RightShoulderNeck);
+            LeftTrapezius,
+            RightTrapezius);
     }
 
     private static string GetOperationId(Slider slider)
@@ -770,8 +716,6 @@ public sealed record FaceDetailAdjustmentSnapshot(
     double EyeSize,
     double LeftEyeHeight,
     double RightEyeHeight,
-    double LeftEyeWidth,
-    double RightEyeWidth,
     double LeftEyeTilt,
     double RightEyeTilt,
     double EyeDistance,
@@ -797,13 +741,9 @@ public sealed record FaceDetailAdjustmentSnapshot(
     double NoseTip,
     double LeftNostril,
     double RightNostril,
-    double MouthSize,
     double MouthWidth,
-    double MouthVertical,
     double LeftMouthCorner,
     double RightMouthCorner,
-    double LeftSmileBalance,
-    double RightSmileBalance,
     double UpperLip,
     double LowerLip,
     double NeckSlim,
@@ -812,5 +752,5 @@ public sealed record FaceDetailAdjustmentSnapshot(
     double DoubleChin,
     double LeftSideNeck,
     double RightSideNeck,
-    double LeftShoulderNeck,
-    double RightShoulderNeck);
+    double LeftTrapezius,
+    double RightTrapezius);

@@ -369,8 +369,6 @@ public partial class MainWindow
             HasCenteredEffect(s.EyeSize) ||
             HasCenteredEffect(s.LeftEyeHeight) ||
             HasCenteredEffect(s.RightEyeHeight) ||
-            HasCenteredEffect(s.LeftEyeWidth) ||
-            HasCenteredEffect(s.RightEyeWidth) ||
             HasCenteredEffect(s.LeftEyeTilt) ||
             HasCenteredEffect(s.RightEyeTilt) ||
             HasCenteredEffect(s.EyeDistance) ||
@@ -396,13 +394,9 @@ public partial class MainWindow
             HasCenteredEffect(s.NoseTip) ||
             HasCenteredEffect(s.LeftNostril) ||
             HasCenteredEffect(s.RightNostril) ||
-            HasCenteredEffect(s.MouthSize) ||
             HasCenteredEffect(s.MouthWidth) ||
-            HasCenteredEffect(s.MouthVertical) ||
             HasCenteredEffect(s.LeftMouthCorner) ||
             HasCenteredEffect(s.RightMouthCorner) ||
-            HasCenteredEffect(s.LeftSmileBalance) ||
-            HasCenteredEffect(s.RightSmileBalance) ||
             HasCenteredEffect(s.UpperLip) ||
             HasCenteredEffect(s.LowerLip) ||
             HasCenteredEffect(s.NeckSlim) ||
@@ -411,8 +405,8 @@ public partial class MainWindow
             s.DoubleChin > 0.001 ||
             HasCenteredEffect(s.LeftSideNeck) ||
             HasCenteredEffect(s.RightSideNeck) ||
-            HasCenteredEffect(s.LeftShoulderNeck) ||
-            HasCenteredEffect(s.RightShoulderNeck);
+            HasCenteredEffect(s.LeftTrapezius) ||
+            HasCenteredEffect(s.RightTrapezius);
     }
 
     private static BitmapSource BuildFaceDetailRetouchPreview(
@@ -472,7 +466,6 @@ public partial class MainWindow
                 isLeft: true,
                 snapshot.EyeSize,
                 snapshot.LeftEyeHeight,
-                snapshot.LeftEyeWidth,
                 snapshot.LeftEyeTilt,
                 snapshot.EyeDistance,
                 controls,
@@ -490,9 +483,36 @@ public partial class MainWindow
                 isLeft: false,
                 snapshot.EyeSize,
                 snapshot.RightEyeHeight,
-                snapshot.RightEyeWidth,
                 snapshot.RightEyeTilt,
                 snapshot.EyeDistance,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.18,
+            sigmaRatio: 0.08,
+            radiusScale: 0.36,
+            solidRadius: 0.45,
+            buildControls: (controls, affectedPoints) => AddSingleBrowThicknessControls(
+                landmarks,
+                isLeft: true,
+                snapshot.LeftBrowThickness,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.18,
+            sigmaRatio: 0.08,
+            radiusScale: 0.36,
+            solidRadius: 0.45,
+            buildControls: (controls, affectedPoints) => AddSingleBrowThicknessControls(
+                landmarks,
+                isLeft: false,
+                snapshot.RightBrowThickness,
                 controls,
                 affectedPoints));
         AddFaceDetailWarpPlan(
@@ -506,7 +526,6 @@ public partial class MainWindow
             buildControls: (controls, affectedPoints) => AddSingleBrowControls(
                 landmarks,
                 isLeft: true,
-                snapshot.LeftBrowThickness,
                 snapshot.LeftBrowTilt,
                 snapshot.LeftBrowArch,
                 snapshot.LeftBrowPosition,
@@ -525,7 +544,6 @@ public partial class MainWindow
             buildControls: (controls, affectedPoints) => AddSingleBrowControls(
                 landmarks,
                 isLeft: false,
-                snapshot.RightBrowThickness,
                 snapshot.RightBrowTilt,
                 snapshot.RightBrowArch,
                 snapshot.RightBrowPosition,
@@ -593,7 +611,6 @@ public partial class MainWindow
         bool isLeft,
         double size,
         double height,
-        double width,
         double tilt,
         double distance,
         List<FaceShapeControlPoint> controls,
@@ -612,26 +629,128 @@ public partial class MainWindow
         }
 
         Point center = AveragePoints(outer, inner, top, bottom);
-        double eyeWidth = Math.Max(1.0, Math.Abs(inner.X - outer.X));
-        double eyeHeight = Math.Max(1.0, Math.Abs(bottom.Y - top.Y));
-        double distanceDx = CenteredStrengthInDirection(distance, eyeWidth * 0.22, isLeft ? -1 : 1);
-        double sizeX = CenteredStrength(size, eyeWidth * 0.13);
-        double sizeY = CenteredStrength(size, eyeHeight * 0.32);
-        double heightY = CenteredStrength(height, eyeHeight * 0.42);
-        double widthX = CenteredStrength(width, eyeWidth * 0.16);
-        double tiltY = CenteredStrength(tilt, eyeHeight * 0.55);
+        double eyeBundleWidth = Math.Max(1.0, Math.Abs(inner.X - outer.X));
+        double eyeBundleHeight = Math.Max(1.0, Math.Abs(bottom.Y - top.Y));
+        double bundleShiftX = CenteredStrengthInDirection(distance, eyeBundleWidth * 0.26, isLeft ? -1 : 1);
+        double sizeX = CenteredStrength(size, eyeBundleWidth * 0.13);
+        double sizeY = CenteredStrength(size, eyeBundleHeight * 0.32);
+        double tiltY = CenteredStrength(tilt, eyeBundleHeight * 0.165);
+        double outerTiltY = -tiltY;
+        double innerTiltY = tiltY;
+        double heightOpenY = CenteredStrength(height, eyeBundleHeight * 0.46);
+        double heightWidthX = CenteredStrength(height, eyeBundleWidth * 0.052);
+        double upperOpenY = -heightOpenY * 0.80;
+        double lowerOpenY = heightOpenY * 0.20;
+        int[] upperLidIndices = isLeft ? [157, 158, 159, 160, 161] : [384, 385, 386, 387, 388];
+        int[] lowerLidIndices = isLeft ? [144, 145, 153, 154, 155] : [373, 374, 380, 381, 382];
+        int[] outerCornerIndices = isLeft ? [33, 7, 163, 246] : [263, 249, 390, 466];
+        int[] innerCornerIndices = isLeft ? [133, 155, 173] : [362, 382, 398];
 
-        AddControl(controls, affectedPoints, outer, distanceDx + (isLeft ? -sizeX - widthX : sizeX + widthX), isLeft ? -tiltY : -tiltY);
-        AddControl(controls, affectedPoints, inner, distanceDx + (isLeft ? sizeX + widthX : -sizeX - widthX), isLeft ? tiltY : tiltY);
-        AddControl(controls, affectedPoints, top, distanceDx, -sizeY - heightY);
-        AddControl(controls, affectedPoints, bottom, distanceDx, sizeY + heightY);
-        AddControl(controls, affectedPoints, center, distanceDx, 0);
+        int[] contourIndices = isLeft
+            ? [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+            : [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398];
+        for (int i = 0; i < contourIndices.Length; i++)
+        {
+            int index = contourIndices[i];
+            if (index == outerIndex ||
+                index == innerIndex ||
+                index == topIndex ||
+                index == bottomIndex ||
+                Array.IndexOf(upperLidIndices, index) >= 0 ||
+                Array.IndexOf(lowerLidIndices, index) >= 0 ||
+                Array.IndexOf(outerCornerIndices, index) >= 0 ||
+                Array.IndexOf(innerCornerIndices, index) >= 0)
+            {
+                continue;
+            }
+
+            if (TryGetLandmark(landmarks, index, out Point contourPoint))
+            {
+                AddControl(controls, affectedPoints, contourPoint, bundleShiftX, 0);
+            }
+        }
+
+        double outerDirection = isLeft ? -1.0 : 1.0;
+        double innerDirection = isLeft ? 1.0 : -1.0;
+        Point innerCornerSupport = new(inner.X + (innerDirection * eyeBundleWidth * 0.18), inner.Y);
+        Point outerCornerSupport = new(outer.X + (outerDirection * eyeBundleWidth * 0.24), outer.Y);
+        AddControl(controls, affectedPoints, innerCornerSupport, bundleShiftX * 0.95, innerTiltY * 0.70);
+        AddControl(controls, affectedPoints, outerCornerSupport, bundleShiftX * 0.88, outerTiltY * 0.70);
+
+        if (Math.Abs(heightOpenY) > 0.01)
+        {
+            double irisGuardDx = bundleShiftX * 0.55;
+            double irisGuardY = eyeBundleHeight * 0.075;
+            AddSupportControl(controls, center, irisGuardDx, 0);
+            AddSupportControl(controls, new Point(center.X - (eyeBundleWidth * 0.10), center.Y), irisGuardDx, 0);
+            AddSupportControl(controls, new Point(center.X + (eyeBundleWidth * 0.10), center.Y), irisGuardDx, 0);
+            AddSupportControl(controls, new Point(center.X, center.Y - irisGuardY), irisGuardDx, 0);
+            AddSupportControl(controls, new Point(center.X, center.Y + irisGuardY), irisGuardDx, 0);
+        }
+
+        for (int i = 0; i < upperLidIndices.Length; i++)
+        {
+            if (upperLidIndices[i] == topIndex)
+            {
+                continue;
+            }
+
+            if (TryGetLandmark(landmarks, upperLidIndices[i], out Point upperPoint))
+            {
+                AddControl(controls, affectedPoints, upperPoint, bundleShiftX, upperOpenY * 0.82);
+            }
+        }
+
+        for (int i = 0; i < lowerLidIndices.Length; i++)
+        {
+            if (lowerLidIndices[i] == bottomIndex)
+            {
+                continue;
+            }
+
+            if (TryGetLandmark(landmarks, lowerLidIndices[i], out Point lowerPoint))
+            {
+                AddControl(controls, affectedPoints, lowerPoint, bundleShiftX, lowerOpenY * 0.70);
+            }
+        }
+
+        for (int i = 0; i < outerCornerIndices.Length; i++)
+        {
+            int index = outerCornerIndices[i];
+            if (index == outerIndex)
+            {
+                continue;
+            }
+
+            if (TryGetLandmark(landmarks, index, out Point outerCornerPoint))
+            {
+                AddControl(controls, affectedPoints, outerCornerPoint, bundleShiftX, outerTiltY * 0.82);
+            }
+        }
+
+        for (int i = 0; i < innerCornerIndices.Length; i++)
+        {
+            int index = innerCornerIndices[i];
+            if (index == innerIndex)
+            {
+                continue;
+            }
+
+            if (TryGetLandmark(landmarks, index, out Point innerCornerPoint))
+            {
+                AddControl(controls, affectedPoints, innerCornerPoint, bundleShiftX, innerTiltY * 0.82);
+            }
+        }
+        AddControl(controls, affectedPoints, outer, bundleShiftX + (isLeft ? -sizeX - heightWidthX : sizeX + heightWidthX), isLeft ? -tiltY : -tiltY);
+        AddControl(controls, affectedPoints, inner, bundleShiftX + (isLeft ? sizeX + heightWidthX : -sizeX - heightWidthX), isLeft ? tiltY : tiltY);
+        AddControl(controls, affectedPoints, top, bundleShiftX, -sizeY + upperOpenY);
+        AddControl(controls, affectedPoints, bottom, bundleShiftX, sizeY + lowerOpenY);
+        AddControl(controls, affectedPoints, center, bundleShiftX * 0.55, 0);
     }
 
     private static void AddSingleBrowControls(
         IReadOnlyDictionary<int, Point> landmarks,
         bool isLeft,
-        double thickness,
         double tilt,
         double arch,
         double position,
@@ -651,16 +770,21 @@ public partial class MainWindow
         double browWidth = Math.Max(1.0, points.Max(p => p.X) - points.Min(p => p.X));
         double lift = -CenteredStrength(position, browWidth * 0.10);
         double archLift = -CenteredStrength(arch, browWidth * 0.07);
-        double thicknessLift = -CenteredStrength(thickness, browWidth * 0.035);
-        double distanceDx = CenteredStrengthInDirection(distance, browWidth * 0.12, isLeft ? -1 : 1);
+        double distanceDx = CenteredStrengthInDirection(distance, browWidth * 0.13, isLeft ? -1 : 1);
         double tiltY = CenteredStrength(tilt, browWidth * 0.055);
         double tailY = -CenteredStrength(tail, browWidth * 0.075);
+        Point innerBrow = isLeft
+            ? points.OrderByDescending(p => p.X).First()
+            : points.OrderBy(p => p.X).First();
+        double innerDirection = isLeft ? 1.0 : -1.0;
+        Point innerBrowSupport = new(innerBrow.X + (innerDirection * browWidth * 0.16), innerBrow.Y);
+        AddControl(controls, affectedPoints, innerBrowSupport, distanceDx * 0.95, 0);
 
         for (int i = 0; i < points.Count; i++)
         {
             Point p = points[i];
             double normalizedX = (p.X - center.X) / Math.Max(1.0, browWidth * 0.5);
-            double dy = lift + thicknessLift + (archLift * (1.0 - Math.Min(1.0, Math.Abs(normalizedX))));
+            double dy = lift + (archLift * (1.0 - Math.Min(1.0, Math.Abs(normalizedX))));
             dy += normalizedX * (isLeft ? tiltY : -tiltY);
             if ((isLeft && p.X < center.X) || (!isLeft && p.X > center.X))
             {
@@ -668,6 +792,57 @@ public partial class MainWindow
             }
 
             AddControl(controls, affectedPoints, p, distanceDx, dy);
+        }
+    }
+
+    private static void AddSingleBrowThicknessControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        double thickness,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        int[] upperIndices = isLeft ? [70, 63, 105, 66, 107] : [336, 296, 334, 293, 300];
+        int[] lowerIndices = isLeft ? [46, 53, 52, 65, 55] : [285, 295, 282, 283, 276];
+        List<(Point Upper, Point Lower)> pairs = [];
+        List<Point> allPoints = [];
+        for (int i = 0; i < Math.Min(upperIndices.Length, lowerIndices.Length); i++)
+        {
+            if (!TryGetLandmark(landmarks, upperIndices[i], out Point upper) ||
+                !TryGetLandmark(landmarks, lowerIndices[i], out Point lower))
+            {
+                continue;
+            }
+
+            pairs.Add((upper, lower));
+            allPoints.Add(upper);
+            allPoints.Add(lower);
+        }
+
+        if (pairs.Count < 2)
+        {
+            return;
+        }
+
+        double browWidth = Math.Max(1.0, allPoints.Max(p => p.X) - allPoints.Min(p => p.X));
+        double browHeight = Math.Max(1.0, allPoints.Max(p => p.Y) - allPoints.Min(p => p.Y));
+        double spread = CenteredStrength(thickness, Math.Max(browHeight * 0.90, browWidth * 0.030));
+        if (Math.Abs(spread) < 0.01)
+        {
+            return;
+        }
+
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            (Point upper, Point lower) = pairs[i];
+            double t = pairs.Count == 1 ? 0.5 : i / (double)(pairs.Count - 1);
+            double weight = 0.72 + (0.28 * Math.Sin(t * Math.PI));
+            AddControl(controls, affectedPoints, upper, 0, -spread * weight);
+            AddControl(controls, affectedPoints, lower, 0, spread * weight);
+
+            Point centerLine = new((upper.X + lower.X) * 0.5, (upper.Y + lower.Y) * 0.5);
+            AddSupportControl(controls, centerLine, 0, 0);
+            AddSupportControl(controls, centerLine, 0, 0);
         }
     }
 
@@ -720,27 +895,129 @@ public partial class MainWindow
             return;
         }
 
-        Point center = AveragePoints(leftCorner, rightCorner, upper, lower);
         double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
         double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
-        double sizeX = CenteredStrength(s.MouthSize, mouthWidth * 0.08);
-        double sizeY = CenteredStrength(s.MouthSize, mouthHeight * 0.24);
-        double widthX = CenteredStrength(s.MouthWidth, mouthWidth * 0.12);
-        double verticalLift = -CenteredStrength(s.MouthVertical, mouthHeight * 0.35);
-        double upperLift = -CenteredStrength(s.UpperLip, mouthHeight * 0.40);
-        double lowerDrop = CenteredStrength(s.LowerLip, mouthHeight * 0.40);
-        double leftSmile =
-            -CenteredStrength(s.LeftSmileBalance, mouthHeight * 0.28) -
-            CenteredStrength(s.LeftMouthCorner, mouthHeight * 0.28);
-        double rightSmile =
-            -CenteredStrength(s.RightSmileBalance, mouthHeight * 0.28) -
-            CenteredStrength(s.RightMouthCorner, mouthHeight * 0.28);
+        double widthX = CenteredStrength(s.MouthWidth, mouthWidth * 0.16);
+        double lipVerticalMax = Math.Max(mouthHeight * 0.72, mouthWidth * 0.055) * 7.5;
+        double cornerPullMax = Math.Max(mouthHeight * 0.76, mouthWidth * 0.060);
+        double upperLift = -CenteredStrength(s.UpperLip, lipVerticalMax);
+        double lowerDrop = CenteredStrength(s.LowerLip, lipVerticalMax);
+        double leftCornerPull = CenteredStrength(s.LeftMouthCorner, cornerPullMax);
+        double rightCornerPull = CenteredStrength(s.RightMouthCorner, cornerPullMax);
+        double leftCornerDx = -leftCornerPull * 0.30;
+        double leftCornerDy = -leftCornerPull * 0.70;
+        double rightCornerDx = rightCornerPull * 0.30;
+        double rightCornerDy = -rightCornerPull * 0.70;
+        bool hasUpperLipEffect = Math.Abs(upperLift) >= 0.01;
+        bool hasLowerLipEffect = Math.Abs(lowerDrop) >= 0.01;
 
-        AddControl(controls, affectedPoints, leftCorner, -sizeX - widthX, verticalLift + leftSmile);
-        AddControl(controls, affectedPoints, rightCorner, sizeX + widthX, verticalLift + rightSmile);
-        AddControl(controls, affectedPoints, upper, 0, verticalLift - sizeY + upperLift);
-        AddControl(controls, affectedPoints, lower, 0, verticalLift + sizeY + lowerDrop);
-        AddControl(controls, affectedPoints, center, 0, verticalLift);
+        int[] upperLipMoveIndices = [40, 39, 37, 0, 267, 269, 270];
+        int[] upperLipAnchorIndices = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 185, 409];
+        int[] upperLipCenterAnchorIndices = [82, 13, 312, 311];
+        int[] lowerLipMoveIndices = [91, 181, 84, 17, 314, 405, 321];
+        int[] lowerLipAnchorIndices = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 146, 375];
+        int[] lowerLipCenterAnchorIndices = [87, 14, 317, 402];
+        Dictionary<int, (double Dx, double Dy)> mouthDeltas = [];
+
+        AddMouthWidthDeltas(mouthDeltas, -widthX, isLeft: true);
+        AddMouthWidthDeltas(mouthDeltas, widthX, isLeft: false);
+        AddMouthCornerVectorDeltas(mouthDeltas, leftCornerDx, leftCornerDy, isLeft: true);
+        AddMouthCornerVectorDeltas(mouthDeltas, rightCornerDx, rightCornerDy, isLeft: false);
+        if (hasUpperLipEffect)
+        {
+            AddLipArcControls(landmarks, upperLipMoveIndices, controls, affectedPoints, centerX: upper.X, halfWidth: mouthWidth * 0.50, maxDy: upperLift);
+            AddLipAnchorControls(landmarks, upperLipAnchorIndices, controls);
+            AddStrongLipAnchorControls(landmarks, upperLipCenterAnchorIndices, controls, repeatCount: 4);
+        }
+
+        if (hasLowerLipEffect)
+        {
+            AddLipArcControls(landmarks, lowerLipMoveIndices, controls, affectedPoints, centerX: lower.X, halfWidth: mouthWidth * 0.50, maxDy: lowerDrop);
+            AddLipAnchorControls(landmarks, lowerLipAnchorIndices, controls);
+            AddStrongLipAnchorControls(landmarks, lowerLipCenterAnchorIndices, controls, repeatCount: 4);
+        }
+
+        AddMouthDeltaControls(landmarks, mouthDeltas, controls, affectedPoints);
+
+        Point center = AveragePoints(leftCorner, rightCorner, upper, lower);
+        AddSupportControl(controls, new Point(center.X, center.Y), 0, 0);
+        AddSupportControl(controls, new Point(center.X, center.Y - mouthHeight * 1.55), 0, 0);
+        AddSupportControl(controls, new Point(center.X, center.Y + mouthHeight * 1.55), 0, 0);
+    }
+
+    private static void AddLipArcControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints,
+        double centerX,
+        double halfWidth,
+        double maxDy)
+    {
+        if (Math.Abs(maxDy) < 0.01)
+        {
+            return;
+        }
+
+        foreach (int index in indices)
+        {
+            if (!TryGetLandmark(landmarks, index, out Point point))
+            {
+                continue;
+            }
+
+            double normalizedX = Math.Clamp(Math.Abs(point.X - centerX) / Math.Max(1.0, halfWidth), 0.0, 1.0);
+            double weight = Math.Pow(1.0 - normalizedX, 1.65);
+            AddControl(controls, affectedPoints, point, 0, maxDy * weight);
+        }
+    }
+
+    private static void AddLipAnchorControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls)
+    {
+        foreach (int index in indices)
+        {
+            if (TryGetLandmark(landmarks, index, out Point point))
+            {
+                AddSupportControl(controls, point, 0, 0);
+            }
+        }
+    }
+
+    private static void AddStrongLipAnchorControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        int repeatCount)
+    {
+        for (int repeat = 0; repeat < Math.Max(1, repeatCount); repeat++)
+        {
+            AddLipAnchorControls(landmarks, indices, controls);
+        }
+    }
+
+    private static void AddMouthLandmarkControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints,
+        double dx,
+        double dy)
+    {
+        if (Math.Abs(dx) < 0.01 && Math.Abs(dy) < 0.01)
+        {
+            return;
+        }
+
+        foreach (int index in indices)
+        {
+            if (TryGetLandmark(landmarks, index, out Point point))
+            {
+                AddControl(controls, affectedPoints, point, dx, dy);
+            }
+        }
     }
 
     private static void AddLowerFaceDetailControls(
@@ -759,26 +1036,28 @@ public partial class MainWindow
         double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
         double leftNeckSlim =
             CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
-            CenteredStrength(s.LeftSideNeck, jawWidth * 0.030) +
-            CenteredStrength(s.LeftShoulderNeck, jawWidth * 0.022);
+            CenteredStrength(s.LeftSideNeck, jawWidth * 0.030);
         double rightNeckSlim =
             CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
-            CenteredStrength(s.RightSideNeck, jawWidth * 0.030) +
-            CenteredStrength(s.RightShoulderNeck, jawWidth * 0.022);
+            CenteredStrength(s.RightSideNeck, jawWidth * 0.030);
         double doubleChinLift = Strength(s.DoubleChin, jawWidth * 0.115);
-        double neckWrinkleLift = Strength(s.NeckWrinkle, jawWidth * 0.034);
         double chinDy =
             CenteredStrength(s.NeckLength, jawWidth * 0.045) -
-            (doubleChinLift * 0.34) -
-            neckWrinkleLift;
+            (doubleChinLift * 0.34);
+        double leftTrapeziusDrop = CenteredStrength(s.LeftTrapezius, jawWidth * 0.085);
+        double rightTrapeziusDrop = CenteredStrength(s.RightTrapezius, jawWidth * 0.085);
 
         AddControl(controls, affectedPoints, leftJaw, leftNeckSlim + (doubleChinLift * 0.14), -doubleChinLift * 0.16);
         AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim - (doubleChinLift * 0.14), -doubleChinLift * 0.16);
         AddControl(controls, affectedPoints, chin, 0, chinDy);
         AddControl(controls, affectedPoints, new Point((leftJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.050), doubleChinLift * 0.30, -doubleChinLift * 0.76);
         AddControl(controls, affectedPoints, new Point((rightJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.050), -doubleChinLift * 0.30, -doubleChinLift * 0.76);
-        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.090), 0, -doubleChinLift * 1.06 - (neckWrinkleLift * 0.45));
-        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.160), 0, -doubleChinLift * 0.70 - (neckWrinkleLift * 0.30));
+        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.090), 0, -doubleChinLift * 1.06);
+        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.160), 0, -doubleChinLift * 0.70);
+        AddControl(controls, affectedPoints, new Point(leftJaw.X - (jawWidth * 0.22), chin.Y + (jawWidth * 0.105)), 0, leftTrapeziusDrop * 0.74);
+        AddControl(controls, affectedPoints, new Point(leftJaw.X - (jawWidth * 0.36), chin.Y + (jawWidth * 0.190)), 0, leftTrapeziusDrop);
+        AddControl(controls, affectedPoints, new Point(rightJaw.X + (jawWidth * 0.22), chin.Y + (jawWidth * 0.105)), 0, rightTrapeziusDrop * 0.74);
+        AddControl(controls, affectedPoints, new Point(rightJaw.X + (jawWidth * 0.36), chin.Y + (jawWidth * 0.190)), 0, rightTrapeziusDrop);
     }
 
     private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(
@@ -828,7 +1107,8 @@ public partial class MainWindow
 
         ApplyUnderEyeTone(landmarks, pixels, width, height, stride, isLeft: true, snapshot.LeftDarkCircle, snapshot.LeftUnderEye, shouldCancel);
         ApplyUnderEyeTone(landmarks, pixels, width, height, stride, isLeft: false, snapshot.RightDarkCircle, snapshot.RightUnderEye, shouldCancel);
-        ApplyDoubleChinTone(landmarks, pixels, width, height, stride, snapshot.DoubleChin, snapshot.NeckWrinkle, shouldCancel);
+        ApplyDoubleChinTone(landmarks, pixels, width, height, stride, snapshot.DoubleChin, shouldCancel);
+        ApplyNeckWrinkleTone(landmarks, pixels, width, height, stride, snapshot.NeckWrinkle, shouldCancel);
 
         if (shouldCancel?.Invoke() == true)
         {
@@ -911,7 +1191,6 @@ public partial class MainWindow
         int height,
         int stride,
         double doubleChinStrength,
-        double neckWrinkleStrength,
         Func<bool>? shouldCancel)
     {
         if (!TryGetLandmark(landmarks, 152, out Point chin) ||
@@ -922,7 +1201,7 @@ public partial class MainWindow
         }
 
         double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
-        double amount = Math.Clamp(((doubleChinStrength * 1.05) + (neckWrinkleStrength * 0.38)) / 100.0, 0.0, 1.0);
+        double amount = Math.Clamp(doubleChinStrength / 100.0, 0.0, 1.0);
         if (amount <= 0.001)
         {
             return;
@@ -963,9 +1242,218 @@ public partial class MainWindow
         }
     }
 
+    private static void ApplyNeckWrinkleTone(
+        IReadOnlyDictionary<int, Point> landmarks,
+        byte[] pixels,
+        int width,
+        int height,
+        int stride,
+        double neckWrinkleStrength,
+        Func<bool>? shouldCancel)
+    {
+        double amount = Math.Clamp(neckWrinkleStrength / 100.0, 0.0, 1.0);
+        if (amount <= 0.001 ||
+            !TryGetLandmark(landmarks, 152, out Point chin) ||
+            !TryGetLandmark(landmarks, 172, out Point leftJaw) ||
+            !TryGetLandmark(landmarks, 397, out Point rightJaw))
+        {
+            return;
+        }
+
+        double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
+        Point center = new(chin.X, chin.Y + jawWidth * 0.300);
+        double radiusX = jawWidth * 0.36;
+        double radiusY = jawWidth * 0.34;
+        double softenAmount = amount * 0.42;
+        byte[] source = (byte[])pixels.Clone();
+        int left = Math.Max(0, (int)Math.Floor(center.X - radiusX));
+        int top = Math.Max(0, (int)Math.Floor(center.Y - radiusY));
+        int right = Math.Min(width - 1, (int)Math.Ceiling(center.X + radiusX));
+        int bottom = Math.Min(height - 1, (int)Math.Ceiling(center.Y + radiusY));
+        for (int y = top; y <= bottom; y++)
+        {
+            if (shouldCancel?.Invoke() == true)
+            {
+                return;
+            }
+
+            double ny = (y - center.Y) / Math.Max(1.0, radiusY);
+            for (int x = left; x <= right; x++)
+            {
+                double nx = (x - center.X) / Math.Max(1.0, radiusX);
+                double distance2 = (nx * nx) + (ny * ny);
+                if (distance2 >= 1.0)
+                {
+                    continue;
+                }
+
+                int index = (y * stride) + (x * 4);
+                int avgB = AverageTextureChannel(source, width, height, stride, x, y, 0);
+                int avgG = AverageTextureChannel(source, width, height, stride, x, y, 1);
+                int avgR = AverageTextureChannel(source, width, height, stride, x, y, 2);
+                double sourceBrightness = (source[index] + source[index + 1] + source[index + 2]) / 3.0;
+                double averageBrightness = (avgB + avgG + avgR) / 3.0;
+                double creaseWeight = Math.Clamp(0.58 + Math.Max(0.0, averageBrightness - sourceBrightness) / 42.0, 0.58, 1.0);
+                double weight = (1.0 - SmoothStep01(Math.Sqrt(distance2))) * creaseWeight;
+                double blend = softenAmount * weight;
+
+                pixels[index] = LiftChannel(BlendChannel(pixels[index], avgB, blend), blend * 0.05);
+                pixels[index + 1] = LiftChannel(BlendChannel(pixels[index + 1], avgG, blend), blend * 0.06);
+                pixels[index + 2] = LiftChannel(BlendChannel(pixels[index + 2], avgR, blend), blend * 0.07);
+            }
+        }
+    }
+
+    private static void AddMouthWidthDeltas(
+        Dictionary<int, (double Dx, double Dy)> deltas,
+        double dx,
+        bool isLeft)
+    {
+        if (Math.Abs(dx) < 0.01)
+        {
+            return;
+        }
+
+        (int Index, double Weight)[] entries = isLeft
+            ? [
+                (61, 1.00),
+                (57, 0.34),
+                (76, 0.32),
+                (185, 0.30),
+                (186, 0.28),
+                (78, 0.16),
+                (95, 0.14),
+                (146, 0.14),
+                (191, 0.14)
+            ]
+            : [
+                (291, 1.00),
+                (287, 0.34),
+                (306, 0.32),
+                (409, 0.30),
+                (410, 0.28),
+                (308, 0.16),
+                (324, 0.14),
+                (375, 0.14),
+                (415, 0.14)
+            ];
+
+        foreach ((int index, double weight) in entries)
+        {
+            AddMouthDelta(deltas, index, dx * weight, 0);
+        }
+    }
+
+    private static void AddMouthCornerVectorDeltas(
+        Dictionary<int, (double Dx, double Dy)> deltas,
+        double dx,
+        double dy,
+        bool isLeft)
+    {
+        if (Math.Abs(dx) < 0.01 && Math.Abs(dy) < 0.01)
+        {
+            return;
+        }
+
+        (int Index, double XWeight, double YWeight)[] entries = isLeft
+            ? [
+                (61, 1.00, 1.00),
+                (57, 0.56, 0.66),
+                (76, 0.46, 0.54),
+                (185, 0.40, 0.42),
+                (186, 0.34, 0.38),
+                (78, 0.28, 0.24),
+                (95, 0.22, 0.20),
+                (146, 0.20, 0.18),
+                (191, 0.22, 0.16),
+                (216, 0.22, 0.34),
+                (207, 0.20, 0.30),
+                (187, 0.18, 0.28),
+                (205, 0.16, 0.24)
+            ]
+            : [
+                (291, 1.00, 1.00),
+                (287, 0.56, 0.66),
+                (306, 0.46, 0.54),
+                (409, 0.40, 0.42),
+                (410, 0.34, 0.38),
+                (308, 0.28, 0.24),
+                (324, 0.22, 0.20),
+                (375, 0.20, 0.18),
+                (415, 0.22, 0.16),
+                (436, 0.22, 0.34),
+                (427, 0.20, 0.30),
+                (411, 0.18, 0.28),
+                (425, 0.16, 0.24)
+            ];
+
+        foreach ((int index, double xWeight, double yWeight) in entries)
+        {
+            AddMouthDelta(deltas, index, dx * xWeight, dy * yWeight);
+        }
+    }
+
+    private static void AddMouthDelta(
+        Dictionary<int, (double Dx, double Dy)> deltas,
+        int index,
+        double dx,
+        double dy)
+    {
+        if (Math.Abs(dx) < 0.01 && Math.Abs(dy) < 0.01)
+        {
+            return;
+        }
+
+        if (deltas.TryGetValue(index, out (double Dx, double Dy) current))
+        {
+            deltas[index] = (current.Dx + dx, current.Dy + dy);
+            return;
+        }
+
+        deltas.Add(index, (dx, dy));
+    }
+
+    private static void AddMouthDeltaControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        Dictionary<int, (double Dx, double Dy)> deltas,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        foreach (KeyValuePair<int, (double Dx, double Dy)> delta in deltas)
+        {
+            if (TryGetLandmark(landmarks, delta.Key, out Point point))
+            {
+                AddControl(controls, affectedPoints, point, delta.Value.Dx, delta.Value.Dy);
+            }
+        }
+    }
+
     private static byte LiftChannel(byte value, double amount)
     {
         return (byte)Math.Clamp((int)Math.Round(value + ((255 - value) * amount)), 0, 255);
+    }
+
+    private static byte BlendChannel(byte value, int target, double amount)
+    {
+        return (byte)Math.Clamp((int)Math.Round(value + ((target - value) * amount)), 0, 255);
+    }
+
+    private static int AverageTextureChannel(byte[] source, int width, int height, int stride, int x, int y, int channel)
+    {
+        int sum = 0;
+        int count = 0;
+        for (int oy = -4; oy <= 4; oy += 2)
+        {
+            int sy = Math.Clamp(y + oy, 0, height - 1);
+            for (int ox = -2; ox <= 2; ox += 2)
+            {
+                int sx = Math.Clamp(x + ox, 0, width - 1);
+                sum += source[(sy * stride) + (sx * 4) + channel];
+                count++;
+            }
+        }
+
+        return count == 0 ? source[(y * stride) + (x * 4) + channel] : sum / count;
     }
 
     private static Rect BuildFaceDetailBounds(
@@ -1018,6 +1506,15 @@ public partial class MainWindow
 
         controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, dy));
         affectedPoints.Add(point);
+    }
+
+    private static void AddSupportControl(
+        List<FaceShapeControlPoint> controls,
+        Point point,
+        double dx,
+        double dy)
+    {
+        controls.Add(new FaceShapeControlPoint(point.X, point.Y, dx, dy));
     }
 
     private static bool TryGetLandmark(IReadOnlyDictionary<int, Point> landmarks, int index, out Point point)

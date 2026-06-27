@@ -192,15 +192,6 @@
                                           SliderCommitted="PairSlider_SliderCommitted"
                                           LeftValue="{Binding ElementName=Root, Path=LeftEyeHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           RightValue="{Binding ElementName=Root, Path=RightEyeHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                <tabs:LinkedPairSliderRow Label="Width"
-                                          Margin="0,0,0,8"
-                                          UseStackedLayout="True"
-                                          LeftOperationId="LeftEyeWidth"
-                                          RightOperationId="RightEyeWidth"
-                                          SliderPreviewChanged="PairSlider_SliderPreviewChanged"
-                                          SliderCommitted="PairSlider_SliderCommitted"
-                                          LeftValue="{Binding ElementName=Root, Path=LeftEyeWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          RightValue="{Binding ElementName=Root, Path=RightEyeWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 <tabs:LinkedPairSliderRow Label="Tilt"
                                           Margin="0,0,0,8"
                                           UseStackedLayout="True"
@@ -378,38 +369,12 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="32"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Size" Style="{StaticResource FaceDetailRowLabelStyle}"/>
-                    <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1"
-                            Style="{StaticResource FaceDetailSliderStyle}"
-                            Tag="MouthSize"
-                            Value="{Binding ElementName=Root, Path=MouthSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Grid.Column="2" Text="{Binding ElementName=Root, Path=MouthSize, StringFormat={}{0:0}}" Style="{StaticResource FaceDetailValueStyle}"/>
-                </Grid>
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="86"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="32"/>
-                    </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="Width" Style="{StaticResource FaceDetailRowLabelStyle}"/>
                     <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1"
                             Style="{StaticResource FaceDetailSliderStyle}"
                             Tag="MouthWidth"
                             Value="{Binding ElementName=Root, Path=MouthWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     <TextBlock Grid.Column="2" Text="{Binding ElementName=Root, Path=MouthWidth, StringFormat={}{0:0}}" Style="{StaticResource FaceDetailValueStyle}"/>
-                </Grid>
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="86"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="32"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Vertical" Style="{StaticResource FaceDetailRowLabelStyle}"/>
-                    <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1"
-                            Style="{StaticResource FaceDetailSliderStyle}"
-                            Tag="MouthVertical"
-                            Value="{Binding ElementName=Root, Path=MouthVertical, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Grid.Column="2" Text="{Binding ElementName=Root, Path=MouthVertical, StringFormat={}{0:0}}" Style="{StaticResource FaceDetailValueStyle}"/>
                 </Grid>
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -438,7 +403,7 @@
                     <TextBlock Grid.Column="2" Text="{Binding ElementName=Root, Path=LowerLip, StringFormat={}{0:0}}" Style="{StaticResource FaceDetailValueStyle}"/>
                 </Grid>
                 <tabs:LinkedPairSliderRow Label="Corner"
-                                          Margin="0,0,0,8"
+                                          Margin="0,0,0,10"
                                           UseStackedLayout="True"
                                           LeftOperationId="LeftMouthCorner"
                                           RightOperationId="RightMouthCorner"
@@ -446,15 +411,6 @@
                                           SliderCommitted="PairSlider_SliderCommitted"
                                           LeftValue="{Binding ElementName=Root, Path=LeftMouthCorner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           RightValue="{Binding ElementName=Root, Path=RightMouthCorner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                <tabs:LinkedPairSliderRow Label="Smile"
-                                          Margin="0,0,0,10"
-                                          UseStackedLayout="True"
-                                          LeftOperationId="LeftSmileBalance"
-                                          RightOperationId="RightSmileBalance"
-                                          SliderPreviewChanged="PairSlider_SliderPreviewChanged"
-                                          SliderCommitted="PairSlider_SliderCommitted"
-                                          LeftValue="{Binding ElementName=Root, Path=LeftSmileBalance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          RightValue="{Binding ElementName=Root, Path=RightSmileBalance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=NeckPanelVisibility}">
@@ -520,15 +476,15 @@
                                           SliderCommitted="PairSlider_SliderCommitted"
                                           LeftValue="{Binding ElementName=Root, Path=LeftSideNeck, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           RightValue="{Binding ElementName=Root, Path=RightSideNeck, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                <tabs:LinkedPairSliderRow Label="Shoulder"
+                <tabs:LinkedPairSliderRow Label="Trapezius"
                                           Margin="0,0,0,10"
                                           UseStackedLayout="True"
-                                          LeftOperationId="LeftShoulderNeck"
-                                          RightOperationId="RightShoulderNeck"
+                                          LeftOperationId="LeftTrapeziusLowering"
+                                          RightOperationId="RightTrapeziusLowering"
                                           SliderPreviewChanged="PairSlider_SliderPreviewChanged"
                                           SliderCommitted="PairSlider_SliderCommitted"
-                                          LeftValue="{Binding ElementName=Root, Path=LeftShoulderNeck, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          RightValue="{Binding ElementName=Root, Path=RightShoulderNeck, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                          LeftValue="{Binding ElementName=Root, Path=LeftTrapezius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          RightValue="{Binding ElementName=Root, Path=RightTrapezius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
         </StackPanel>
     </Expander>

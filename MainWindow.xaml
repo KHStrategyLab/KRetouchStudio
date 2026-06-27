@@ -2686,11 +2686,28 @@
                             </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Ellipse Width="{Binding Size}"
-                                             Height="{Binding Size}"
-                                             Stroke="{Binding Stroke}"
-                                             StrokeThickness="{Binding StrokeThickness}"
-                                             Fill="{Binding Fill}"/>
+                                    <Canvas Width="34"
+                                            Height="12">
+                                        <Ellipse Width="{Binding Size}"
+                                                 Height="{Binding Size}"
+                                                 Stroke="{Binding Stroke}"
+                                                 StrokeThickness="{Binding StrokeThickness}"
+                                                 Fill="{Binding Fill}"/>
+                                        <TextBlock Text="{Binding Label}"
+                                                   Canvas.Left="5"
+                                                   Canvas.Top="1"
+                                                   FontSize="8"
+                                                   Foreground="#CC000000"
+                                                   FontFamily="Segoe UI"
+                                                   IsHitTestVisible="False"/>
+                                        <TextBlock Text="{Binding Label}"
+                                                   Canvas.Left="4"
+                                                   Canvas.Top="0"
+                                                   FontSize="8"
+                                                   Foreground="White"
+                                                   FontFamily="Segoe UI"
+                                                   IsHitTestVisible="False"/>
+                                    </Canvas>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

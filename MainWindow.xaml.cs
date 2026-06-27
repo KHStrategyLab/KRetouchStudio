@@ -7217,7 +7217,8 @@ public sealed class PreviewDebugPointOverlay
         double size,
         System.Windows.Media.Brush stroke,
         System.Windows.Media.Brush fill,
-        double strokeThickness)
+        double strokeThickness,
+        string? label = null)
     {
         Left = left;
         Top = top;
@@ -7225,6 +7226,7 @@ public sealed class PreviewDebugPointOverlay
         Stroke = stroke;
         Fill = fill;
         StrokeThickness = strokeThickness;
+        Label = label;
     }
 
     public double Left { get; }
@@ -7238,4 +7240,6 @@ public sealed class PreviewDebugPointOverlay
     public System.Windows.Media.Brush Fill { get; }
 
     public double StrokeThickness { get; }
+
+    public string? Label { get; }
 }

@@ -3,7 +3,7 @@
 ## Purpose
 
 This document defines the connection contract for the `Face Detail` retouch panel.
-It converts the UI sliders into engine-facing operation names, target scopes, masks, preview policy, and implementation order.
+It converts the UI sliders into engine-facing operation names, target scopes, mask or landmark-region labels, preview policy, and implementation order.
 
 The goal is to make the next implementation pass direct:
 
@@ -16,6 +16,26 @@ FaceDetailTabView
 -> serialized full-resolution commit
 -> history entry
 ```
+
+## Mask Terminology Note
+
+Some early rows use `Mask`, `ApplyMask`, `ProtectMask`, or named mask IDs because the exact MediaPipe 478-point face landmark index map was not known when the draft was written.
+In this document, those mask names are directional target-area placeholders unless a later implementation note explicitly marks them as detector-backed masks.
+
+Practical implementation must bind each slider to exact landmark indices, landmark groups, or a verified detector mask before processing.
+When exact landmark indices are available, use those numbers as the concrete implementation target and keep the mask name only as a human-readable region label.
+
+## Current Code Alignment
+
+The current application implementation is a rough landmark-driven route, not the full detector-mask request pipeline.
+It uses `FaceDetailAdjustmentSnapshot` values from `FaceDetailTabView`, builds local warp plans from cached MediaPipe landmarks, and applies a small number of tone passes.
+
+Current UI events pass compact UI tag names such as `NoseSize`, `LeftUnderEye`, and `DoubleChin`.
+The `OperationId` names in the inventory tables remain canonical engine-facing names for the future typed request model.
+
+Rule status in the inventory tables means the design rule is defined.
+It does not mean a detector-backed mask implementation is complete.
+For the current code state, use the landmark binding table below as the implementation source of truth.
 
 ## Source Documents
 
@@ -48,9 +68,9 @@ Each Face Detail slider must resolve:
 
 Target resolution must come from:
 
-- cached landmarks
+- cached landmarks and exact landmark groups
 - documented detector targets
-- documented masks
+- documented mask labels or verified detector masks
 - documented default local work boxes
 
 ## UI Layout Contract
@@ -82,23 +102,39 @@ The engine must still receive explicit left and right values.
 
 ## Strength Rule
 
-Current sliders are unsigned:
+Current Face Detail sliders use two amount families.
+
+Bidirectional structure sliders use a centered value:
 
 ```text
-0   = no change
-100 = maximum approved studio correction
+0   = maximum approved negative direction
+50  = neutral / no change
+100 = maximum approved positive direction
 ```
 
-Do not interpret these sliders as `-100..100`.
-If a future tool needs reverse direction, add a signed slider or a direction option explicitly.
-
-For implementation, normalize:
+Current centered implementation:
 
 ```text
-Amount = SliderValue / 100.0
+CenteredAmount = (SliderValue - 50) / 50
 ```
 
-Each operation then maps `Amount` to its own conservative maximum.
+One-way cleanup sliders use an unsigned value:
+
+```text
+0   = no cleanup / no change
+100 = maximum approved cleanup
+```
+
+Current one-way cleanup sliders:
+
+- `LeftDarkCircle`
+- `RightDarkCircle`
+- `LeftUnderEye`
+- `RightUnderEye`
+- `NeckWrinkle`
+- `DoubleChin`
+
+Each operation maps its normalized amount to its own conservative maximum.
 Preview and commit must use the same mapping.
 
 ## Preview And Commit Rule
@@ -112,7 +148,7 @@ Preview:
 - latest result wins
 - no history write
 - no uncached AI/Python/GPU work per slider tick
-- local work area only
+- local work area or landmark region only
 
 Commit:
 
@@ -123,7 +159,8 @@ Commit:
 
 ## Request Shape
 
-Use one shared request shape for all Face Detail sliders:
+Use one shared request shape for all Face Detail sliders in the future typed engine route.
+The current code path does not yet create this request object; it passes a UI operation tag and the full `FaceDetailAdjustmentSnapshot`.
 
 ```text
 FaceDetailRetouchRequest =
@@ -200,10 +237,14 @@ ProtectMask = ClothingMask + AccessoryMask + BeardMask + HairMask
 | Eye Size | `EyeOverallScale` | warp | `eye_work_box` | `LeftEyeMask + RightEyeMask` | ready |
 | Distance | `EyeDistanceBalance` | warp | `eye_work_box` | `LeftEyeMask + RightEyeMask` | ready with auto-target rule |
 | Height | `EyeHeightOpen` | pair warp | left/right `eye_work_box` | `LeftEyeMask`, `RightEyeMask` | ready |
-| Width | `EyeWidthStretch` | pair warp | left/right `eye_work_box` | `LeftEyeMask`, `RightEyeMask` | ready |
 | Tilt | `EyeCornerTilt` | pair warp | left/right outer eye ROI | `LeftEyeMask`, `RightEyeMask` | ready |
 | Dark | `DarkCircleReduce` | pair tone | left/right under-eye ROI | `DarkCircleMask` | ready |
 | Under Wrinkle | `UnderEyeWrinkleSoften` | pair texture | left/right under-eye ROI | `UndereyeMask` refined by wrinkle evidence | needs new mask builder or fallback |
+
+Current implementation note:
+
+- `Dark` and `Under Wrinkle` both use the under-eye landmark region and a tone/soften pass.
+- `Under Wrinkle` is not yet a wrinkle-evidence texture mask.
 
 #### `EyeOverallScale`
 
@@ -228,42 +269,45 @@ Current unsigned slider means studio-positive enlargement only.
 Rule:
 
 ```text
-TargetRatio = documented face-average eye spacing ratio
-Delta = (TargetRatio - CurrentRatio) * Amount
+LeftEyeBundle  = left inner corner + left outer corner + eyelid anchors
+RightEyeBundle = right inner corner + right outer corner + eyelid anchors
+Delta = CenteredAmount * approved horizontal bundle shift
 ```
 
-Move both eye work boxes symmetrically around the facial midline.
-If the ratio cannot be measured, no-op instead of guessing.
+`Distance` is not a pupil-center spacing control.
+Treat each eye as one eye bundle from inner corner to outer corner, including the visible eyelid structure.
+Move the left and right eye bundles symmetrically around the facial midline.
+The visible order target is the gap between the two inner eye corners.
+When narrowing, the left inner corner and right inner corner must move closer together.
+When widening, those same inner corners must move farther apart.
+The current rough implementation shifts the eye contour landmarks together and adds inner-corner and outer-corner support points so the whole eye bundle follows the spacing change.
 
-This operation is a one-way auto-balance, not a manual signed expand/contract slider.
+The operation must not stretch the eye shape just to change spacing.
+The surrounding skin follows with a local falloff, but the nose, brows, and full face must remain damped.
+`50` is neutral.
+Values above `50` widen the space between the eye bundles.
+Values below `50` narrow the space between the eye bundles.
 
 #### `EyeHeightOpen`
 
 Rule:
 
 ```text
-UpperEyelid moves upward by Amount
-LowerEyelid moves downward by Amount * 0.35
-Eye corners remain damped
+UpperEyelid contour opens upward by 80% of the height effect
+LowerEyelid contour opens downward by 20% of the height effect
+Eye corners remain damped and follow the eyelid curve softly
 ```
 
+This is an eye-opening control, not a whole-eye vertical move.
+The center eyelid region above the iris should carry the strongest visual change.
+The visual budget is roughly 70% eyelid-height opening and 30% visible iris reveal.
+Do not scale the pupil or iris as a biological object.
+Keep the visible pupil and iris circular whenever possible.
+Avoid vertical-only oval deformation in the eye center.
+The intended result is that the eyelids reveal more of the already-existing iris area.
+Use a small horizontal companion expansion so the opening does not read as a vertical pupil stretch.
 Use eyelid curve targets from `DETECTOR_TARGET_AND_MASK_IDS.md`.
 Protect brows and lashes.
-
-#### `EyeWidthStretch`
-
-Reference:
-
-- `CORE_FORMULA_COMPANION.md` formula 35
-
-Rule:
-
-```text
-Horizontal stretch only
-Vertical movement = 0
-```
-
-Use per-side values.
 
 #### `EyeCornerTilt`
 
@@ -274,10 +318,13 @@ Reference:
 Rule:
 
 ```text
-Inner corner anchor = strong
-Outer corner = rotated by Amount
+Inner corner cluster = strong tilt anchor
+Outer corner cluster = strong tilt anchor
+Corner support points follow the same tilt direction
+Eye center remains protected from oval pupil/iris distortion
 ```
 
+Current rough implementation caps `100` at 30% of the previous tilt strength.
 Positive amount applies the approved studio lift direction.
 
 #### `DarkCircleReduce`
@@ -344,18 +391,28 @@ ProtectMask = EyeMask + EyelashMask + GlassesMask + FaceSkinMask
 
 #### `BrowDistanceBalance`
 
-One-way auto-balance toward a studio target gap.
-No signed manual move until the UI supports signed values.
+This follows the same spacing concept as `EyeDistanceBalance`.
+It is not a brow thickness or brow shape control.
+Move the left and right brow bundles symmetrically so the visible gap between the inner brow heads changes.
+When narrowing, the two inner brow heads move closer together.
+When widening, the two inner brow heads move farther apart.
+The current rough implementation shifts each brow landmark group and adds an inner-brow support point.
+Current max displacement is intentionally half of the first rough connection strength so the slider does not read as fully applied at mid travel.
 
 #### `BrowThicknessAdjust`
 
-Use a curve-normal expansion around the eyebrow body.
+This is a thickness / volume control, not a brow-position control.
+Use a curve-normal expansion around the eyebrow body, similar in intent to `EyeHeightOpen`.
+The brow centerline stays comparatively stable while upper and lower brow evidence spreads apart.
 
 ```text
-BrowThicknessTarget = BaseThickness * (1 + Amount * MaxThicknessGain)
+UpperBrowEvidence moves upward by the approved thickness amount
+LowerBrowEvidence moves downward by the approved thickness amount
+Brow centerline remains protected from whole-brow translation
 ```
 
 Do not paint outside the brow work box.
+The current rough implementation uses brow landmark vertical spread around the local brow center.
 
 #### `BrowTiltAdjust`
 
@@ -387,6 +444,12 @@ Keep brow head/body damped.
 | Width | `NoseWidthRefine` | warp | side planes | `NoseMask` | ready |
 | Tip | `NoseTipRefine` | warp/tone | tip mass | `NoseTipMask` | ready |
 | Nostril | `NostrilBalance` | pair warp | left/right alar ROI | `LeftNostrilMask`, `RightNostrilMask` | ready |
+
+Current implementation note:
+
+- Nose sliders currently use landmark indices `4`, `168`, `98`, and `327`.
+- Additional side control points are derived synthetically from those landmarks.
+- `Bridge` is currently a warp control, not a separate bridge tone mask.
 
 Reference:
 
@@ -441,13 +504,10 @@ Tip and philtrum must be protected.
 
 | UI label | OperationId | Type | Target | ApplyMask | Rule status |
 | --- | --- | --- | --- | --- | --- |
-| Size | `MouthSizeRefine` | warp | `mouth_work_box` | `LipMask` | ready |
 | Width | `MouthWidthRefine` | warp | mouth span | `LipMask` | ready |
-| Vertical | `MouthVerticalRefine` | warp | lips | `LipMask` | ready |
 | Upper Lip | `UpperLipThickness` | warp | upper lip | `UpperLipMask` | ready |
 | Lower Lip | `LowerLipThickness` | warp | lower lip | `LowerLipMask` | ready |
 | Corner | `MouthCornerLift` | pair warp | mouth corners | left/right corner ROI | ready |
-| Smile | `SmileBalance` | pair warp | mouth corners | left/right corner ROI | ready |
 
 Reference:
 
@@ -463,20 +523,11 @@ ApplyMask = LipRetouchWorkMask
 ProtectMask = ToothMask + MouthInnerMask + FaceSkinMask + FacialHairMask
 ```
 
-#### `MouthSizeRefine`
-
-Use local scale around mouth center.
-Damp teeth and mouth inner area.
-
 #### `MouthWidthRefine`
 
 Use horizontal-only mouth span refinement.
 Keep vertical lip thickness damped.
-
-#### `MouthVerticalRefine`
-
-Use vertical-only lip opening/plump refinement.
-Keep mouth corners damped unless corner operations are active.
+The former integrated size slider is intentionally removed because width and lip controls define the mouth dimensions more clearly.
 
 #### `UpperLipThickness` / `LowerLipThickness`
 
@@ -486,6 +537,14 @@ Reference:
 
 Use upper/lower masks split by lip midline.
 Do not move teeth or inner mouth.
+Keep both mouth corners and lip ends anchored.
+For `Upper Lip`, keep the full lower/inner upper-lip line anchored, not only the center point.
+Increase only the upper outer lip vertically with an arc falloff: center strongest, ends near zero.
+For `Lower Lip`, keep the full upper/inner lower-lip line anchored and increase only the lower outer lip downward with the same arc falloff.
+These sliders own the vertical lip-volume adjustment; the former vertical slider is intentionally removed.
+Current rough implementation applies 750% of the first arc-falloff lip strength for visibility tuning.
+The central inner seam uses four stronger anchor points per lip to prevent center-line jumping.
+Lip anchors are active for lip-thickness sliders only; they must not resist the mouth-corner liquify pull when only `Mouth Corner` is adjusted.
 
 #### `MouthCornerLift`
 
@@ -496,11 +555,11 @@ Reference:
 Use local corner lift.
 A linked pair applies the same lift to both corners.
 An unlinked pair can correct asymmetric corners.
-
-#### `SmileBalance`
-
-Use the same corner ROI as `MouthCornerLift`, but allow a broader cheek-mouth falloff.
-This operation should be visually softer than `MouthCornerLift`.
+The former `SmileBalance` slider is intentionally folded into this control.
+Pull the mouth corner diagonally upward and outward.
+Use a 70% upward and 30% outward vector.
+Keep this as a local corner liquify pull: the mouth corner is strongest, immediate corner neighbors follow lightly, and lip-edge points follow only enough to avoid tearing.
+Do not directly group broad cheek or nasolabial landmarks into the same pull; that reads as a block movement.
 
 ### Neck
 
@@ -511,7 +570,14 @@ This operation should be visually softer than `MouthCornerLift`.
 | Wrinkle | `NeckWrinkleSoften` | texture | neck wrinkle bands | `NeckWrinkleMask` | ready |
 | Double Chin | `DoubleChinReduce` | tone/warp | under jaw | `DoubleChinWorkMask` | ready |
 | Side | `SideNeckBalance` | pair warp | left/right side neck | side neck ROI | ready |
-| Shoulder | `ShoulderNeckBalance` | pair warp | shoulder-neck area | `ShoulderHumpMask` / `ShoulderMask` | ready |
+| Trapezius | `TrapeziusLowering` | pair warp | trapezius / shoulder-neck hump | `ShoulderHumpMask` / `TrapeziusMask` | ready |
+
+Current implementation note:
+
+- Neck, Double Chin, and Trapezius sliders currently use chin/jaw landmarks `152`, `172`, and `397` plus synthetic support points.
+- `Double Chin` combines landmark warp with a simple under-jaw tone ellipse.
+- `Neck Wrinkle` now uses a neck tone/texture softening pass and does not contribute to lower-face warp.
+- The final `NeckWrinkleMask` detector is still required for production-grade wrinkle-band targeting.
 
 Reference:
 
@@ -546,6 +612,7 @@ Reference:
 
 Texture-only softening inside `NeckWrinkleMask`.
 Do not treat the whole neck skin as wrinkle.
+The current rough implementation uses a chin/jaw-derived neck ROI with local texture smoothing until the verified mask is available.
 
 #### `DoubleChinReduce`
 
@@ -561,10 +628,47 @@ Prefer tone/shadow cleanup first, then conservative shape support.
 Pair operation for side-neck asymmetry.
 Use left/right side neck ROIs and protect clothing/hair.
 
-#### `ShoulderNeckBalance`
+#### `TrapeziusLowering`
 
-Use `ShoulderHumpMask` or shoulder-neck work area.
-Do not confuse shoulder-neck balance with the shoulder joint or clothing shoulder seam.
+Use `ShoulderHumpMask`, `TrapeziusMask`, or shoulder-neck work area.
+Lower the visible trapezius hump without treating it as the shoulder joint.
+Do not confuse trapezius lowering with clothing shoulder seams.
+
+## Current Landmark Binding Table
+
+This table records the current rough implementation target.
+It should be updated whenever the code changes landmark indices or replaces a landmark region with a verified detector mask.
+
+| UI label | Current UI tag / snapshot field | Canonical operation | Amount family | Current landmark binding |
+| --- | --- | --- | --- | --- |
+| Eye Size | `EyeSize` | `EyeOverallScale` | centered `50` neutral | left eye `33, 133, 159, 145`; right eye `263, 362, 386, 374` |
+| Eye Distance | `EyeDistance` | `EyeDistanceBalance` | centered `50` neutral | eye contour bundle shift; left `33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246`; right `362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398`; no pupil-center target |
+| Eye Height | `LeftEyeHeight`, `RightEyeHeight` | `EyeHeightOpen` | centered `50` neutral | eyelid opening; upper contour 80%, lower contour 20%, small horizontal companion, iris guard anchors to keep pupil/iris round |
+| Eye Tilt | `LeftEyeTilt`, `RightEyeTilt` | `EyeCornerTilt` | centered `50` neutral | inner/outer eye-corner clusters plus corner support points |
+| Dark | `LeftDarkCircle`, `RightDarkCircle` | `DarkCircleReduce` | one-way `0` none | under-eye tone region from `33, 133, 145` and `263, 362, 374` |
+| Under Wrinkle | `LeftUnderEye`, `RightUnderEye` | `UnderEyeWrinkleSoften` | one-way `0` none | current shared under-eye tone/soften region; no wrinkle mask yet |
+| Brow Distance | `BrowDistance` | `BrowDistanceBalance` | centered `50` neutral | brow bundle spacing; left brow `70, 63, 105, 66, 107`; right brow `336, 296, 334, 293, 300`; inner brow support point |
+| Brow Thickness | `LeftBrowThickness`, `RightBrowThickness` | `BrowThicknessAdjust` | centered `50` neutral | rough vertical spread around brow centerline; not whole-brow position |
+| Brow Tilt | `LeftBrowTilt`, `RightBrowTilt` | `BrowTiltAdjust` | centered `50` neutral | same brow landmark groups |
+| Brow Arch | `LeftBrowArch`, `RightBrowArch` | `BrowArchAdjust` | centered `50` neutral | same brow landmark groups |
+| Brow Position | `LeftBrowPosition`, `RightBrowPosition` | `BrowPositionLift` | centered `50` neutral | same brow landmark groups |
+| Brow Tail | `LeftBrowTail`, `RightBrowTail` | `BrowTailAdjust` | centered `50` neutral | same brow landmark groups |
+| Nose Size | `NoseSize` | `NoseSizeRefine` | centered `50` neutral | nose tip `4`, bridge `168`, left nostril `98`, right nostril `327` |
+| Nose Length | `NoseLength` | `NoseLengthRefine` | centered `50` neutral | same nose landmark group |
+| Nose Bridge | `NoseBridge` | `NoseBridgeRefine` | centered `50` neutral | same nose group plus synthetic side controls |
+| Nose Width | `NoseWidth` | `NoseWidthRefine` | centered `50` neutral | same nose group plus synthetic side controls |
+| Nose Tip | `NoseTip` | `NoseTipRefine` | centered `50` neutral | same nose landmark group |
+| Nostril | `LeftNostril`, `RightNostril` | `NostrilBalance` | centered `50` neutral | left nostril `98`, right nostril `327` |
+| Mouth Width | `MouthWidth` | `MouthWidthRefine` | centered `50` neutral | mouth corner clusters plus corners `61`, `291` |
+| Upper Lip | `UpperLip` | `UpperLipThickness` | centered `50` neutral | move upper outer lip center arc `40, 39, 37, 0, 267, 269, 270`; anchor full lower/inner upper-lip line and lip ends `78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 185, 409`; strong center anchors `82, 13, 312, 311` |
+| Lower Lip | `LowerLip` | `LowerLipThickness` | centered `50` neutral | move lower outer lip center arc `91, 181, 84, 17, 314, 405, 321`; anchor full upper/inner lower-lip line and lip ends `78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 146, 375`; strong center anchors `87, 14, 317, 402` |
+| Mouth Corner | `LeftMouthCorner`, `RightMouthCorner` | `MouthCornerLift` | centered `50` neutral | local upward/outward liquify pull; 70% up, 30% outward; core `61 / 291` 100%; near corner `57,76,185,186 / 287,306,409,410` 42%; lip edge `78,95,146,191 / 308,324,375,415` 18%; broad cheek landmarks are not directly grouped |
+| Neck Slim | `NeckSlim` | `NeckSlimRefine` | centered `50` neutral | chin `152`, left jaw `172`, right jaw `397` |
+| Neck Length | `NeckLength` | `NeckLengthRefine` | centered `50` neutral | same chin/jaw landmark group |
+| Neck Wrinkle | `NeckWrinkle` | `NeckWrinkleSoften` | one-way `0` none | chin/jaw-derived neck ROI tone/texture softening; no shape warp |
+| Double Chin | `DoubleChin` | `DoubleChinReduce` | one-way `0` none | chin `152`, left jaw `172`, right jaw `397`; under-jaw tone ellipse |
+| Side Neck | `LeftSideNeck`, `RightSideNeck` | `SideNeckBalance` | centered `50` neutral | chin/jaw group with side-neck direction weights |
+| Trapezius | `LeftTrapezius`, `RightTrapezius` | `TrapeziusLowering` | centered `50` neutral | chin/jaw group plus synthetic trapezius-lowering support points |
 
 ## Implementation Phases
 
@@ -580,7 +684,11 @@ Implement:
 - preview version token
 - commit serialization gate
 
-No image processing is required in this phase.
+Current code status:
+
+- `FaceDetailTabView` change events are connected.
+- preview version token and commit serialization gate are connected.
+- typed `FaceDetailOperationId` and `FaceDetailRetouchRequest` are not yet implemented.
 
 ### Phase 2 - Mask And Work Area Resolution
 
@@ -591,8 +699,9 @@ Implement or reuse:
 - nose work box
 - mouth work box
 - neck work box
-- mask lookup by `MaskId`
-- fallback no-op when required masks are missing
+- exact landmark group lookup for 478-point face landmarks
+- optional mask lookup by `MaskId` when a verified detector mask exists
+- fallback no-op when required landmarks or masks are missing
 
 ### Phase 3 - Low-Risk Texture/Tone Operations
 
@@ -605,18 +714,28 @@ Connect first:
 
 These should not warp facial geometry.
 
+Current code status:
+
+- `DarkCircleReduce` and `UnderEyeWrinkleSoften` are approximated by one under-eye tone/soften pass.
+- `DoubleChinReduce` has a tone pass plus a conservative lower-face warp.
+- `NeckWrinkleSoften` is a rough neck texture/tone pass; it still needs the verified `NeckWrinkleMask`.
+
 ### Phase 4 - Landmark-Based Local Warp Operations
 
 Connect next:
 
 - `EyeOverallScale`
 - `EyeHeightOpen`
-- `EyeWidthStretch`
 - `EyeCornerTilt`
 - `UpperLipThickness`
 - `LowerLipThickness`
 - `MouthCornerLift`
 - `NostrilBalance`
+
+Current code status:
+
+- the listed operations are connected through rough landmark warps.
+- tuning remains required per slider.
 
 ### Phase 5 - Conservative Shape Refinement
 
@@ -624,8 +743,13 @@ Connect after visual confirmation:
 
 - brow operations
 - nose size/length/bridge/width/tip
-- mouth size/width/vertical
-- neck slim/length/side/shoulder
+- mouth width
+- neck slim/length/side/trapezius
+
+Current code status:
+
+- these controls are also roughly connected through landmark warps.
+- the current goal is visible response first, then a second tuning pass.
 
 ### Phase 6 - Optimization
 
@@ -643,7 +767,7 @@ Current compact labels may remain in the UI, but engine-facing names must be exp
 
 - `Dark` maps to `DarkCircleReduce`.
 - `Under Wrinkle` maps to `UnderEyeWrinkleSoften`.
-- `Shoulder` maps to `ShoulderNeckBalance`.
+- `Trapezius` maps to `TrapeziusLowering`.
 - `Distance` inside `Eyes` maps to `EyeDistanceBalance`.
 - `Distance` inside `Brows` maps to `BrowDistanceBalance`.
 
@@ -651,7 +775,7 @@ If the UI becomes confusing during visual review, rename `Dark` to `Dark Circle`
 
 ## No-Op Rule
 
-If a required work box, landmark, or mask is unavailable:
+If a required work box, landmark group, or verified mask is unavailable:
 
 ```text
 return current image unchanged

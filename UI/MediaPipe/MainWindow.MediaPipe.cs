@@ -494,7 +494,8 @@ public partial class MainWindow
                     pointSize,
                     MediaPipeAllPointDebugStroke,
                     MediaPipeAllPointDebugFill,
-                    0.65));
+                    0.65,
+                    point.Index.ToString()));
             }
         }
 
