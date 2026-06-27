@@ -555,10 +555,10 @@ public partial class MainWindow
             plans,
             width,
             height,
-            marginRatio: 0.46,
-            sigmaRatio: 0.18,
-            radiusScale: 0.62,
-            solidRadius: 0.60,
+            marginRatio: 0.50,
+            sigmaRatio: 0.20,
+            radiusScale: 0.68,
+            solidRadius: 0.62,
             buildControls: (controls, affectedPoints) => AddLowerFaceDetailControls(landmarks, snapshot, controls, affectedPoints));
 
         return plans;
@@ -688,22 +688,22 @@ public partial class MainWindow
         Point center = AveragePoints(tip, bridge, leftNostril, rightNostril);
         double noseWidth = Math.Max(1.0, rightNostril.X - leftNostril.X);
         double noseHeight = Math.Max(1.0, tip.Y - bridge.Y);
-        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.20);
-        double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.27);
-        double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.15);
-        double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.14);
-        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.13);
-        double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.22);
-        double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.22);
+        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.24);
+        double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.32);
+        double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.20);
+        double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.18);
+        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.16);
+        double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.26);
+        double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.26);
 
         AddControl(controls, affectedPoints, leftNostril, -sizeExpand - widthExpand - nostrilExpandL, 0);
         AddControl(controls, affectedPoints, rightNostril, sizeExpand + widthExpand + nostrilExpandR, 0);
         AddControl(controls, affectedPoints, tip, 0, tipLift + lengthDrop);
-        AddControl(controls, affectedPoints, bridge, 0, -bridgePull * 0.25);
-        AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.22, center.Y), bridgePull, 0);
-        AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.22, center.Y), -bridgePull, 0);
-        AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.34, center.Y + noseHeight * 0.18), bridgePull + (widthExpand * 0.45), 0);
-        AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.34, center.Y + noseHeight * 0.18), -bridgePull - (widthExpand * 0.45), 0);
+        AddControl(controls, affectedPoints, bridge, 0, -bridgePull * 0.32);
+        AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.22, center.Y), bridgePull * 1.05, 0);
+        AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.22, center.Y), -bridgePull * 1.05, 0);
+        AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.34, center.Y + noseHeight * 0.18), bridgePull + (widthExpand * 0.52), 0);
+        AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.34, center.Y + noseHeight * 0.18), -bridgePull - (widthExpand * 0.52), 0);
     }
 
     private static void AddMouthDetailControls(
@@ -765,19 +765,20 @@ public partial class MainWindow
             CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
             CenteredStrength(s.RightSideNeck, jawWidth * 0.030) +
             CenteredStrength(s.RightShoulderNeck, jawWidth * 0.022);
-        double doubleChinLift = Strength(s.DoubleChin, jawWidth * 0.085);
-        double neckWrinkleLift = Strength(s.NeckWrinkle, jawWidth * 0.030);
+        double doubleChinLift = Strength(s.DoubleChin, jawWidth * 0.115);
+        double neckWrinkleLift = Strength(s.NeckWrinkle, jawWidth * 0.034);
         double chinDy =
             CenteredStrength(s.NeckLength, jawWidth * 0.045) -
-            (doubleChinLift * 0.42) -
+            (doubleChinLift * 0.34) -
             neckWrinkleLift;
 
-        AddControl(controls, affectedPoints, leftJaw, leftNeckSlim + (doubleChinLift * 0.18), -doubleChinLift * 0.20);
-        AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim - (doubleChinLift * 0.18), -doubleChinLift * 0.20);
+        AddControl(controls, affectedPoints, leftJaw, leftNeckSlim + (doubleChinLift * 0.14), -doubleChinLift * 0.16);
+        AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim - (doubleChinLift * 0.14), -doubleChinLift * 0.16);
         AddControl(controls, affectedPoints, chin, 0, chinDy);
-        AddControl(controls, affectedPoints, new Point((leftJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.045), doubleChinLift * 0.26, -doubleChinLift * 0.68);
-        AddControl(controls, affectedPoints, new Point((rightJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.045), -doubleChinLift * 0.26, -doubleChinLift * 0.68);
-        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.105), 0, -doubleChinLift - (neckWrinkleLift * 0.45));
+        AddControl(controls, affectedPoints, new Point((leftJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.050), doubleChinLift * 0.30, -doubleChinLift * 0.76);
+        AddControl(controls, affectedPoints, new Point((rightJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.050), -doubleChinLift * 0.30, -doubleChinLift * 0.76);
+        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.090), 0, -doubleChinLift * 1.06 - (neckWrinkleLift * 0.45));
+        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.160), 0, -doubleChinLift * 0.70 - (neckWrinkleLift * 0.30));
     }
 
     private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(
@@ -921,16 +922,16 @@ public partial class MainWindow
         }
 
         double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
-        double amount = Math.Clamp(((doubleChinStrength * 0.85) + (neckWrinkleStrength * 0.35)) / 100.0, 0.0, 1.0);
+        double amount = Math.Clamp(((doubleChinStrength * 1.05) + (neckWrinkleStrength * 0.38)) / 100.0, 0.0, 1.0);
         if (amount <= 0.001)
         {
             return;
         }
 
-        Point center = new(chin.X, chin.Y + jawWidth * 0.10);
-        double radiusX = jawWidth * 0.38;
-        double radiusY = jawWidth * 0.20;
-        double liftAmount = amount * 0.20;
+        Point center = new(chin.X, chin.Y + jawWidth * 0.095);
+        double radiusX = jawWidth * 0.44;
+        double radiusY = jawWidth * 0.24;
+        double liftAmount = amount * 0.24;
         int left = Math.Max(0, (int)Math.Floor(center.X - radiusX));
         int top = Math.Max(0, (int)Math.Floor(center.Y - radiusY));
         int right = Math.Min(width - 1, (int)Math.Ceiling(center.X + radiusX));
