@@ -31,6 +31,7 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
     private double _scarSoften;
     private double _scarToneBlend;
     private double _scarTextureMatch = 50;
+    private bool _canResetBlemishTab;
 
     public BlemishTabView()
     {
@@ -50,6 +51,21 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
     public Visibility MolePanelVisibility => GetPanelVisibility(BlemishMode.Mole);
     public Visibility FrecklePanelVisibility => GetPanelVisibility(BlemishMode.Freckle);
     public Visibility ScarPanelVisibility => GetPanelVisibility(BlemishMode.Scar);
+
+    public bool CanResetBlemishTab
+    {
+        get => _canResetBlemishTab;
+        private set
+        {
+            if (_canResetBlemishTab == value)
+            {
+                return;
+            }
+
+            _canResetBlemishTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double AcneReduce { get => _acneReduce; set => SetSliderValue(ref _acneReduce, value); }
     public double AcneRedness { get => _acneRedness; set => SetSliderValue(ref _acneRedness, value); }
@@ -74,6 +90,17 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
 
     public void ResetForPhotoChange()
     {
+        ResetBlemishTabValues();
+    }
+
+    private void ResetBlemishTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetBlemishTabValues();
+        e.Handled = true;
+    }
+
+    private void ResetBlemishTabValues()
+    {
         _activeBlemishMode = BlemishMode.Acne;
         _acneReduce = 0;
         _acneRedness = 0;
@@ -90,6 +117,7 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
         _scarSoften = 0;
         _scarToneBlend = 0;
         _scarTextureMatch = 50;
+        CanResetBlemishTab = false;
         OnPropertyChanged(string.Empty);
     }
 
@@ -173,7 +201,33 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        UpdateCanResetBlemishTab();
         return true;
+    }
+
+    private void UpdateCanResetBlemishTab()
+    {
+        CanResetBlemishTab =
+            IsNonDefault(_acneReduce, 0) ||
+            IsNonDefault(_acneRedness, 0) ||
+            IsNonDefault(_acneBump, 0) ||
+            IsNonDefault(_spotRemove, 0) ||
+            IsNonDefault(_spotBlend, 50) ||
+            IsNonDefault(_spotTextureMatch, 50) ||
+            IsNonDefault(_moleReduce, 0) ||
+            IsNonDefault(_moleProtect, 50) ||
+            IsNonDefault(_moleEdgeBlend, 50) ||
+            IsNonDefault(_freckleFade, 0) ||
+            IsNonDefault(_freckleDensity, 50) ||
+            IsNonDefault(_freckleProtect, 50) ||
+            IsNonDefault(_scarSoften, 0) ||
+            IsNonDefault(_scarToneBlend, 0) ||
+            IsNonDefault(_scarTextureMatch, 50);
+    }
+
+    private static bool IsNonDefault(double value, double defaultValue)
+    {
+        return Math.Abs(value - defaultValue) > 0.01;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

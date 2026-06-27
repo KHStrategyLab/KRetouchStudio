@@ -32,6 +32,7 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
     private double _warmCool = 50;
     private double _darken;
     private double _colorStrength;
+    private bool _canResetHairTab;
 
     public HairTabView()
     {
@@ -59,6 +60,21 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
     public Visibility TonePanelVisibility => GetPanelVisibility(HairMode.Tone);
 
     public Visibility ColorPanelVisibility => GetPanelVisibility(HairMode.Color);
+
+    public bool CanResetHairTab
+    {
+        get => _canResetHairTab;
+        private set
+        {
+            if (_canResetHairTab == value)
+            {
+                return;
+            }
+
+            _canResetHairTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double HairlineHeight
     {
@@ -163,6 +179,17 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
 
     public void ResetForPhotoChange()
     {
+        ResetHairTabValues();
+    }
+
+    private void ResetHairTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetHairTabValues();
+        e.Handled = true;
+    }
+
+    private void ResetHairTabValues()
+    {
         _activeHairMode = HairMode.Hairline;
         _hairlineHeight = 50;
         _templeBalance = 50;
@@ -180,6 +207,7 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
         _warmCool = 50;
         _darken = 0;
         _colorStrength = 0;
+        CanResetHairTab = false;
         OnPropertyChanged(string.Empty);
     }
 
@@ -263,7 +291,34 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        UpdateCanResetHairTab();
         return true;
+    }
+
+    private void UpdateCanResetHairTab()
+    {
+        CanResetHairTab =
+            IsNonDefault(_hairlineHeight, 50) ||
+            IsNonDefault(_templeBalance, 50) ||
+            IsNonDefault(_babyHairProtect, 50) ||
+            IsNonDefault(_topVolume, 50) ||
+            IsNonDefault(_sideVolume, 50) ||
+            IsNonDefault(_crownLift, 50) ||
+            IsNonDefault(_strayHair, 0) ||
+            IsNonDefault(_frizz, 0) ||
+            IsNonDefault(_edgeCleanup, 0) ||
+            IsNonDefault(_shine, 0) ||
+            IsNonDefault(_depth, 0) ||
+            IsNonDefault(_scalpCover, 0) ||
+            IsNonDefault(_tint, 0) ||
+            IsNonDefault(_warmCool, 50) ||
+            IsNonDefault(_darken, 0) ||
+            IsNonDefault(_colorStrength, 0);
+    }
+
+    private static bool IsNonDefault(double value, double defaultValue)
+    {
+        return Math.Abs(value - defaultValue) > 0.01;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

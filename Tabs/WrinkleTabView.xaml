@@ -60,10 +60,11 @@
     <Expander x:Name="WrinkleExpander" Header="Wrinkle" Expanded="Expander_Expanded">
         <Expander.Tag>
             <Button Content="↶"
-                    IsEnabled="False"
+                    IsEnabled="{Binding ElementName=Root, Path=CanResetWrinkleTab}"
                     ToolTipService.ShowOnDisabled="True"
                     Style="{StaticResource WrinkleHeaderResetButtonStyle}"
-                    ToolTip="Wrinkle reset pending"/>
+                    Click="ResetWrinkleTabButton_Click"
+                    ToolTip="Reset Wrinkle tab values"/>
         </Expander.Tag>
         <StackPanel>
             <Grid Margin="0,0,0,9">

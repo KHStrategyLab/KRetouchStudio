@@ -26,6 +26,7 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
     private bool _marionetteLinked = true;
     private double _chinCrease;
     private double _neck;
+    private bool _canResetWrinkleTab;
 
     public WrinkleTabView()
     {
@@ -33,6 +34,21 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public bool CanResetWrinkleTab
+    {
+        get => _canResetWrinkleTab;
+        private set
+        {
+            if (_canResetWrinkleTab == value)
+            {
+                return;
+            }
+
+            _canResetWrinkleTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double Forehead
     {
@@ -161,6 +177,17 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
 
     public void ResetForPhotoChange()
     {
+        ResetWrinkleTabValues();
+    }
+
+    private void ResetWrinkleTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetWrinkleTabValues();
+        e.Handled = true;
+    }
+
+    private void ResetWrinkleTabValues()
+    {
         _forehead = 0;
         _frown = 0;
         _leftCrowsFeet = 0;
@@ -181,6 +208,7 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         _marionetteLinked = true;
         _chinCrease = 0;
         _neck = 0;
+        CanResetWrinkleTab = false;
         OnPropertyChanged(string.Empty);
     }
 
@@ -202,6 +230,7 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        UpdateCanResetWrinkleTab();
         return true;
     }
 
@@ -215,7 +244,38 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
 
         storage = value;
         OnPropertyChanged(propertyName);
+        UpdateCanResetWrinkleTab();
         return true;
+    }
+
+    private void UpdateCanResetWrinkleTab()
+    {
+        CanResetWrinkleTab =
+            IsNonDefault(_forehead, 0) ||
+            IsNonDefault(_frown, 0) ||
+            IsNonDefault(_leftCrowsFeet, 0) ||
+            IsNonDefault(_rightCrowsFeet, 0) ||
+            !_crowsFeetLinked ||
+            IsNonDefault(_leftUnderEye, 0) ||
+            IsNonDefault(_rightUnderEye, 0) ||
+            !_underEyeLinked ||
+            IsNonDefault(_leftBunny, 0) ||
+            IsNonDefault(_rightBunny, 0) ||
+            !_bunnyLinked ||
+            IsNonDefault(_leftSmileFold, 0) ||
+            IsNonDefault(_rightSmileFold, 0) ||
+            !_smileFoldLinked ||
+            IsNonDefault(_lipLines, 0) ||
+            IsNonDefault(_leftMarionette, 0) ||
+            IsNonDefault(_rightMarionette, 0) ||
+            !_marionetteLinked ||
+            IsNonDefault(_chinCrease, 0) ||
+            IsNonDefault(_neck, 0);
+    }
+
+    private static bool IsNonDefault(double value, double defaultValue)
+    {
+        return Math.Abs(value - defaultValue) > 0.01;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

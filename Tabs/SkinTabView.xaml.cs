@@ -31,6 +31,7 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
     private double _shineReduce;
     private double _highlightProtect = 50;
     private double _shineTextureReturn = 50;
+    private bool _canResetSkinTab;
 
     public SkinTabView()
     {
@@ -58,6 +59,21 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
     public Visibility RednessPanelVisibility => GetPanelVisibility(SkinMode.Redness);
 
     public Visibility ShinePanelVisibility => GetPanelVisibility(SkinMode.Shine);
+
+    public bool CanResetSkinTab
+    {
+        get => _canResetSkinTab;
+        private set
+        {
+            if (_canResetSkinTab == value)
+            {
+                return;
+            }
+
+            _canResetSkinTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double EvenTone
     {
@@ -156,6 +172,17 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
 
     public void ResetForPhotoChange()
     {
+        ResetSkinTabValues();
+    }
+
+    private void ResetSkinTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetSkinTabValues();
+        e.Handled = true;
+    }
+
+    private void ResetSkinTabValues()
+    {
         _activeSkinMode = SkinMode.Tone;
         _evenTone = 0;
         _toneLift = 0;
@@ -172,6 +199,7 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
         _shineReduce = 0;
         _highlightProtect = 50;
         _shineTextureReturn = 50;
+        CanResetSkinTab = false;
         OnPropertyChanged(string.Empty);
     }
 
@@ -255,7 +283,33 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        UpdateCanResetSkinTab();
         return true;
+    }
+
+    private void UpdateCanResetSkinTab()
+    {
+        CanResetSkinTab =
+            IsNonDefault(_evenTone, 0) ||
+            IsNonDefault(_toneLift, 0) ||
+            IsNonDefault(_colorCast, 0) ||
+            IsNonDefault(_softness, 0) ||
+            IsNonDefault(_textureProtect, 50) ||
+            IsNonDefault(_detailReturn, 50) ||
+            IsNonDefault(_poreReduce, 0) ||
+            IsNonDefault(_fineTexture, 50) ||
+            IsNonDefault(_poreEdgeProtect, 50) ||
+            IsNonDefault(_redReduce, 0) ||
+            IsNonDefault(_toneBlend, 0) ||
+            IsNonDefault(_naturalColor, 50) ||
+            IsNonDefault(_shineReduce, 0) ||
+            IsNonDefault(_highlightProtect, 50) ||
+            IsNonDefault(_shineTextureReturn, 50);
+    }
+
+    private static bool IsNonDefault(double value, double defaultValue)
+    {
+        return Math.Abs(value - defaultValue) > 0.01;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

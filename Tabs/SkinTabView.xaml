@@ -106,10 +106,11 @@
                     Height="28"
                     Margin="0"
                     Padding="0"
-                    IsEnabled="False"
+                    IsEnabled="{Binding ElementName=Root, Path=CanResetSkinTab}"
                     ToolTipService.ShowOnDisabled="True"
                     Style="{StaticResource SkinResetButtonStyle}"
-                    ToolTip="Skin reset pending"/>
+                    Click="ResetSkinTabButton_Click"
+                    ToolTip="Reset Skin tab values"/>
         </Expander.Tag>
         <StackPanel>
             <UniformGrid Columns="5" Margin="0,0,0,12">

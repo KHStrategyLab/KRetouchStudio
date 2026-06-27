@@ -31,6 +31,7 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
     private double _lipColor;
     private double _lipSaturation;
     private double _lipGloss;
+    private bool _canResetMakeupTab;
 
     public MakeupTabView()
     {
@@ -50,6 +51,21 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
     public Visibility EyePanelVisibility => GetPanelVisibility(MakeupMode.Eye);
     public Visibility CheekPanelVisibility => GetPanelVisibility(MakeupMode.Cheek);
     public Visibility LipPanelVisibility => GetPanelVisibility(MakeupMode.Lip);
+
+    public bool CanResetMakeupTab
+    {
+        get => _canResetMakeupTab;
+        private set
+        {
+            if (_canResetMakeupTab == value)
+            {
+                return;
+            }
+
+            _canResetMakeupTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double BaseCoverage { get => _baseCoverage; set => SetSliderValue(ref _baseCoverage, value); }
     public double BaseEvenness { get => _baseEvenness; set => SetSliderValue(ref _baseEvenness, value); }
@@ -74,6 +90,17 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
 
     public void ResetForPhotoChange()
     {
+        ResetMakeupTabValues();
+    }
+
+    private void ResetMakeupTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        ResetMakeupTabValues();
+        e.Handled = true;
+    }
+
+    private void ResetMakeupTabValues()
+    {
         _activeMakeupMode = MakeupMode.Base;
         _baseCoverage = 0;
         _baseEvenness = 0;
@@ -90,6 +117,7 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
         _lipColor = 0;
         _lipSaturation = 0;
         _lipGloss = 0;
+        CanResetMakeupTab = false;
         OnPropertyChanged(string.Empty);
     }
 
@@ -173,7 +201,33 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        UpdateCanResetMakeupTab();
         return true;
+    }
+
+    private void UpdateCanResetMakeupTab()
+    {
+        CanResetMakeupTab =
+            IsNonDefault(_baseCoverage, 0) ||
+            IsNonDefault(_baseEvenness, 0) ||
+            IsNonDefault(_baseFinish, 0) ||
+            IsNonDefault(_browDensity, 0) ||
+            IsNonDefault(_browShape, 0) ||
+            IsNonDefault(_browColor, 0) ||
+            IsNonDefault(_eyeShadow, 0) ||
+            IsNonDefault(_eyeLiner, 0) ||
+            IsNonDefault(_eyeLash, 0) ||
+            IsNonDefault(_cheekBlush, 0) ||
+            IsNonDefault(_cheekContour, 0) ||
+            IsNonDefault(_cheekHighlight, 0) ||
+            IsNonDefault(_lipColor, 0) ||
+            IsNonDefault(_lipSaturation, 0) ||
+            IsNonDefault(_lipGloss, 0);
+    }
+
+    private static bool IsNonDefault(double value, double defaultValue)
+    {
+        return Math.Abs(value - defaultValue) > 0.01;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
