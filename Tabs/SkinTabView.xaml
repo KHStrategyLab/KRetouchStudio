@@ -3,7 +3,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Resources>
-        <Style x:Key="DummySkinSlotStyle" TargetType="{x:Type Button}">
+        <Style x:Key="SkinResetButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="38"/>
             <Setter Property="Height" Value="38"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
@@ -79,9 +79,27 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="SkinSectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,8"/>
+        </Style>
+        <Style x:Key="SkinRowLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="SkinValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
     </UserControl.Resources>
 
-    <Expander x:Name="SkinExpander" Header="피부" Expanded="Expander_Expanded">
+    <Expander x:Name="SkinExpander" Header="Skin" Expanded="Expander_Expanded">
         <Expander.Tag>
             <Button Content="↶"
                     Width="28"
@@ -90,46 +108,267 @@
                     Padding="0"
                     IsEnabled="False"
                     ToolTipService.ShowOnDisabled="True"
-                    Style="{StaticResource DummySkinSlotStyle}"
-                    ToolTip="피부 전체 되돌림 준비 중"/>
+                    Style="{StaticResource SkinResetButtonStyle}"
+                    ToolTip="Skin reset pending"/>
         </Expander.Tag>
         <StackPanel>
             <UniformGrid Columns="5" Margin="0,0,0,12">
-                <ToggleButton Content="Heal"
+                <ToggleButton Content="Tone"
                               Style="{StaticResource SkinModeToggleStyle}"
                               Margin="0,0,6,0"
-                              ToolTip="Heal"
-                              IsChecked="{Binding ElementName=Root, Path=IsHealSkinModeActive, Mode=OneWay}"
-                              Click="HealSkinButton_Click"/>
-                <ToggleButton Content="Acne"
-                              Style="{StaticResource SkinModeToggleStyle}"
-                              Margin="0,0,6,0"
-                              ToolTip="Acne"
-                              IsChecked="{Binding ElementName=Root, Path=IsAcneSkinModeActive, Mode=OneWay}"
-                              Click="AcneSkinButton_Click"/>
-                <ToggleButton Content="Mole"
-                              Style="{StaticResource SkinModeToggleStyle}"
-                              Margin="0,0,6,0"
-                              ToolTip="Mole"
-                              IsChecked="{Binding ElementName=Root, Path=IsMoleSkinModeActive, Mode=OneWay}"
-                              Click="MoleSkinButton_Click"/>
-                <ToggleButton Content="Freck"
-                              Style="{StaticResource SkinModeToggleStyle}"
-                              Margin="0,0,6,0"
-                              ToolTip="Freck"
-                              IsChecked="{Binding ElementName=Root, Path=IsFreckSkinModeActive, Mode=OneWay}"
-                              Click="FreckSkinButton_Click"/>
+                              IsChecked="{Binding ElementName=Root, Path=IsToneModeActive, Mode=OneWay}"
+                              Click="ToneButton_Click"/>
                 <ToggleButton Content="Smooth"
                               Style="{StaticResource SkinModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsSmoothModeActive, Mode=OneWay}"
+                              Click="SmoothButton_Click"/>
+                <ToggleButton Content="Pores"
+                              Style="{StaticResource SkinModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsPoreModeActive, Mode=OneWay}"
+                              Click="PoreButton_Click"/>
+                <ToggleButton Content="Redness"
+                              Style="{StaticResource SkinModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsRednessModeActive, Mode=OneWay}"
+                              Click="RednessButton_Click"/>
+                <ToggleButton Content="Shine"
+                              Style="{StaticResource SkinModeToggleStyle}"
                               Margin="0"
-                              ToolTip="Smooth"
-                              IsChecked="{Binding ElementName=Root, Path=IsSmoothSkinModeActive, Mode=OneWay}"
-                              Click="SmoothSkinButton_Click"/>
+                              IsChecked="{Binding ElementName=Root, Path=IsShineModeActive, Mode=OneWay}"
+                              Click="ShineButton_Click"/>
             </UniformGrid>
-            <Slider Minimum="0"
-                    Maximum="100"
-                    TickFrequency="1"
-                    Value="{Binding ElementName=Root, Path=ActiveSkinStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=TonePanelVisibility}">
+                <TextBlock Text="Tone" Style="{StaticResource SkinSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Even Tone" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EvenTone, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=EvenTone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Tone Lift" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ToneLift, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ToneLift, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Color Cast" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ColorCast, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ColorCast, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=SmoothPanelVisibility}">
+                <TextBlock Text="Smooth" Style="{StaticResource SkinSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Softness" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Softness, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Softness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Texture Protect" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=TextureProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=TextureProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Detail Return" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=DetailReturn, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=DetailReturn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=PorePanelVisibility}">
+                <TextBlock Text="Pores" Style="{StaticResource SkinSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Pore Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=PoreReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=PoreReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Fine Texture" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FineTexture, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=FineTexture, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Edge Protect" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=PoreEdgeProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=PoreEdgeProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=RednessPanelVisibility}">
+                <TextBlock Text="Redness" Style="{StaticResource SkinSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Red Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=RedReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=RedReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Tone Blend" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ToneBlend, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ToneBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Natural Color" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=NaturalColor, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=NaturalColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=ShinePanelVisibility}">
+                <TextBlock Text="Shine" Style="{StaticResource SkinSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Shine Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ShineReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ShineReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Highlight Protect" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=HighlightProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=HighlightProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Texture Return" Style="{StaticResource SkinRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ShineTextureReturn, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ShineTextureReturn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
         </StackPanel>
     </Expander>
 </UserControl>

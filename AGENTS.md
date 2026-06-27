@@ -43,6 +43,12 @@ Third, after one feature patch is complete.
 
 When the user says "proceed", "patch it", "fix it", or "go ahead", do not summarize. Start working immediately.
 
+## UI Verification And Snapshot Rule
+
+* UI verification is performed by the project director, 홍실장, unless explicitly delegated.
+* Do not take screenshots, snapshots, screen captures, or visual QA captures unless the user explicitly requests them.
+* For UI work, Codex may report build and app launch status, but final visual approval belongs to 홍실장.
+
 ## Definition-First Modification Rule
 
 For feature work where the visual or behavioral definition is still being discussed, especially face shape, warp, masks, landmarks, preview routing, local proxy workbench, or native/C# pipeline boundaries, do not inspect implementation details or patch immediately from a partial phrase.

@@ -8,19 +8,29 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
 {
     private enum SkinMode
     {
-        Heal,
-        Acne,
-        Mole,
-        Freck,
-        Smooth
+        Tone,
+        Smooth,
+        Pore,
+        Redness,
+        Shine
     }
 
-    private SkinMode _activeSkinMode = SkinMode.Heal;
-    private double _healStrength;
-    private double _acneStrength;
-    private double _moleStrength;
-    private double _freckStrength;
-    private double _smoothStrength;
+    private SkinMode _activeSkinMode = SkinMode.Tone;
+    private double _evenTone;
+    private double _toneLift;
+    private double _colorCast;
+    private double _softness;
+    private double _textureProtect = 50;
+    private double _detailReturn = 50;
+    private double _poreReduce;
+    private double _fineTexture = 50;
+    private double _poreEdgeProtect = 50;
+    private double _redReduce;
+    private double _toneBlend;
+    private double _naturalColor = 50;
+    private double _shineReduce;
+    private double _highlightProtect = 50;
+    private double _shineTextureReturn = 50;
 
     public SkinTabView()
     {
@@ -29,28 +39,114 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool IsHealSkinModeActive => _activeSkinMode == SkinMode.Heal;
+    public bool IsToneModeActive => _activeSkinMode == SkinMode.Tone;
 
-    public bool IsAcneSkinModeActive => _activeSkinMode == SkinMode.Acne;
+    public bool IsSmoothModeActive => _activeSkinMode == SkinMode.Smooth;
 
-    public bool IsMoleSkinModeActive => _activeSkinMode == SkinMode.Mole;
+    public bool IsPoreModeActive => _activeSkinMode == SkinMode.Pore;
 
-    public bool IsFreckSkinModeActive => _activeSkinMode == SkinMode.Freck;
+    public bool IsRednessModeActive => _activeSkinMode == SkinMode.Redness;
 
-    public bool IsSmoothSkinModeActive => _activeSkinMode == SkinMode.Smooth;
+    public bool IsShineModeActive => _activeSkinMode == SkinMode.Shine;
 
-    public double ActiveSkinStrength
+    public Visibility TonePanelVisibility => GetPanelVisibility(SkinMode.Tone);
+
+    public Visibility SmoothPanelVisibility => GetPanelVisibility(SkinMode.Smooth);
+
+    public Visibility PorePanelVisibility => GetPanelVisibility(SkinMode.Pore);
+
+    public Visibility RednessPanelVisibility => GetPanelVisibility(SkinMode.Redness);
+
+    public Visibility ShinePanelVisibility => GetPanelVisibility(SkinMode.Shine);
+
+    public double EvenTone
     {
-        get => GetSkinStrength(_activeSkinMode);
-        set
-        {
-            if (!SetSkinStrength(_activeSkinMode, value))
-            {
-                return;
-            }
+        get => _evenTone;
+        set => SetSliderValue(ref _evenTone, value);
+    }
 
-            OnPropertyChanged();
-        }
+    public double ToneLift
+    {
+        get => _toneLift;
+        set => SetSliderValue(ref _toneLift, value);
+    }
+
+    public double ColorCast
+    {
+        get => _colorCast;
+        set => SetSliderValue(ref _colorCast, value);
+    }
+
+    public double Softness
+    {
+        get => _softness;
+        set => SetSliderValue(ref _softness, value);
+    }
+
+    public double TextureProtect
+    {
+        get => _textureProtect;
+        set => SetSliderValue(ref _textureProtect, value);
+    }
+
+    public double DetailReturn
+    {
+        get => _detailReturn;
+        set => SetSliderValue(ref _detailReturn, value);
+    }
+
+    public double PoreReduce
+    {
+        get => _poreReduce;
+        set => SetSliderValue(ref _poreReduce, value);
+    }
+
+    public double FineTexture
+    {
+        get => _fineTexture;
+        set => SetSliderValue(ref _fineTexture, value);
+    }
+
+    public double PoreEdgeProtect
+    {
+        get => _poreEdgeProtect;
+        set => SetSliderValue(ref _poreEdgeProtect, value);
+    }
+
+    public double RedReduce
+    {
+        get => _redReduce;
+        set => SetSliderValue(ref _redReduce, value);
+    }
+
+    public double ToneBlend
+    {
+        get => _toneBlend;
+        set => SetSliderValue(ref _toneBlend, value);
+    }
+
+    public double NaturalColor
+    {
+        get => _naturalColor;
+        set => SetSliderValue(ref _naturalColor, value);
+    }
+
+    public double ShineReduce
+    {
+        get => _shineReduce;
+        set => SetSliderValue(ref _shineReduce, value);
+    }
+
+    public double HighlightProtect
+    {
+        get => _highlightProtect;
+        set => SetSliderValue(ref _highlightProtect, value);
+    }
+
+    public double ShineTextureReturn
+    {
+        get => _shineTextureReturn;
+        set => SetSliderValue(ref _shineTextureReturn, value);
     }
 
     public void Collapse()
@@ -60,121 +156,106 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
 
     public void ResetForPhotoChange()
     {
-        _activeSkinMode = SkinMode.Heal;
-        _healStrength = 0;
-        _acneStrength = 0;
-        _moleStrength = 0;
-        _freckStrength = 0;
-        _smoothStrength = 0;
-
-        NotifySkinModeProperties();
-        OnPropertyChanged(nameof(ActiveSkinStrength));
+        _activeSkinMode = SkinMode.Tone;
+        _evenTone = 0;
+        _toneLift = 0;
+        _colorCast = 0;
+        _softness = 0;
+        _textureProtect = 50;
+        _detailReturn = 50;
+        _poreReduce = 0;
+        _fineTexture = 50;
+        _poreEdgeProtect = 50;
+        _redReduce = 0;
+        _toneBlend = 0;
+        _naturalColor = 50;
+        _shineReduce = 0;
+        _highlightProtect = 50;
+        _shineTextureReturn = 50;
+        OnPropertyChanged(string.Empty);
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
+        SetActiveSkinMode(SkinMode.Tone);
         if (Window.GetWindow(this) is MainWindow window)
         {
             window.NotifyRetouchTabExpanded(this);
         }
     }
 
-    private void HealSkinButton_Click(object sender, RoutedEventArgs e)
+    private void ToneButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveSkinMode(SkinMode.Heal, forceRefresh: true);
+        SetActiveSkinMode(SkinMode.Tone);
         e.Handled = true;
     }
 
-    private void AcneSkinButton_Click(object sender, RoutedEventArgs e)
+    private void SmoothButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveSkinMode(SkinMode.Acne, forceRefresh: true);
+        SetActiveSkinMode(SkinMode.Smooth);
         e.Handled = true;
     }
 
-    private void MoleSkinButton_Click(object sender, RoutedEventArgs e)
+    private void PoreButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveSkinMode(SkinMode.Mole, forceRefresh: true);
+        SetActiveSkinMode(SkinMode.Pore);
         e.Handled = true;
     }
 
-    private void FreckSkinButton_Click(object sender, RoutedEventArgs e)
+    private void RednessButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveSkinMode(SkinMode.Freck, forceRefresh: true);
+        SetActiveSkinMode(SkinMode.Redness);
         e.Handled = true;
     }
 
-    private void SmoothSkinButton_Click(object sender, RoutedEventArgs e)
+    private void ShineButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveSkinMode(SkinMode.Smooth, forceRefresh: true);
+        SetActiveSkinMode(SkinMode.Shine);
         e.Handled = true;
     }
 
-    private void SetActiveSkinMode(SkinMode mode, bool forceRefresh = false)
+    private void SetActiveSkinMode(SkinMode mode)
     {
         if (_activeSkinMode == mode)
         {
-            if (forceRefresh)
-            {
-                NotifySkinModeProperties();
-            }
-
+            NotifySkinModeProperties();
             return;
         }
 
         _activeSkinMode = mode;
         NotifySkinModeProperties();
-        OnPropertyChanged(nameof(ActiveSkinStrength));
+    }
+
+    private Visibility GetPanelVisibility(SkinMode mode)
+    {
+        return _activeSkinMode == mode ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void NotifySkinModeProperties()
     {
-        OnPropertyChanged(nameof(IsHealSkinModeActive));
-        OnPropertyChanged(nameof(IsAcneSkinModeActive));
-        OnPropertyChanged(nameof(IsMoleSkinModeActive));
-        OnPropertyChanged(nameof(IsFreckSkinModeActive));
-        OnPropertyChanged(nameof(IsSmoothSkinModeActive));
+        OnPropertyChanged(nameof(IsToneModeActive));
+        OnPropertyChanged(nameof(IsSmoothModeActive));
+        OnPropertyChanged(nameof(IsPoreModeActive));
+        OnPropertyChanged(nameof(IsRednessModeActive));
+        OnPropertyChanged(nameof(IsShineModeActive));
+        OnPropertyChanged(nameof(TonePanelVisibility));
+        OnPropertyChanged(nameof(SmoothPanelVisibility));
+        OnPropertyChanged(nameof(PorePanelVisibility));
+        OnPropertyChanged(nameof(RednessPanelVisibility));
+        OnPropertyChanged(nameof(ShinePanelVisibility));
     }
 
-    private double GetSkinStrength(SkinMode mode)
-    {
-        return mode switch
-        {
-            SkinMode.Acne => _acneStrength,
-            SkinMode.Mole => _moleStrength,
-            SkinMode.Freck => _freckStrength,
-            SkinMode.Smooth => _smoothStrength,
-            _ => _healStrength
-        };
-    }
-
-    private bool SetSkinStrength(SkinMode mode, double value)
+    private bool SetSliderValue(ref double storage, double value, [CallerMemberName] string? propertyName = null)
     {
         double clamped = Math.Clamp(Math.Round(value), 0, 100);
-        ref double storage = ref GetSkinStrengthStorage(mode);
         if (Math.Abs(storage - clamped) < 0.01)
         {
             return false;
         }
 
         storage = clamped;
+        OnPropertyChanged(propertyName);
         return true;
-    }
-
-    private ref double GetSkinStrengthStorage(SkinMode mode)
-    {
-        switch (mode)
-        {
-            case SkinMode.Acne:
-                return ref _acneStrength;
-            case SkinMode.Mole:
-                return ref _moleStrength;
-            case SkinMode.Freck:
-                return ref _freckStrength;
-            case SkinMode.Smooth:
-                return ref _smoothStrength;
-            default:
-                return ref _healStrength;
-        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

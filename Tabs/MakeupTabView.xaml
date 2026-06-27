@@ -1,0 +1,269 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.MakeupTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="MakeupResetButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="MakeupModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="MakeupSectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,8"/>
+        </Style>
+        <Style x:Key="MakeupRowLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="MakeupValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="MakeupExpander" Header="Makeup" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource MakeupResetButtonStyle}"
+                    ToolTip="Makeup reset pending"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <ToggleButton Content="Base"
+                              Style="{StaticResource MakeupModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsBaseModeActive, Mode=OneWay}"
+                              Click="BaseButton_Click"/>
+                <ToggleButton Content="Brow"
+                              Style="{StaticResource MakeupModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsBrowModeActive, Mode=OneWay}"
+                              Click="BrowButton_Click"/>
+                <ToggleButton Content="Eye"
+                              Style="{StaticResource MakeupModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsEyeModeActive, Mode=OneWay}"
+                              Click="EyeButton_Click"/>
+                <ToggleButton Content="Cheek"
+                              Style="{StaticResource MakeupModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsCheekModeActive, Mode=OneWay}"
+                              Click="CheekButton_Click"/>
+                <ToggleButton Content="Lip"
+                              Style="{StaticResource MakeupModeToggleStyle}"
+                              Margin="0"
+                              IsChecked="{Binding ElementName=Root, Path=IsLipModeActive, Mode=OneWay}"
+                              Click="LipButton_Click"/>
+            </UniformGrid>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=BasePanelVisibility}">
+                <TextBlock Text="Base" Style="{StaticResource MakeupSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Coverage" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseCoverage, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseCoverage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Evenness" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseEvenness, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseEvenness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Finish" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseFinish, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseFinish, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=BrowPanelVisibility}">
+                <TextBlock Text="Brow" Style="{StaticResource MakeupSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Density" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowDensity, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Shape" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowShape, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowShape, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Color" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowColor, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=EyePanelVisibility}">
+                <TextBlock Text="Eye" Style="{StaticResource MakeupSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Shadow" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeShadow, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeShadow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Liner" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeLiner, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeLiner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Lash" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeLash, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeLash, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=CheekPanelVisibility}">
+                <TextBlock Text="Cheek" Style="{StaticResource MakeupSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Blush" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekBlush, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekBlush, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Contour" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekContour, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekContour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Highlight" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekHighlight, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekHighlight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=LipPanelVisibility}">
+                <TextBlock Text="Lip" Style="{StaticResource MakeupSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Color" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipColor, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Saturation" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipSaturation, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipSaturation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Gloss" Style="{StaticResource MakeupRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipGloss, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipGloss, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </Expander>
+</UserControl>

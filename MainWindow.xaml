@@ -3322,7 +3322,9 @@
                                     IsEnabled="{Binding RetouchPanelAvailable}">
                             <tabs:PhotoAdjustTabView x:Name="PhotoAdjustRetouchTab"/>
                             <tabs:SkinTabView x:Name="SkinRetouchTab"/>
+                            <tabs:BlemishTabView x:Name="BlemishRetouchTab"/>
                             <tabs:WrinkleTabView x:Name="WrinkleRetouchTab"/>
+                            <tabs:MakeupTabView x:Name="MakeupRetouchTab"/>
                             <tabs:FaceShapeTabView x:Name="FaceShapeRetouchTab"/>
                             <tabs:FaceDetailTabView x:Name="FaceDetailRetouchTab"/>
                             <tabs:HairTabView x:Name="HairRetouchTab"/>

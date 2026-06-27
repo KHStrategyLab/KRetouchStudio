@@ -511,7 +511,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ResetNonBackgroundRetouchControlsForPhotoChange()
     {
         SkinRetouchTab?.ResetForPhotoChange();
+        BlemishRetouchTab?.ResetForPhotoChange();
         WrinkleRetouchTab?.ResetForPhotoChange();
+        MakeupRetouchTab?.ResetForPhotoChange();
         FaceShapeRetouchTab?.ResetForPhotoChange();
         FaceDetailRetouchTab?.ResetForPhotoChange();
         HairRetouchTab?.ResetForPhotoChange();
@@ -4168,7 +4170,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void CollapseAllRetouchTabs()
     {
         SkinRetouchTab?.Collapse();
+        BlemishRetouchTab?.Collapse();
         WrinkleRetouchTab?.Collapse();
+        MakeupRetouchTab?.Collapse();
         FaceShapeRetouchTab?.Collapse();
         FaceDetailRetouchTab?.Collapse();
         HairRetouchTab?.Collapse();
@@ -4184,9 +4188,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SkinRetouchTab?.Collapse();
         }
 
+        if (!ReferenceEquals(expandedTab, BlemishRetouchTab))
+        {
+            BlemishRetouchTab?.Collapse();
+        }
+
         if (!ReferenceEquals(expandedTab, WrinkleRetouchTab))
         {
             WrinkleRetouchTab?.Collapse();
+        }
+
+        if (!ReferenceEquals(expandedTab, MakeupRetouchTab))
+        {
+            MakeupRetouchTab?.Collapse();
         }
 
         if (!ReferenceEquals(expandedTab, FaceShapeRetouchTab))

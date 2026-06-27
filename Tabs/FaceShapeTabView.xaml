@@ -101,6 +101,31 @@
                     ToolTip="Reset Facial Reshape effects"/>
         </Expander.Tag>
         <StackPanel>
+            <TextBlock Text="Symmetrize" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
+            <UniformGrid Columns="2" Margin="0,0,0,8">
+                <ToggleButton Content="Face"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              ToolTip="Facial Symmetry"
+                              IsChecked="{Binding ElementName=Root, Path=IsSymFaceShapeModeActive, Mode=OneWay}"
+                              Click="SymFaceShapeButton_Click"/>
+                <ToggleButton Content="Upper"
+                              Style="{StaticResource FaceShapeModeToggleStyle}"
+                              Margin="0"
+                              ToolTip="Upper Body Symmetry"
+                              IsChecked="{Binding ElementName=Root, Path=IsAlignFaceShapeModeActive, Mode=OneWay}"
+                              Click="AlignFaceShapeButton_Click"/>
+            </UniformGrid>
+            <Slider Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    Margin="0,0,0,8"
+                    Value="{Binding ElementName=Root, Path=ActiveSymmetrizeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    ValueChanged="SymmetrizeStrengthSlider_ValueChanged"
+                    PreviewMouseLeftButtonDown="SymmetrizeStrengthSlider_PreviewMouseLeftButtonDown"
+                    PreviewMouseLeftButtonUp="SymmetrizeStrengthSlider_PreviewMouseLeftButtonUp"
+                    KeyUp="SymmetrizeStrengthSlider_KeyUp"/>
+
             <TextBlock Text="Head Pose" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
             <UniformGrid Columns="3" Margin="0,0,0,6">
                 <ToggleButton Content="Up/Dn"
@@ -161,35 +186,11 @@
             <Slider Minimum="0"
                     Maximum="100"
                     TickFrequency="1"
-                    Margin="0,0,0,8"
                     Value="{Binding ElementName=Root, Path=ActiveFaceShapeControlStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     ValueChanged="FaceShapeControlStrengthSlider_ValueChanged"
                     PreviewMouseLeftButtonDown="FaceShapeControlStrengthSlider_PreviewMouseLeftButtonDown"
                     PreviewMouseLeftButtonUp="FaceShapeControlStrengthSlider_PreviewMouseLeftButtonUp"
                     KeyUp="FaceShapeControlStrengthSlider_KeyUp"/>
-            <TextBlock Text="Symmetrize" Style="{StaticResource FaceShapeSectionLabelStyle}"/>
-            <UniformGrid Columns="2" Margin="0,0,0,8">
-                <ToggleButton Content="Face"
-                              Style="{StaticResource FaceShapeModeToggleStyle}"
-                              Margin="0,0,6,0"
-                              ToolTip="Facial Symmetry"
-                              IsChecked="{Binding ElementName=Root, Path=IsSymFaceShapeModeActive, Mode=OneWay}"
-                              Click="SymFaceShapeButton_Click"/>
-                <ToggleButton Content="Upper"
-                              Style="{StaticResource FaceShapeModeToggleStyle}"
-                              Margin="0"
-                              ToolTip="Upper Body Symmetry"
-                              IsChecked="{Binding ElementName=Root, Path=IsAlignFaceShapeModeActive, Mode=OneWay}"
-                              Click="AlignFaceShapeButton_Click"/>
-            </UniformGrid>
-            <Slider Minimum="0"
-                    Maximum="100"
-                    TickFrequency="1"
-                    Value="{Binding ElementName=Root, Path=ActiveSymmetrizeStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    ValueChanged="SymmetrizeStrengthSlider_ValueChanged"
-                    PreviewMouseLeftButtonDown="SymmetrizeStrengthSlider_PreviewMouseLeftButtonDown"
-                    PreviewMouseLeftButtonUp="SymmetrizeStrengthSlider_PreviewMouseLeftButtonUp"
-                    KeyUp="SymmetrizeStrengthSlider_KeyUp"/>
         </StackPanel>
     </Expander>
 </UserControl>

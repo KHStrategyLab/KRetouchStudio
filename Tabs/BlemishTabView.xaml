@@ -1,0 +1,269 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.BlemishTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="BlemishResetButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BlemishModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BlemishSectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,8"/>
+        </Style>
+        <Style x:Key="BlemishRowLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="BlemishValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="BlemishExpander" Header="Blemish" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource BlemishResetButtonStyle}"
+                    ToolTip="Blemish reset pending"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <ToggleButton Content="Acne"
+                              Style="{StaticResource BlemishModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsAcneModeActive, Mode=OneWay}"
+                              Click="AcneButton_Click"/>
+                <ToggleButton Content="Spot"
+                              Style="{StaticResource BlemishModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsSpotModeActive, Mode=OneWay}"
+                              Click="SpotButton_Click"/>
+                <ToggleButton Content="Mole"
+                              Style="{StaticResource BlemishModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsMoleModeActive, Mode=OneWay}"
+                              Click="MoleButton_Click"/>
+                <ToggleButton Content="Freckle"
+                              Style="{StaticResource BlemishModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsFreckleModeActive, Mode=OneWay}"
+                              Click="FreckleButton_Click"/>
+                <ToggleButton Content="Scar"
+                              Style="{StaticResource BlemishModeToggleStyle}"
+                              Margin="0"
+                              IsChecked="{Binding ElementName=Root, Path=IsScarModeActive, Mode=OneWay}"
+                              Click="ScarButton_Click"/>
+            </UniformGrid>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=AcnePanelVisibility}">
+                <TextBlock Text="Acne" Style="{StaticResource BlemishSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Reduce" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneReduce, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Redness" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneRedness, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneRedness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Bump" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneBump, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneBump, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=SpotPanelVisibility}">
+                <TextBlock Text="Spot" Style="{StaticResource BlemishSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Remove" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotRemove, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotRemove, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Texture Match" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotTextureMatch, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=MolePanelVisibility}">
+                <TextBlock Text="Mole" Style="{StaticResource BlemishSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Reduce" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleReduce, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Protect" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleProtect, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Edge Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleEdgeBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleEdgeBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=FrecklePanelVisibility}">
+                <TextBlock Text="Freckle" Style="{StaticResource BlemishSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Fade" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleFade, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleFade, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Density" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleDensity, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Protect" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleProtect, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=ScarPanelVisibility}">
+                <TextBlock Text="Scar" Style="{StaticResource BlemishSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Soften" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarSoften, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarSoften, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Tone Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarToneBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarToneBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Texture Match" Style="{StaticResource BlemishRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarTextureMatch, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </Expander>
+</UserControl>

@@ -6,52 +6,152 @@ namespace KRetouchStudio.Tabs;
 
 public partial class WrinkleTabView : System.Windows.Controls.UserControl, INotifyPropertyChanged
 {
-    private enum WrinkleMode
-    {
-        Forehead,
-        Frown,
-        Eye,
-        Smile,
-        Neck
-    }
-
-    private WrinkleMode _activeWrinkleMode = WrinkleMode.Forehead;
-    private double _foreheadStrength;
-    private double _frownStrength;
-    private double _eyeStrength;
-    private double _smileStrength = 50;
-    private double _neckStrength;
+    private double _forehead;
+    private double _frown;
+    private double _leftCrowsFeet;
+    private double _rightCrowsFeet;
+    private bool _crowsFeetLinked = true;
+    private double _leftUnderEye;
+    private double _rightUnderEye;
+    private bool _underEyeLinked = true;
+    private double _leftBunny;
+    private double _rightBunny;
+    private bool _bunnyLinked = true;
+    private double _leftSmileFold;
+    private double _rightSmileFold;
+    private bool _smileFoldLinked = true;
+    private double _lipLines;
+    private double _leftMarionette;
+    private double _rightMarionette;
+    private bool _marionetteLinked = true;
+    private double _chinCrease;
+    private double _neck;
 
     public WrinkleTabView()
     {
         InitializeComponent();
-        DataContext = this;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool IsForeheadWrinkleModeActive => _activeWrinkleMode == WrinkleMode.Forehead;
-
-    public bool IsFrownWrinkleModeActive => _activeWrinkleMode == WrinkleMode.Frown;
-
-    public bool IsEyeWrinkleModeActive => _activeWrinkleMode == WrinkleMode.Eye;
-
-    public bool IsSmileWrinkleModeActive => _activeWrinkleMode == WrinkleMode.Smile;
-
-    public bool IsNeckWrinkleModeActive => _activeWrinkleMode == WrinkleMode.Neck;
-
-    public double ActiveWrinkleStrength
+    public double Forehead
     {
-        get => GetWrinkleStrength(_activeWrinkleMode);
-        set
-        {
-            if (!SetWrinkleStrength(_activeWrinkleMode, value))
-            {
-                return;
-            }
+        get => _forehead;
+        set => SetSliderValue(ref _forehead, value);
+    }
 
-            OnPropertyChanged();
-        }
+    public double Frown
+    {
+        get => _frown;
+        set => SetSliderValue(ref _frown, value);
+    }
+
+    public double LeftCrowsFeet
+    {
+        get => _leftCrowsFeet;
+        set => SetSliderValue(ref _leftCrowsFeet, value);
+    }
+
+    public double RightCrowsFeet
+    {
+        get => _rightCrowsFeet;
+        set => SetSliderValue(ref _rightCrowsFeet, value);
+    }
+
+    public bool CrowsFeetLinked
+    {
+        get => _crowsFeetLinked;
+        set => SetValue(ref _crowsFeetLinked, value);
+    }
+
+    public double LeftUnderEye
+    {
+        get => _leftUnderEye;
+        set => SetSliderValue(ref _leftUnderEye, value);
+    }
+
+    public double RightUnderEye
+    {
+        get => _rightUnderEye;
+        set => SetSliderValue(ref _rightUnderEye, value);
+    }
+
+    public bool UnderEyeLinked
+    {
+        get => _underEyeLinked;
+        set => SetValue(ref _underEyeLinked, value);
+    }
+
+    public double LeftBunny
+    {
+        get => _leftBunny;
+        set => SetSliderValue(ref _leftBunny, value);
+    }
+
+    public double RightBunny
+    {
+        get => _rightBunny;
+        set => SetSliderValue(ref _rightBunny, value);
+    }
+
+    public bool BunnyLinked
+    {
+        get => _bunnyLinked;
+        set => SetValue(ref _bunnyLinked, value);
+    }
+
+    public double LeftSmileFold
+    {
+        get => _leftSmileFold;
+        set => SetSliderValue(ref _leftSmileFold, value);
+    }
+
+    public double RightSmileFold
+    {
+        get => _rightSmileFold;
+        set => SetSliderValue(ref _rightSmileFold, value);
+    }
+
+    public bool SmileFoldLinked
+    {
+        get => _smileFoldLinked;
+        set => SetValue(ref _smileFoldLinked, value);
+    }
+
+    public double LipLines
+    {
+        get => _lipLines;
+        set => SetSliderValue(ref _lipLines, value);
+    }
+
+    public double LeftMarionette
+    {
+        get => _leftMarionette;
+        set => SetSliderValue(ref _leftMarionette, value);
+    }
+
+    public double RightMarionette
+    {
+        get => _rightMarionette;
+        set => SetSliderValue(ref _rightMarionette, value);
+    }
+
+    public bool MarionetteLinked
+    {
+        get => _marionetteLinked;
+        set => SetValue(ref _marionetteLinked, value);
+    }
+
+    public double ChinCrease
+    {
+        get => _chinCrease;
+        set => SetSliderValue(ref _chinCrease, value);
+    }
+
+    public double Neck
+    {
+        get => _neck;
+        set => SetSliderValue(ref _neck, value);
     }
 
     public void Collapse()
@@ -61,15 +161,27 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
 
     public void ResetForPhotoChange()
     {
-        _activeWrinkleMode = WrinkleMode.Forehead;
-        _foreheadStrength = 0;
-        _frownStrength = 0;
-        _eyeStrength = 0;
-        _smileStrength = 50;
-        _neckStrength = 0;
-
-        NotifyWrinkleModeProperties();
-        OnPropertyChanged(nameof(ActiveWrinkleStrength));
+        _forehead = 0;
+        _frown = 0;
+        _leftCrowsFeet = 0;
+        _rightCrowsFeet = 0;
+        _crowsFeetLinked = true;
+        _leftUnderEye = 0;
+        _rightUnderEye = 0;
+        _underEyeLinked = true;
+        _leftBunny = 0;
+        _rightBunny = 0;
+        _bunnyLinked = true;
+        _leftSmileFold = 0;
+        _rightSmileFold = 0;
+        _smileFoldLinked = true;
+        _lipLines = 0;
+        _leftMarionette = 0;
+        _rightMarionette = 0;
+        _marionetteLinked = true;
+        _chinCrease = 0;
+        _neck = 0;
+        OnPropertyChanged(string.Empty);
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -80,102 +192,30 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         }
     }
 
-    private void ForeheadWrinkleButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetActiveWrinkleMode(WrinkleMode.Forehead, forceRefresh: true);
-        e.Handled = true;
-    }
-
-    private void FrownWrinkleButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetActiveWrinkleMode(WrinkleMode.Frown, forceRefresh: true);
-        e.Handled = true;
-    }
-
-    private void EyeWrinkleButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetActiveWrinkleMode(WrinkleMode.Eye, forceRefresh: true);
-        e.Handled = true;
-    }
-
-    private void SmileWrinkleButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetActiveWrinkleMode(WrinkleMode.Smile, forceRefresh: true);
-        e.Handled = true;
-    }
-
-    private void NeckWrinkleButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetActiveWrinkleMode(WrinkleMode.Neck, forceRefresh: true);
-        e.Handled = true;
-    }
-
-    private void SetActiveWrinkleMode(WrinkleMode mode, bool forceRefresh = false)
-    {
-        if (_activeWrinkleMode == mode)
-        {
-            if (forceRefresh)
-            {
-                NotifyWrinkleModeProperties();
-            }
-
-            return;
-        }
-
-        _activeWrinkleMode = mode;
-        NotifyWrinkleModeProperties();
-        OnPropertyChanged(nameof(ActiveWrinkleStrength));
-    }
-
-    private void NotifyWrinkleModeProperties()
-    {
-        OnPropertyChanged(nameof(IsForeheadWrinkleModeActive));
-        OnPropertyChanged(nameof(IsFrownWrinkleModeActive));
-        OnPropertyChanged(nameof(IsEyeWrinkleModeActive));
-        OnPropertyChanged(nameof(IsSmileWrinkleModeActive));
-        OnPropertyChanged(nameof(IsNeckWrinkleModeActive));
-    }
-
-    private double GetWrinkleStrength(WrinkleMode mode)
-    {
-        return mode switch
-        {
-            WrinkleMode.Frown => _frownStrength,
-            WrinkleMode.Eye => _eyeStrength,
-            WrinkleMode.Smile => _smileStrength,
-            WrinkleMode.Neck => _neckStrength,
-            _ => _foreheadStrength
-        };
-    }
-
-    private bool SetWrinkleStrength(WrinkleMode mode, double value)
+    private bool SetSliderValue(ref double storage, double value, [CallerMemberName] string? propertyName = null)
     {
         double clamped = Math.Clamp(Math.Round(value), 0, 100);
-        ref double storage = ref GetWrinkleStrengthStorage(mode);
         if (Math.Abs(storage - clamped) < 0.01)
         {
             return false;
         }
 
         storage = clamped;
+        OnPropertyChanged(propertyName);
         return true;
     }
 
-    private ref double GetWrinkleStrengthStorage(WrinkleMode mode)
+    private bool SetValue<T>(ref T storage, T value, [CallerMemberName] string? propertyName = null)
+        where T : IEquatable<T>
     {
-        switch (mode)
+        if (storage.Equals(value))
         {
-            case WrinkleMode.Frown:
-                return ref _frownStrength;
-            case WrinkleMode.Eye:
-                return ref _eyeStrength;
-            case WrinkleMode.Smile:
-                return ref _smileStrength;
-            case WrinkleMode.Neck:
-                return ref _neckStrength;
-            default:
-                return ref _foreheadStrength;
+            return false;
         }
+
+        storage = value;
+        OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
