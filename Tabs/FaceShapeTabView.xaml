@@ -3,7 +3,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Resources>
-        <Style x:Key="DummyFaceShapeSlotStyle" TargetType="{x:Type Button}">
+        <Style x:Key="FaceShapeResetButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="38"/>
             <Setter Property="Height" Value="38"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
@@ -94,10 +94,11 @@
                     Height="28"
                     Margin="0"
                     Padding="0"
-                    IsEnabled="False"
+                    IsEnabled="{Binding ElementName=Root, Path=CanResetFaceShapeHistory}"
                     ToolTipService.ShowOnDisabled="True"
-                    Style="{StaticResource DummyFaceShapeSlotStyle}"
-                    ToolTip="Facial Reshape 전체 되돌림 준비 중"/>
+                    Style="{StaticResource FaceShapeResetButtonStyle}"
+                    Click="ResetFaceShapeHistoryButton_Click"
+                    ToolTip="Reset Facial Reshape effects"/>
         </Expander.Tag>
         <StackPanel>
             <TextBlock Text="Head Pose" Style="{StaticResource FaceShapeSectionLabelStyle}"/>

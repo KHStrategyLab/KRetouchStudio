@@ -11,6 +11,7 @@ public partial class MainWindow
 {
     private const string FaceDetailHistoryTitle = "Face Detail";
     private const string FaceDetailHistoryDetail = "Detail";
+    private const string FaceDetailResetHistoryDetail = "Reset";
     private const double FaceDetailNeutralSliderValue = 50.0;
     private PhotoItem? _faceDetailSessionPhoto;
     private string? _faceDetailSessionPath;
@@ -36,6 +37,11 @@ public partial class MainWindow
     private async void FaceDetailRetouchTab_FaceDetailAdjustmentCommitted(object? sender, FaceDetailAdjustmentEventArgs e)
     {
         await ApplyFaceDetailCommittedAsync(e);
+    }
+
+    private void FaceDetailRetouchTab_FaceDetailResetRequested(object? sender, EventArgs e)
+    {
+        TryResetFaceDetailHistory();
     }
 
     private async Task ApplyFaceDetailDragPreviewAsync(FaceDetailAdjustmentEventArgs args)
@@ -233,6 +239,104 @@ public partial class MainWindow
         return _editorUndoHistory.Count > 0 &&
                string.Equals(_editorUndoHistory[^1].Title, FaceDetailHistoryTitle, StringComparison.Ordinal) &&
                _editorUndoHistory[^1].Detail.StartsWith(FaceDetailHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private static bool IsFaceDetailResetHistory(EditorHistoryState snapshot)
+    {
+        return string.Equals(snapshot.Title, FaceDetailHistoryTitle, StringComparison.Ordinal) &&
+               string.Equals(snapshot.Detail, FaceDetailResetHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private static bool IsFaceDetailEffectHistory(EditorHistoryState snapshot)
+    {
+        return string.Equals(snapshot.Title, FaceDetailHistoryTitle, StringComparison.Ordinal) &&
+               snapshot.Detail.StartsWith(FaceDetailHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private bool HasActiveFaceDetailHistory()
+    {
+        for (int i = _editorUndoHistory.Count - 1; i >= 0; i--)
+        {
+            EditorHistoryState snapshot = _editorUndoHistory[i];
+            if (IsFaceDetailResetHistory(snapshot))
+            {
+                return false;
+            }
+
+            if (IsFaceDetailEffectHistory(snapshot))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanResetFaceDetailHistory()
+    {
+        return SelectedPhoto is not null &&
+               _editorUndoHistory.Count > 1 &&
+               HasActiveFaceDetailHistory();
+    }
+
+    private void UpdateFaceDetailHistoryResetState()
+    {
+        FaceDetailRetouchTab.CanResetFaceDetailHistory = CanResetFaceDetailHistory();
+    }
+
+    private bool TryGetFaceDetailResetSource(PhotoItem photo, out BitmapSource source)
+    {
+        source = photo.BaseImage;
+        int firstActiveFaceDetailIndex = -1;
+        for (int i = 0; i < _editorUndoHistory.Count; i++)
+        {
+            EditorHistoryState snapshot = _editorUndoHistory[i];
+            if (IsFaceDetailResetHistory(snapshot))
+            {
+                firstActiveFaceDetailIndex = -1;
+                continue;
+            }
+
+            if (firstActiveFaceDetailIndex < 0 && IsFaceDetailEffectHistory(snapshot))
+            {
+                firstActiveFaceDetailIndex = i;
+            }
+        }
+
+        if (firstActiveFaceDetailIndex < 0)
+        {
+            return false;
+        }
+
+        if (firstActiveFaceDetailIndex == 0)
+        {
+            source = photo.BaseImage;
+            return true;
+        }
+
+        EditorHistoryState resetBase = _editorUndoHistory[firstActiveFaceDetailIndex - 1];
+        source = resetBase.AdjustedImage ?? photo.BaseImage;
+        return true;
+    }
+
+    private void TryResetFaceDetailHistory()
+    {
+        if (!CanResetFaceDetailHistory() ||
+            SelectedPhoto is not PhotoItem targetPhoto ||
+            !TryGetFaceDetailResetSource(targetPhoto, out BitmapSource resetSource))
+        {
+            UpdateFaceDetailHistoryResetState();
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(resetSource.IsFrozen ? resetSource : CloneBitmapSource(resetSource));
+        FaceDetailRetouchTab.ResetAfterHistoryReset();
+        ClearFaceDetailRetouchSession();
+        ClearFaceShapeHeadPoseDragPreview();
+        ClearFaceShapeHeadPoseDragProxy();
+        UpdatePreviewLayout();
+        PushEditorHistorySnapshot(FaceDetailHistoryTitle, FaceDetailResetHistoryDetail);
+        MediaPipeStatusText = "Face Detail: reset";
     }
 
     private void PushOrReplaceFaceDetailHistory(PhotoItem photo, string operationId, double value)
@@ -433,10 +537,10 @@ public partial class MainWindow
             plans,
             width,
             height,
-            marginRatio: 0.30,
-            sigmaRatio: 0.14,
-            radiusScale: 0.50,
-            solidRadius: 0.52,
+            marginRatio: 0.36,
+            sigmaRatio: 0.16,
+            radiusScale: 0.58,
+            solidRadius: 0.57,
             buildControls: (controls, affectedPoints) => AddNoseDetailControls(landmarks, snapshot, controls, affectedPoints));
         AddFaceDetailWarpPlan(
             plans,
@@ -451,10 +555,10 @@ public partial class MainWindow
             plans,
             width,
             height,
-            marginRatio: 0.28,
-            sigmaRatio: 0.13,
-            radiusScale: 0.50,
-            solidRadius: 0.50,
+            marginRatio: 0.46,
+            sigmaRatio: 0.18,
+            radiusScale: 0.62,
+            solidRadius: 0.60,
             buildControls: (controls, affectedPoints) => AddLowerFaceDetailControls(landmarks, snapshot, controls, affectedPoints));
 
         return plans;
@@ -584,13 +688,13 @@ public partial class MainWindow
         Point center = AveragePoints(tip, bridge, leftNostril, rightNostril);
         double noseWidth = Math.Max(1.0, rightNostril.X - leftNostril.X);
         double noseHeight = Math.Max(1.0, tip.Y - bridge.Y);
-        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.13);
-        double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.18);
-        double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.09);
-        double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.09);
-        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.09);
-        double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.16);
-        double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.16);
+        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.20);
+        double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.27);
+        double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.15);
+        double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.14);
+        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.13);
+        double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.22);
+        double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.22);
 
         AddControl(controls, affectedPoints, leftNostril, -sizeExpand - widthExpand - nostrilExpandL, 0);
         AddControl(controls, affectedPoints, rightNostril, sizeExpand + widthExpand + nostrilExpandR, 0);
@@ -598,6 +702,8 @@ public partial class MainWindow
         AddControl(controls, affectedPoints, bridge, 0, -bridgePull * 0.25);
         AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.22, center.Y), bridgePull, 0);
         AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.22, center.Y), -bridgePull, 0);
+        AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.34, center.Y + noseHeight * 0.18), bridgePull + (widthExpand * 0.45), 0);
+        AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.34, center.Y + noseHeight * 0.18), -bridgePull - (widthExpand * 0.45), 0);
     }
 
     private static void AddMouthDetailControls(
@@ -659,13 +765,19 @@ public partial class MainWindow
             CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
             CenteredStrength(s.RightSideNeck, jawWidth * 0.030) +
             CenteredStrength(s.RightShoulderNeck, jawWidth * 0.022);
+        double doubleChinLift = Strength(s.DoubleChin, jawWidth * 0.085);
+        double neckWrinkleLift = Strength(s.NeckWrinkle, jawWidth * 0.030);
         double chinDy =
-            CenteredStrength(s.NeckLength, jawWidth * 0.035) -
-            Strength(s.DoubleChin + s.NeckWrinkle, jawWidth * 0.035);
+            CenteredStrength(s.NeckLength, jawWidth * 0.045) -
+            (doubleChinLift * 0.42) -
+            neckWrinkleLift;
 
-        AddControl(controls, affectedPoints, leftJaw, leftNeckSlim, 0);
-        AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim, 0);
+        AddControl(controls, affectedPoints, leftJaw, leftNeckSlim + (doubleChinLift * 0.18), -doubleChinLift * 0.20);
+        AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim - (doubleChinLift * 0.18), -doubleChinLift * 0.20);
         AddControl(controls, affectedPoints, chin, 0, chinDy);
+        AddControl(controls, affectedPoints, new Point((leftJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.045), doubleChinLift * 0.26, -doubleChinLift * 0.68);
+        AddControl(controls, affectedPoints, new Point((rightJaw.X + chin.X) * 0.5, chin.Y + jawWidth * 0.045), -doubleChinLift * 0.26, -doubleChinLift * 0.68);
+        AddControl(controls, affectedPoints, new Point(chin.X, chin.Y + jawWidth * 0.105), 0, -doubleChinLift - (neckWrinkleLift * 0.45));
     }
 
     private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(
@@ -699,7 +811,9 @@ public partial class MainWindow
         if (snapshot.LeftDarkCircle <= 0.001 &&
             snapshot.RightDarkCircle <= 0.001 &&
             snapshot.LeftUnderEye <= 0.001 &&
-            snapshot.RightUnderEye <= 0.001)
+            snapshot.RightUnderEye <= 0.001 &&
+            snapshot.DoubleChin <= 0.001 &&
+            snapshot.NeckWrinkle <= 0.001)
         {
             return source;
         }
@@ -713,6 +827,7 @@ public partial class MainWindow
 
         ApplyUnderEyeTone(landmarks, pixels, width, height, stride, isLeft: true, snapshot.LeftDarkCircle, snapshot.LeftUnderEye, shouldCancel);
         ApplyUnderEyeTone(landmarks, pixels, width, height, stride, isLeft: false, snapshot.RightDarkCircle, snapshot.RightUnderEye, shouldCancel);
+        ApplyDoubleChinTone(landmarks, pixels, width, height, stride, snapshot.DoubleChin, snapshot.NeckWrinkle, shouldCancel);
 
         if (shouldCancel?.Invoke() == true)
         {
@@ -784,6 +899,65 @@ public partial class MainWindow
                 pixels[index] = LiftChannel(pixels[index], amount * 0.78);
                 pixels[index + 1] = LiftChannel(pixels[index + 1], amount * 0.92);
                 pixels[index + 2] = LiftChannel(pixels[index + 2], amount);
+            }
+        }
+    }
+
+    private static void ApplyDoubleChinTone(
+        IReadOnlyDictionary<int, Point> landmarks,
+        byte[] pixels,
+        int width,
+        int height,
+        int stride,
+        double doubleChinStrength,
+        double neckWrinkleStrength,
+        Func<bool>? shouldCancel)
+    {
+        if (!TryGetLandmark(landmarks, 152, out Point chin) ||
+            !TryGetLandmark(landmarks, 172, out Point leftJaw) ||
+            !TryGetLandmark(landmarks, 397, out Point rightJaw))
+        {
+            return;
+        }
+
+        double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
+        double amount = Math.Clamp(((doubleChinStrength * 0.85) + (neckWrinkleStrength * 0.35)) / 100.0, 0.0, 1.0);
+        if (amount <= 0.001)
+        {
+            return;
+        }
+
+        Point center = new(chin.X, chin.Y + jawWidth * 0.10);
+        double radiusX = jawWidth * 0.38;
+        double radiusY = jawWidth * 0.20;
+        double liftAmount = amount * 0.20;
+        int left = Math.Max(0, (int)Math.Floor(center.X - radiusX));
+        int top = Math.Max(0, (int)Math.Floor(center.Y - radiusY));
+        int right = Math.Min(width - 1, (int)Math.Ceiling(center.X + radiusX));
+        int bottom = Math.Min(height - 1, (int)Math.Ceiling(center.Y + radiusY));
+        for (int y = top; y <= bottom; y++)
+        {
+            if (shouldCancel?.Invoke() == true)
+            {
+                return;
+            }
+
+            double ny = (y - center.Y) / Math.Max(1.0, radiusY);
+            for (int x = left; x <= right; x++)
+            {
+                double nx = (x - center.X) / Math.Max(1.0, radiusX);
+                double distance2 = (nx * nx) + (ny * ny);
+                if (distance2 >= 1.0)
+                {
+                    continue;
+                }
+
+                double weight = 1.0 - SmoothStep01(Math.Sqrt(distance2));
+                int index = (y * stride) + (x * 4);
+                double weightedLift = liftAmount * weight;
+                pixels[index] = LiftChannel(pixels[index], weightedLift * 0.74);
+                pixels[index + 1] = LiftChannel(pixels[index + 1], weightedLift * 0.88);
+                pixels[index + 2] = LiftChannel(pixels[index + 2], weightedLift);
             }
         }
     }

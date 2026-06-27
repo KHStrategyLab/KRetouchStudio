@@ -76,7 +76,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "brush","fill","eraser","lasso","stamp","healing","blursharp","dodgeburn","historybrush",
-                "pathselect","rectangle","path","type","freetransform","liquify","hand","zoom","ruler","sampler","magic"
+                "pathselect","rectangle","path","type","liquify","hand","zoom","ruler","sampler","magic"
             }
         },
     };
@@ -418,8 +418,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentPreviewChanged += FaceShapeRetouchTab_HeadPoseAdjustmentPreviewChanged;
         FaceShapeRetouchTab.HeadPoseAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
+        FaceShapeRetouchTab.FaceShapeResetRequested += FaceShapeRetouchTab_FaceShapeResetRequested;
         FaceDetailRetouchTab.FaceDetailAdjustmentPreviewChanged += FaceDetailRetouchTab_FaceDetailAdjustmentPreviewChanged;
         FaceDetailRetouchTab.FaceDetailAdjustmentCommitted += FaceDetailRetouchTab_FaceDetailAdjustmentCommitted;
+        FaceDetailRetouchTab.FaceDetailResetRequested += FaceDetailRetouchTab_FaceDetailResetRequested;
         BackgroundRetouchTab.BackgroundTabOpened += BackgroundRetouchTab_BackgroundTabOpened;
         BackgroundRetouchTab.BackgroundReplacementRequested += BackgroundRetouchTab_BackgroundReplacementRequested;
         BackgroundRetouchTab.BackgroundReplacementAdjustmentCommitted += BackgroundRetouchTab_BackgroundReplacementAdjustmentCommitted;
@@ -512,6 +514,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         WrinkleRetouchTab?.ResetForPhotoChange();
         FaceShapeRetouchTab?.ResetForPhotoChange();
         FaceDetailRetouchTab?.ResetForPhotoChange();
+        HairRetouchTab?.ResetForPhotoChange();
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeProjectionDebugOverlay();
     }
@@ -616,8 +619,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OnPropertyChanged(nameof(RectangleToolOptionsVisibility));
             OnPropertyChanged(nameof(PathToolOptionsVisibility));
             OnPropertyChanged(nameof(TypeToolOptionsVisibility));
-            OnPropertyChanged(nameof(FreeTransformToolOptionsVisibility));
-            OnPropertyChanged(nameof(FreeTransformOverlayVisibility));
             OnPropertyChanged(nameof(BrushToolOptionsVisibility));
             OnPropertyChanged(nameof(FillToolOptionsVisibility));
             OnPropertyChanged(nameof(EraserToolOptionsVisibility));
@@ -1476,10 +1477,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         ActiveToolId = toolId;
         UpdatePreviewLayout();
-        if (string.Equals(toolId, "freetransform", StringComparison.OrdinalIgnoreCase))
-        {
-            ResetFreeTransformShell();
-        }
 
         UpdateToolboxSelection();
         UpdateFrameSelectionHoverCursor(Mouse.GetPosition(PreviewSurface));
@@ -1544,7 +1541,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         yield return RectangleToolButton;
         yield return PathToolButton;
         yield return TypeToolButton;
-        yield return FreeTransformToolButton;
         yield return BrushToolButton;
         yield return FillToolButton;
         yield return EraserToolButton;
@@ -2438,12 +2434,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return true;
         }
 
-        if (modifiers == ModifierKeys.Control && key == Key.T)
-        {
-            ActivateToolById("freetransform");
-            return true;
-        }
-
         bool isShiftOnly = modifiers == ModifierKeys.Shift;
         bool hasNoModifiers = modifiers == ModifierKeys.None;
         if (!isShiftOnly && !hasNoModifiers)
@@ -3147,70 +3137,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         photo.MultiPreviewOffsetX = Math.Clamp(targetOffsetX, minLeft, maxLeft);
         photo.MultiPreviewOffsetY = Math.Clamp(targetOffsetY, minTop, maxTop);
-    }
-
-    private void OpenDoubleChinWorkbench_Click(object sender, RoutedEventArgs e)
-    {
-        if (SelectedPhoto is null)
-        {
-            return;
-        }
-
-        SliderToolSpec spec = new(
-            "double_chin",
-            "Double Chin",
-            "chin-centered under-jaw and upper-neck local workbench",
-            ProxyPolicy.LocalWorkAreaProxy,
-            0,
-            100,
-            35);
-        _localWorkbenchState = LocalProxyBuilder.BuildDisplayOnlyState(SelectedPhoto, spec);
-        LocalWorkbenchImage = _localWorkbenchState.LocalProxySource;
-        LocalWorkbenchApplyMaskImage = _localWorkbenchState.LocalMaskSet.ApplyMaskOverlay;
-        LocalWorkbenchProtectMaskImage = _localWorkbenchState.LocalMaskSet.ProtectMaskOverlay;
-        LocalWorkbenchBlockMaskImage = _localWorkbenchState.LocalMaskSet.BlockMaskOverlay;
-        LocalWorkbenchWorkMaskImage = _localWorkbenchState.LocalMaskSet.WorkMaskOverlay;
-        LocalWorkbenchTitle = "DoubleChin Workbench Preview";
-        LocalWorkbenchInfo = _localWorkbenchState.CoordinateMap.ToDisplayText();
-        LocalWorkbenchStatusText = "Preview only. Work area and mask routing are shown, but image apply is not connected yet.";
-        LocalWorkbenchVisibility = Visibility.Visible;
-        UpdateLocalWorkbenchGuide();
-    }
-
-    private void OpenNoseWorkbench_Click(object sender, RoutedEventArgs e)
-    {
-        if (SelectedPhoto is null)
-        {
-            return;
-        }
-
-        SliderToolSpec spec = new(
-            "nose_shape",
-            "Nose Shape",
-            "nose-centered bridge-tip-alar local workbench",
-            ProxyPolicy.LocalWorkAreaProxy,
-            0,
-            100,
-            28);
-        _localWorkbenchState = LocalProxyBuilder.BuildDisplayOnlyState(SelectedPhoto, spec);
-        LocalWorkbenchImage = _localWorkbenchState.LocalProxySource;
-        LocalWorkbenchApplyMaskImage = _localWorkbenchState.LocalMaskSet.ApplyMaskOverlay;
-        LocalWorkbenchProtectMaskImage = _localWorkbenchState.LocalMaskSet.ProtectMaskOverlay;
-        LocalWorkbenchBlockMaskImage = _localWorkbenchState.LocalMaskSet.BlockMaskOverlay;
-        LocalWorkbenchWorkMaskImage = _localWorkbenchState.LocalMaskSet.WorkMaskOverlay;
-        LocalWorkbenchTitle = "Nose Workbench Preview";
-        LocalWorkbenchInfo = _localWorkbenchState.CoordinateMap.ToDisplayText();
-        LocalWorkbenchStatusText = "Preview only. The nose work area is shown, but image apply is not connected yet.";
-        LocalWorkbenchVisibility = Visibility.Visible;
-        UpdateLocalWorkbenchGuide();
-    }
-
-    private void CancelWorkbench_Click(object sender, RoutedEventArgs e)
-    {
-        LocalWorkbenchVisibility = Visibility.Collapsed;
-        _localWorkbenchState = null;
-        ClearLocalWorkbenchImages();
-        ClearLocalWorkbenchGuide();
     }
 
     private void AddPhotos(IEnumerable<string> fileNames)
@@ -4245,6 +4171,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         WrinkleRetouchTab?.Collapse();
         FaceShapeRetouchTab?.Collapse();
         FaceDetailRetouchTab?.Collapse();
+        HairRetouchTab?.Collapse();
         BackgroundRetouchTab?.Collapse();
         PhotoAdjustRetouchTab?.Collapse();
         RaiseRuntimeWorkModePropertyChanged();
@@ -4270,6 +4197,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!ReferenceEquals(expandedTab, FaceDetailRetouchTab))
         {
             FaceDetailRetouchTab?.Collapse();
+        }
+
+        if (!ReferenceEquals(expandedTab, HairRetouchTab))
+        {
+            HairRetouchTab?.Collapse();
         }
 
         if (!ReferenceEquals(expandedTab, BackgroundRetouchTab))
@@ -6056,6 +5988,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _editorRedoHistory.Clear();
         HistoryPanelItems.Clear();
         SelectedHistoryPanelItem = null;
+        UpdateFaceShapeHistoryResetState();
+        UpdateFaceDetailHistoryResetState();
 
         if (SelectedPhoto is not PhotoItem photo)
         {
@@ -6568,6 +6502,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 SelectedHistoryPanelItem = item;
             }
         }
+
+        UpdateFaceShapeHistoryResetState();
+        UpdateFaceDetailHistoryResetState();
     }
 
     private sealed class EditorHistorySession

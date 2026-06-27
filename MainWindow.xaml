@@ -409,8 +409,6 @@
                             Click="SavePhotoButton_Click"
                             IsEnabled="{Binding CanSaveCurrentPhoto}"
                             Margin="4"/>
-                    <Button Style="{StaticResource AppActionButtonStyle}" Content="코 작업대 열기" Click="OpenNoseWorkbench_Click" Margin="4"/>
-                    <Button Style="{StaticResource AppActionButtonStyle}" Content="이중턱 작업대 열기" Click="OpenDoubleChinWorkbench_Click" Margin="4"/>
                     <Button Style="{StaticResource AppActionButtonStyle}"
                             Content="MediaPipe Test"
                             Click="MediaPipeTestButton_Click"
@@ -695,14 +693,6 @@
                             FontWeight="Bold"
                             Click="ToolboxButton_Click"
                             ToolTip="Type Tool"/>
-                    <Button x:Name="FreeTransformToolButton"
-                            Style="{StaticResource ToolboxButtonStyle}"
-                            Tag="freetransform"
-                            Content="Tfm"
-                            FontSize="10"
-                            FontWeight="Bold"
-                            Click="ToolboxButton_Click"
-                            ToolTip="Free Transform"/>
                     <Button x:Name="BrushToolButton"
                             Style="{StaticResource ToolboxButtonStyle}"
                             Tag="brush"
@@ -842,56 +832,6 @@
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0"/>
                             <TextBlock Text="Neutral view-control mode"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    Visibility="{Binding FreeTransformToolOptionsVisibility}">
-                            <TextBlock Text="Free Transform"
-                                       Foreground="{StaticResource TextMain}"
-                                       FontWeight="Bold"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,14,0"/>
-                            <TextBlock Text="Preview shell only"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,14,0"/>
-                            <Button Style="{StaticResource AppActionButtonStyle}"
-                                    Content="Preview"
-                                    Height="26"
-                                    Padding="12,0"
-                                    Margin="0,0,6,0"
-                                    Click="FreeTransformApplyButton_Click"/>
-                            <Button Style="{StaticResource AppActionButtonStyle}"
-                                    Content="Close"
-                                    Height="26"
-                                    Padding="12,0"
-                                    Margin="0,0,6,0"
-                                    Click="FreeTransformCancelButton_Click"/>
-                            <Button Style="{StaticResource AppActionButtonStyle}"
-                                    Content="Reset"
-                                    Height="26"
-                                    Padding="12,0"
-                                    Margin="0,0,14,0"
-                                    Click="FreeTransformResetButton_Click"/>
-                            <CheckBox Content="Keep Ratio"
-                                      IsChecked="{Binding FreeTransformKeepRatio, Mode=TwoWay}"
-                                      Foreground="{StaticResource TextSub}"
-                                      VerticalAlignment="Center"
-                                      Margin="0,0,14,0"/>
-                            <TextBlock Text="{Binding FreeTransformSizeText}"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,14,0"/>
-                            <TextBlock Text="Angle"
-                                       Foreground="{StaticResource TextSub}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Width="52"
-                                     Height="26"
-                                     Text="{Binding FreeTransformAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,14,0"/>
-                            <TextBlock Text="{Binding FreeTransformStatusText}"
                                        Foreground="{StaticResource TextSub}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
@@ -2662,20 +2602,6 @@
 
                     <Canvas IsHitTestVisible="True"
                             Visibility="{Binding SinglePreviewVisibility}">
-                        <Border Visibility="{Binding LocalWorkbenchVisibility}"
-                                IsHitTestVisible="False"
-                                Canvas.Left="{Binding LocalWorkbenchGuideLeft}"
-                                Canvas.Top="{Binding LocalWorkbenchGuideTop}"
-                                Width="{Binding LocalWorkbenchGuideWidth}"
-                                Height="{Binding LocalWorkbenchGuideHeight}"
-                                BorderBrush="{StaticResource Accent}"
-                                BorderThickness="2"
-                                Background="{StaticResource AccentSoftFill}">
-                            <TextBlock Text="WorkArea"
-                                       Foreground="{StaticResource Accent}"
-                                       FontWeight="SemiBold"
-                                       Margin="5,3,0,0"/>
-                        </Border>
                         <ItemsControl ItemsSource="{Binding MediaPipeFaceBoxOverlays}"
                                       Visibility="{Binding MediaPipePreviewOverlayVisibility}"
                                       IsHitTestVisible="False">
@@ -3271,50 +3197,6 @@
                                  StrokeThickness="1"
                                  StrokeDashArray="3,2"
                                  Fill="Transparent"/>
-                        <Border Visibility="{Binding FreeTransformOverlayVisibility}"
-                                IsHitTestVisible="False"
-                                Canvas.Left="{Binding PreviewImageLeft}"
-                                Canvas.Top="{Binding PreviewImageTop}"
-                                Width="{Binding PreviewImageWidth}"
-                                Height="{Binding PreviewImageHeight}"
-                                BorderBrush="#F1D35A"
-                                BorderThickness="1.5"
-                                Background="Transparent">
-                            <Grid>
-                                <Rectangle Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource SurfacePrimary}"
-                                           Stroke="#F1D35A"
-                                           StrokeThickness="1"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Top"
-                                           Margin="-4,-4,0,0"/>
-                                <Rectangle Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource SurfacePrimary}"
-                                           Stroke="#F1D35A"
-                                           StrokeThickness="1"
-                                           HorizontalAlignment="Right"
-                                           VerticalAlignment="Top"
-                                           Margin="0,-4,-4,0"/>
-                                <Rectangle Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource SurfacePrimary}"
-                                           Stroke="#F1D35A"
-                                           StrokeThickness="1"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Bottom"
-                                           Margin="-4,0,0,-4"/>
-                                <Rectangle Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource SurfacePrimary}"
-                                           Stroke="#F1D35A"
-                                           StrokeThickness="1"
-                                           HorizontalAlignment="Right"
-                                           VerticalAlignment="Bottom"
-                                           Margin="0,0,-4,-4"/>
-                            </Grid>
-                        </Border>
                         <Rectangle Visibility="{Binding ZoomSelectionVisibility}"
                                    IsHitTestVisible="False"
                                    Canvas.Left="{Binding ZoomSelectionLeft}"
@@ -3397,82 +3279,6 @@
                                  Fill="Transparent"/>
                     </Canvas>
 
-                    <Border Visibility="{Binding LocalWorkbenchVisibility}"
-                            Background="{StaticResource WorkbenchOverlayBg}"
-                            BorderBrush="{StaticResource Accent}"
-                            BorderThickness="2"
-                            CornerRadius="8"
-                            Width="680"
-                            MaxHeight="760"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Padding="14">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <StackPanel Margin="0,0,0,10">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding LocalWorkbenchTitle}"
-                                               Foreground="{StaticResource TextMain}"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding LocalWorkbenchInfo}"
-                                               Foreground="{StaticResource TextSub}"
-                                               Margin="16,3,0,0"/>
-                                </StackPanel>
-                                <TextBlock Text="{Binding LocalWorkbenchStatusText}"
-                                           Foreground="{StaticResource TextSub}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,0"/>
-                            </StackPanel>
-                            <Border Grid.Row="1"
-                                    Width="620"
-                                    Height="620"
-                                    HorizontalAlignment="Center"
-                                    Background="{StaticResource SurfaceCanvasDark}"
-                                    BorderBrush="{StaticResource BorderStrong}"
-                                    BorderThickness="1">
-                                <Grid>
-                                    <Image Source="{Binding LocalWorkbenchImage}"
-                                           Stretch="UniformToFill"
-                                           RenderOptions.BitmapScalingMode="HighQuality"/>
-                                    <Image Source="{Binding LocalWorkbenchApplyMaskImage}" Stretch="UniformToFill"/>
-                                    <Image Source="{Binding LocalWorkbenchProtectMaskImage}" Stretch="UniformToFill"/>
-                                    <Image Source="{Binding LocalWorkbenchBlockMaskImage}" Stretch="UniformToFill"/>
-                                    <Image Source="{Binding LocalWorkbenchWorkMaskImage}" Stretch="UniformToFill"/>
-                                    <StackPanel Orientation="Horizontal"
-                                                HorizontalAlignment="Left"
-                                                VerticalAlignment="Bottom"
-                                                Margin="8"
-                                                Background="{StaticResource OverlayLabelBg}">
-                                        <TextBlock Text="Apply" Foreground="{StaticResource ApplyMaskText}" Margin="6,3"/>
-                                        <TextBlock Text="Protect" Foreground="{StaticResource Accent}" Margin="6,3"/>
-                                        <TextBlock Text="Block" Foreground="{StaticResource BlockMaskText}" Margin="6,3"/>
-                                        <TextBlock Text="Work" Foreground="{StaticResource WorkMaskText}" Margin="6,3"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Grid Grid.Row="2" Margin="0,12,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Display-only preview. Close returns to the main photo without applying image changes."
-                                           Foreground="{StaticResource TextSub}"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,12,0"/>
-                                <Button Grid.Column="1"
-                                        Content="Close"
-                                        Click="CancelWorkbench_Click"
-                                        Margin="4"
-                                        Padding="18,7"/>
-                            </Grid>
-                        </Grid>
-                    </Border>
                 </Grid>
                 <Border Grid.Row="2" Background="{StaticResource SurfacePrimary}" BorderBrush="{StaticResource MenuBorder}" BorderThickness="0,1,0,0" Padding="16,8">
                     <Grid>
@@ -3519,6 +3325,7 @@
                             <tabs:WrinkleTabView x:Name="WrinkleRetouchTab"/>
                             <tabs:FaceShapeTabView x:Name="FaceShapeRetouchTab"/>
                             <tabs:FaceDetailTabView x:Name="FaceDetailRetouchTab"/>
+                            <tabs:HairTabView x:Name="HairRetouchTab"/>
                             <tabs:BackgroundTabView x:Name="BackgroundRetouchTab"/>
                         </StackPanel>
                     </ScrollViewer>

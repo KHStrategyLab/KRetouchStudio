@@ -75,6 +75,7 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private bool _isSingleSliderInteracting;
     private string? _lastSinglePreviewOperationId;
     private double _lastSinglePreviewValue = double.NaN;
+    private bool _canResetFaceDetailHistory;
 
     public FaceDetailTabView()
     {
@@ -86,6 +87,23 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     public event EventHandler<FaceDetailAdjustmentEventArgs>? FaceDetailAdjustmentPreviewChanged;
 
     public event EventHandler<FaceDetailAdjustmentEventArgs>? FaceDetailAdjustmentCommitted;
+
+    public event EventHandler? FaceDetailResetRequested;
+
+    public bool CanResetFaceDetailHistory
+    {
+        get => _canResetFaceDetailHistory;
+        set
+        {
+            if (_canResetFaceDetailHistory == value)
+            {
+                return;
+            }
+
+            _canResetFaceDetailHistory = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsEyesTabActive => _activeTab == FaceDetailTab.Eyes;
 
@@ -397,7 +415,16 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     public void ResetForPhotoChange()
     {
         _activeTab = FaceDetailTab.Eyes;
+        ResetFaceDetailAdjustmentValues();
+    }
 
+    public void ResetAfterHistoryReset()
+    {
+        ResetFaceDetailAdjustmentValues();
+    }
+
+    private void ResetFaceDetailAdjustmentValues()
+    {
         _eyeSize = NeutralFaceDetailSliderValue;
         _leftEyeHeight = NeutralFaceDetailSliderValue;
         _rightEyeHeight = NeutralFaceDetailSliderValue;
@@ -451,6 +478,11 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         _rightShoulderNeck = NeutralFaceDetailSliderValue;
 
         OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetFaceDetailHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        FaceDetailResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void FaceDetailSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -623,6 +655,7 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
     {
+        SetActiveTab(FaceDetailTab.Eyes);
         if (Window.GetWindow(this) is MainWindow window)
         {
             window.NotifyRetouchTabExpanded(this);

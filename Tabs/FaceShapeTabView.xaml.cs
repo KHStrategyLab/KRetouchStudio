@@ -40,6 +40,7 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     private double _lastFaceShapeControlPreviewStrength = double.NaN;
     private FaceShapeMode _lastSymmetrizePreviewMode = FaceShapeMode.Sym;
     private double _lastSymmetrizePreviewStrength = double.NaN;
+    private bool _canResetFaceShapeHistory;
 
     public FaceShapeTabView()
     {
@@ -57,6 +58,23 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     public event EventHandler? FaceShapeControlAdjustmentPreviewChanged;
 
     public event EventHandler? SymmetrizeAdjustmentPreviewChanged;
+
+    public event EventHandler? FaceShapeResetRequested;
+
+    public bool CanResetFaceShapeHistory
+    {
+        get => _canResetFaceShapeHistory;
+        set
+        {
+            if (_canResetFaceShapeHistory == value)
+            {
+                return;
+            }
+
+            _canResetFaceShapeHistory = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsSymFaceShapeModeSelected => _activeFaceShapeMode == FaceShapeMode.Sym;
 
@@ -173,6 +191,16 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         _activeHeadPoseMode = FaceShapeMode.FaceTilt;
         _activeFaceShapeControlMode = FaceShapeMode.Cheek;
         _activeSymmetrizeMode = FaceShapeMode.Sym;
+        ResetFaceShapeAdjustmentValues();
+    }
+
+    public void ResetAfterHistoryReset()
+    {
+        ResetFaceShapeAdjustmentValues();
+    }
+
+    private void ResetFaceShapeAdjustmentValues()
+    {
         _symStrength = 0;
         _cheekStrength = 0;
         _boneStrength = 0;
@@ -196,6 +224,11 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         OnPropertyChanged(nameof(FaceTurnFaceShapeStrength));
         OnPropertyChanged(nameof(HeadTiltFaceShapeStrength));
         OnPropertyChanged(nameof(AlignFaceShapeStrength));
+    }
+
+    private void ResetFaceShapeHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        FaceShapeResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)

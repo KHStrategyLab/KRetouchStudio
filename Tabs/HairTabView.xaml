@@ -1,0 +1,388 @@
+﻿<UserControl x:Class="KRetouchStudio.Tabs.HairTabView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="HairResetButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SlotBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HairModeToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="{StaticResource SurfacePrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MenuBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="SlotBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="4,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelSelectedBg}"/>
+                                <Setter TargetName="SlotBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotBorder" Property="Background" Value="{StaticResource PanelBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HairSectionLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,8"/>
+        </Style>
+        <Style x:Key="HairRowLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="HairValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Expander x:Name="HairExpander" Header="Hair" Expanded="Expander_Expanded">
+        <Expander.Tag>
+            <Button Content="↶"
+                    Width="28"
+                    Height="28"
+                    Margin="0"
+                    Padding="0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Style="{StaticResource HairResetButtonStyle}"
+                    ToolTip="Hair reset pending"/>
+        </Expander.Tag>
+        <StackPanel>
+            <UniformGrid Columns="5" Margin="0,0,0,12">
+                <ToggleButton Content="Hairline"
+                              Style="{StaticResource HairModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsHairlineModeActive, Mode=OneWay}"
+                              Click="HairlineButton_Click"/>
+                <ToggleButton Content="Volume"
+                              Style="{StaticResource HairModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsVolumeModeActive, Mode=OneWay}"
+                              Click="VolumeButton_Click"/>
+                <ToggleButton Content="Cleanup"
+                              Style="{StaticResource HairModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsCleanupModeActive, Mode=OneWay}"
+                              Click="CleanupButton_Click"/>
+                <ToggleButton Content="Tone"
+                              Style="{StaticResource HairModeToggleStyle}"
+                              Margin="0,0,6,0"
+                              IsChecked="{Binding ElementName=Root, Path=IsToneModeActive, Mode=OneWay}"
+                              Click="ToneButton_Click"/>
+                <ToggleButton Content="Color"
+                              Style="{StaticResource HairModeToggleStyle}"
+                              Margin="0"
+                              IsChecked="{Binding ElementName=Root, Path=IsColorModeActive, Mode=OneWay}"
+                              Click="ColorButton_Click"/>
+            </UniformGrid>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=HairlinePanelVisibility}">
+                <TextBlock Text="Hairline" Style="{StaticResource HairSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Height" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=HairlineHeight, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=HairlineHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Temple" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=TempleBalance, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=TempleBalance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Baby Protect" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BabyHairProtect, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=BabyHairProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=VolumePanelVisibility}">
+                <TextBlock Text="Volume" Style="{StaticResource HairSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Top" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=TopVolume, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=TopVolume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Side" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SideVolume, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=SideVolume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Crown Lift" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CrownLift, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=CrownLift, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=CleanupPanelVisibility}">
+                <TextBlock Text="Cleanup" Style="{StaticResource HairSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Stray" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=StrayHair, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=StrayHair, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Frizz" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Frizz, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Frizz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Edge" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EdgeCleanup, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=EdgeCleanup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=TonePanelVisibility}">
+                <TextBlock Text="Tone" Style="{StaticResource HairSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Shine" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Shine, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Shine, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Depth" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Depth, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Depth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Scalp Cover" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScalpCover, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ScalpCover, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding ElementName=Root, Path=ColorPanelVisibility}">
+                <TextBlock Text="Color" Style="{StaticResource HairSectionLabelStyle}"/>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Tint" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Tint, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Tint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Warm/Cool" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=WarmCool, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=WarmCool, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Darken" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Darken, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=Darken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                <Grid Margin="0,0,0,8" IsEnabled="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="42"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Strength" Style="{StaticResource HairRowLabelStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ColorStrength, StringFormat={}{0:0}}" Style="{StaticResource HairValueStyle}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Value="{Binding ElementName=Root, Path=ColorStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </Expander>
+</UserControl>

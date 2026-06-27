@@ -13,6 +13,8 @@ public partial class MainWindow
     private const string FaceShapeSymmetryHistoryTitle = "Face Sym";
     private const string FaceShapeSymmetryHistoryDetail = "Sym";
     private const double FaceShapeSymmetryMaxCorrection = 1.0;
+    private const string FaceShapeResetHistoryTitle = "Facial Reshape";
+    private const string FaceShapeResetHistoryDetail = "Reset";
     private const string FaceShapeUpperHistoryTitle = "Face Upper";
     private const string FaceShapeUpperHistoryDetail = "Upper";
     private const string FaceShapeCheekHistoryTitle = "Face Cheek";
@@ -402,6 +404,11 @@ public partial class MainWindow
     private async void FaceShapeRetouchTab_FaceShapeAdjustmentCommitted(object? sender, EventArgs e)
     {
         await ApplyFaceShapeCommittedAsync();
+    }
+
+    private void FaceShapeRetouchTab_FaceShapeResetRequested(object? sender, EventArgs e)
+    {
+        TryResetFaceShapeHistory();
     }
 
     private async Task ApplyFaceShapeCommittedAsync()
@@ -1848,6 +1855,132 @@ public partial class MainWindow
         _faceShapePointArrayCacheHeight = height;
         _faceShapePointArrayCache = BuildFaceShapePointArray(landmarks, width, height);
         return _faceShapePointArrayCache;
+    }
+
+    private bool IsCurrentHistoryFaceShape()
+    {
+        return IsCurrentHistoryFaceShapeSymmetry() ||
+               IsCurrentHistoryFaceShapeUpper() ||
+               IsCurrentHistoryFaceShapeCheek() ||
+               IsCurrentHistoryFaceShapeBone() ||
+               IsCurrentHistoryFaceShapeJaw() ||
+               IsCurrentHistoryFaceShapeChin() ||
+               IsCurrentHistoryFaceShapeFaceTilt() ||
+               IsCurrentHistoryFaceShapeFaceTurn() ||
+               IsCurrentHistoryFaceShapeHeadTilt();
+    }
+
+    private static bool IsFaceShapeResetHistory(EditorHistoryState snapshot)
+    {
+        return string.Equals(snapshot.Title, FaceShapeResetHistoryTitle, StringComparison.Ordinal) &&
+               string.Equals(snapshot.Detail, FaceShapeResetHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private static bool IsFaceShapeEffectHistory(EditorHistoryState snapshot)
+    {
+        return (string.Equals(snapshot.Title, FaceShapeSymmetryHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeSymmetryHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeUpperHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeUpperHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeCheekHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeCheekHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeBoneHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeBoneHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeJawHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeJawHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeChinHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeChinHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeFaceTiltHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeFaceTiltHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeFaceTurnHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeFaceTurnHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(snapshot.Title, FaceShapeHeadTiltHistoryTitle, StringComparison.Ordinal) &&
+                snapshot.Detail.StartsWith(FaceShapeHeadTiltHistoryDetail, StringComparison.Ordinal));
+    }
+
+    private bool HasActiveFaceShapeHistory()
+    {
+        for (int i = _editorUndoHistory.Count - 1; i >= 0; i--)
+        {
+            EditorHistoryState snapshot = _editorUndoHistory[i];
+            if (IsFaceShapeResetHistory(snapshot))
+            {
+                return false;
+            }
+
+            if (IsFaceShapeEffectHistory(snapshot))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanResetFaceShapeHistory()
+    {
+        return SelectedPhoto is not null &&
+               _editorUndoHistory.Count > 1 &&
+               HasActiveFaceShapeHistory();
+    }
+
+    private void UpdateFaceShapeHistoryResetState()
+    {
+        FaceShapeRetouchTab.CanResetFaceShapeHistory = CanResetFaceShapeHistory();
+    }
+
+    private bool TryGetFaceShapeResetSource(PhotoItem photo, out BitmapSource source)
+    {
+        source = photo.BaseImage;
+        int firstActiveFaceShapeIndex = -1;
+        for (int i = 0; i < _editorUndoHistory.Count; i++)
+        {
+            EditorHistoryState snapshot = _editorUndoHistory[i];
+            if (IsFaceShapeResetHistory(snapshot))
+            {
+                firstActiveFaceShapeIndex = -1;
+                continue;
+            }
+
+            if (firstActiveFaceShapeIndex < 0 && IsFaceShapeEffectHistory(snapshot))
+            {
+                firstActiveFaceShapeIndex = i;
+            }
+        }
+
+        if (firstActiveFaceShapeIndex < 0)
+        {
+            return false;
+        }
+
+        if (firstActiveFaceShapeIndex == 0)
+        {
+            source = photo.BaseImage;
+            return true;
+        }
+
+        EditorHistoryState resetBase = _editorUndoHistory[firstActiveFaceShapeIndex - 1];
+        source = resetBase.AdjustedImage ?? photo.BaseImage;
+        return true;
+    }
+
+    private void TryResetFaceShapeHistory()
+    {
+        if (!CanResetFaceShapeHistory() ||
+            SelectedPhoto is not PhotoItem targetPhoto ||
+            !TryGetFaceShapeResetSource(targetPhoto, out BitmapSource resetSource))
+        {
+            UpdateFaceShapeHistoryResetState();
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(resetSource.IsFrozen ? resetSource : CloneBitmapSource(resetSource));
+        FaceShapeRetouchTab.ResetAfterHistoryReset();
+        ClearFaceShapeSymmetrySession();
+        ClearFaceShapeProjectionDebugOverlay();
+        UpdatePreviewLayout();
+        PushEditorHistorySnapshot(FaceShapeResetHistoryTitle, FaceShapeResetHistoryDetail);
+        MediaPipeStatusText = "Facial Reshape: reset";
     }
 
     private BitmapSource GetFaceShapeSymmetryRenderSource(PhotoItem photo)

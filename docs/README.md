@@ -47,13 +47,14 @@
 ## Current Build Goal
 
 - Rebuild the main project as a small, controlled retouch engine shell.
-- Current implementation target: source-aligned display-only Local Proxy Workbench overlay.
-- Current connected tool entries: `DoubleChin` and `Nose Shape`.
-- WorkArea is defined in original-image coordinates.
-- LocalProxy is generated from the WorkArea, then displayed in the overlay.
-- Local proxy sizing currently follows source buckets:
-  - `1200` for `FullFrameProxy`
-  - `384 / 512 / 768 / 1024` for `LocalWorkAreaProxy`
+- Current implementation target: rough end-to-end Face Detail slider coverage.
+- `Nose` and `Double Chin` are routed through `Face Detail`, not separate Workbench buttons.
+- The old Local Proxy Workbench code path is kept as an internal design candidate only.
+- Current pass priority:
+  - make each Face Detail control visibly affect the image
+  - keep preview proxy-based and latest-result-wins
+  - commit adjusted image plus one history entry
+  - defer fine mask tuning to the next full pass
 
 ## Documentation Path Policy
 
