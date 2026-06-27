@@ -318,13 +318,23 @@ public partial class MainWindow
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         BitmapSource current = bgraSource;
-        if (TryBuildFaceDetailWarpPlan(landmarks, bgraSource.PixelWidth, bgraSource.PixelHeight, snapshot, out FaceDetailWarpPlan warpPlan))
+        foreach (FaceDetailWarpPlan warpPlan in BuildFaceDetailWarpPlans(
+                     landmarks,
+                     bgraSource.PixelWidth,
+                     bgraSource.PixelHeight,
+                     snapshot))
         {
+            if (shouldCancel?.Invoke() == true)
+            {
+                return current;
+            }
+
+            BitmapSource currentBgra = EnsureBitmapFormat(current, PixelFormats.Bgra32);
             current = BuildFaceShapeControlWarpPreview(
-                bgraSource,
+                currentBgra,
                 warpPlan.Controls,
                 warpPlan.Sigma,
-                CreateFaceDetailWeightProfile(warpPlan.Bounds),
+                CreateFaceDetailWeightProfile(warpPlan.Bounds, warpPlan.RadiusScale, warpPlan.SolidRadius),
                 shouldCancel);
         }
 
@@ -336,43 +346,141 @@ public partial class MainWindow
         return ApplyFaceDetailToneAdjustments(current, landmarks, snapshot, shouldCancel);
     }
 
-    private static bool TryBuildFaceDetailWarpPlan(
+    private static List<FaceDetailWarpPlan> BuildFaceDetailWarpPlans(
         IReadOnlyDictionary<int, Point> landmarks,
         int width,
         int height,
-        FaceDetailAdjustmentSnapshot snapshot,
-        out FaceDetailWarpPlan plan)
+        FaceDetailAdjustmentSnapshot snapshot)
+    {
+        List<FaceDetailWarpPlan> plans = [];
+
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.24,
+            sigmaRatio: 0.12,
+            radiusScale: 0.46,
+            solidRadius: 0.50,
+            buildControls: (controls, affectedPoints) => AddSingleEyeControls(
+                landmarks,
+                isLeft: true,
+                snapshot.EyeSize,
+                snapshot.LeftEyeHeight,
+                snapshot.LeftEyeWidth,
+                snapshot.LeftEyeTilt,
+                snapshot.EyeDistance,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.24,
+            sigmaRatio: 0.12,
+            radiusScale: 0.46,
+            solidRadius: 0.50,
+            buildControls: (controls, affectedPoints) => AddSingleEyeControls(
+                landmarks,
+                isLeft: false,
+                snapshot.EyeSize,
+                snapshot.RightEyeHeight,
+                snapshot.RightEyeWidth,
+                snapshot.RightEyeTilt,
+                snapshot.EyeDistance,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.26,
+            sigmaRatio: 0.12,
+            radiusScale: 0.48,
+            solidRadius: 0.48,
+            buildControls: (controls, affectedPoints) => AddSingleBrowControls(
+                landmarks,
+                isLeft: true,
+                snapshot.LeftBrowThickness,
+                snapshot.LeftBrowTilt,
+                snapshot.LeftBrowArch,
+                snapshot.LeftBrowPosition,
+                snapshot.LeftBrowTail,
+                snapshot.BrowDistance,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.26,
+            sigmaRatio: 0.12,
+            radiusScale: 0.48,
+            solidRadius: 0.48,
+            buildControls: (controls, affectedPoints) => AddSingleBrowControls(
+                landmarks,
+                isLeft: false,
+                snapshot.RightBrowThickness,
+                snapshot.RightBrowTilt,
+                snapshot.RightBrowArch,
+                snapshot.RightBrowPosition,
+                snapshot.RightBrowTail,
+                snapshot.BrowDistance,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.30,
+            sigmaRatio: 0.14,
+            radiusScale: 0.50,
+            solidRadius: 0.52,
+            buildControls: (controls, affectedPoints) => AddNoseDetailControls(landmarks, snapshot, controls, affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.30,
+            sigmaRatio: 0.14,
+            radiusScale: 0.50,
+            solidRadius: 0.52,
+            buildControls: (controls, affectedPoints) => AddMouthDetailControls(landmarks, snapshot, controls, affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.28,
+            sigmaRatio: 0.13,
+            radiusScale: 0.50,
+            solidRadius: 0.50,
+            buildControls: (controls, affectedPoints) => AddLowerFaceDetailControls(landmarks, snapshot, controls, affectedPoints));
+
+        return plans;
+    }
+
+    private static void AddFaceDetailWarpPlan(
+        List<FaceDetailWarpPlan> plans,
+        int width,
+        int height,
+        double marginRatio,
+        double sigmaRatio,
+        double radiusScale,
+        double solidRadius,
+        Action<List<FaceShapeControlPoint>, List<Point>> buildControls)
     {
         List<FaceShapeControlPoint> controls = [];
         List<Point> affectedPoints = [];
-
-        AddEyeDetailControls(landmarks, snapshot, controls, affectedPoints);
-        AddBrowDetailControls(landmarks, snapshot, controls, affectedPoints);
-        AddNoseDetailControls(landmarks, snapshot, controls, affectedPoints);
-        AddMouthDetailControls(landmarks, snapshot, controls, affectedPoints);
-        AddLowerFaceDetailControls(landmarks, snapshot, controls, affectedPoints);
-
+        buildControls(controls, affectedPoints);
         if (controls.Count == 0 || affectedPoints.Count == 0)
         {
-            plan = default;
-            return false;
+            return;
         }
 
-        Rect bounds = BuildFaceDetailBounds(affectedPoints, width, height);
+        Rect bounds = BuildFaceDetailBounds(affectedPoints, width, height, marginRatio);
         AddFaceDetailAnchorFrame(controls, bounds, width, height);
-        double sigma = Math.Max(8.0, Math.Max(bounds.Width, bounds.Height) * 0.18);
-        plan = new FaceDetailWarpPlan(bounds, sigma, controls);
-        return true;
-    }
-
-    private static void AddEyeDetailControls(
-        IReadOnlyDictionary<int, Point> landmarks,
-        FaceDetailAdjustmentSnapshot s,
-        List<FaceShapeControlPoint> controls,
-        List<Point> affectedPoints)
-    {
-        AddSingleEyeControls(landmarks, isLeft: true, s.EyeSize, s.LeftEyeHeight, s.LeftEyeWidth, s.LeftEyeTilt, s.EyeDistance, controls, affectedPoints);
-        AddSingleEyeControls(landmarks, isLeft: false, s.EyeSize, s.RightEyeHeight, s.RightEyeWidth, s.RightEyeTilt, s.EyeDistance, controls, affectedPoints);
+        double sigma = Math.Max(6.0, Math.Max(bounds.Width, bounds.Height) * sigmaRatio);
+        plans.Add(new FaceDetailWarpPlan(bounds, sigma, controls, radiusScale, solidRadius));
     }
 
     private static void AddSingleEyeControls(
@@ -413,16 +521,6 @@ public partial class MainWindow
         AddControl(controls, affectedPoints, top, distanceDx, -sizeY - heightY);
         AddControl(controls, affectedPoints, bottom, distanceDx, sizeY + heightY);
         AddControl(controls, affectedPoints, center, distanceDx, 0);
-    }
-
-    private static void AddBrowDetailControls(
-        IReadOnlyDictionary<int, Point> landmarks,
-        FaceDetailAdjustmentSnapshot s,
-        List<FaceShapeControlPoint> controls,
-        List<Point> affectedPoints)
-    {
-        AddSingleBrowControls(landmarks, isLeft: true, s.LeftBrowThickness, s.LeftBrowTilt, s.LeftBrowArch, s.LeftBrowPosition, s.LeftBrowTail, s.BrowDistance, controls, affectedPoints);
-        AddSingleBrowControls(landmarks, isLeft: false, s.RightBrowThickness, s.RightBrowTilt, s.RightBrowArch, s.RightBrowPosition, s.RightBrowTail, s.BrowDistance, controls, affectedPoints);
     }
 
     private static void AddSingleBrowControls(
@@ -557,7 +655,10 @@ public partial class MainWindow
         AddControl(controls, affectedPoints, chin, 0, chinLift);
     }
 
-    private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(Rect bounds)
+    private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(
+        Rect bounds,
+        double radiusScale,
+        double solidRadius)
     {
         return new FaceShapeWeightProfile(
             FaceShapeWeightMode.Pose,
@@ -571,9 +672,9 @@ public partial class MainWindow
             0,
             0,
             0,
-            Math.Max(1.0, bounds.Width * 0.58),
-            Math.Max(1.0, bounds.Height * 0.58),
-            0.70);
+            Math.Max(1.0, bounds.Width * radiusScale),
+            Math.Max(1.0, bounds.Height * radiusScale),
+            solidRadius);
     }
 
     private static BitmapSource ApplyFaceDetailToneAdjustments(
@@ -679,13 +780,17 @@ public partial class MainWindow
         return (byte)Math.Clamp((int)Math.Round(value + ((255 - value) * amount)), 0, 255);
     }
 
-    private static Rect BuildFaceDetailBounds(IReadOnlyList<Point> points, int width, int height)
+    private static Rect BuildFaceDetailBounds(
+        IReadOnlyList<Point> points,
+        int width,
+        int height,
+        double marginRatio = 0.30)
     {
         double left = points.Min(p => p.X);
         double top = points.Min(p => p.Y);
         double right = points.Max(p => p.X);
         double bottom = points.Max(p => p.Y);
-        double margin = Math.Max(12.0, Math.Max(right - left, bottom - top) * 0.45);
+        double margin = Math.Max(8.0, Math.Max(right - left, bottom - top) * marginRatio);
         left = Math.Clamp(left - margin, 0, Math.Max(0, width - 1));
         top = Math.Clamp(top - margin, 0, Math.Max(0, height - 1));
         right = Math.Clamp(right + margin, 0, Math.Max(0, width - 1));
@@ -782,5 +887,7 @@ public partial class MainWindow
     private readonly record struct FaceDetailWarpPlan(
         Rect Bounds,
         double Sigma,
-        List<FaceShapeControlPoint> Controls);
+        List<FaceShapeControlPoint> Controls,
+        double RadiusScale,
+        double SolidRadius);
 }
