@@ -11,6 +11,7 @@ public partial class MainWindow
 {
     private const string FaceDetailHistoryTitle = "Face Detail";
     private const string FaceDetailHistoryDetail = "Detail";
+    private const double FaceDetailNeutralSliderValue = 50.0;
     private PhotoItem? _faceDetailSessionPhoto;
     private string? _faceDetailSessionPath;
     private BitmapSource? _faceDetailSessionBaseImage;
@@ -261,53 +262,53 @@ public partial class MainWindow
     private static bool HasEffectiveFaceDetailAdjustment(FaceDetailAdjustmentSnapshot s)
     {
         return
-            s.EyeSize > 0.001 ||
-            s.LeftEyeHeight > 0.001 ||
-            s.RightEyeHeight > 0.001 ||
-            s.LeftEyeWidth > 0.001 ||
-            s.RightEyeWidth > 0.001 ||
-            s.LeftEyeTilt > 0.001 ||
-            s.RightEyeTilt > 0.001 ||
-            s.EyeDistance > 0.001 ||
+            HasCenteredEffect(s.EyeSize) ||
+            HasCenteredEffect(s.LeftEyeHeight) ||
+            HasCenteredEffect(s.RightEyeHeight) ||
+            HasCenteredEffect(s.LeftEyeWidth) ||
+            HasCenteredEffect(s.RightEyeWidth) ||
+            HasCenteredEffect(s.LeftEyeTilt) ||
+            HasCenteredEffect(s.RightEyeTilt) ||
+            HasCenteredEffect(s.EyeDistance) ||
             s.LeftDarkCircle > 0.001 ||
             s.RightDarkCircle > 0.001 ||
             s.LeftUnderEye > 0.001 ||
             s.RightUnderEye > 0.001 ||
-            s.LeftBrowThickness > 0.001 ||
-            s.RightBrowThickness > 0.001 ||
-            s.BrowDistance > 0.001 ||
-            s.LeftBrowTilt > 0.001 ||
-            s.RightBrowTilt > 0.001 ||
-            s.LeftBrowArch > 0.001 ||
-            s.RightBrowArch > 0.001 ||
-            s.LeftBrowPosition > 0.001 ||
-            s.RightBrowPosition > 0.001 ||
-            s.LeftBrowTail > 0.001 ||
-            s.RightBrowTail > 0.001 ||
-            s.NoseSize > 0.001 ||
-            s.NoseLength > 0.001 ||
-            s.NoseBridge > 0.001 ||
-            s.NoseWidth > 0.001 ||
-            s.NoseTip > 0.001 ||
-            s.LeftNostril > 0.001 ||
-            s.RightNostril > 0.001 ||
-            s.MouthSize > 0.001 ||
-            s.MouthWidth > 0.001 ||
-            s.MouthVertical > 0.001 ||
-            s.LeftMouthCorner > 0.001 ||
-            s.RightMouthCorner > 0.001 ||
-            s.LeftSmileBalance > 0.001 ||
-            s.RightSmileBalance > 0.001 ||
-            s.UpperLip > 0.001 ||
-            s.LowerLip > 0.001 ||
-            s.NeckSlim > 0.001 ||
-            s.NeckLength > 0.001 ||
+            HasCenteredEffect(s.LeftBrowThickness) ||
+            HasCenteredEffect(s.RightBrowThickness) ||
+            HasCenteredEffect(s.BrowDistance) ||
+            HasCenteredEffect(s.LeftBrowTilt) ||
+            HasCenteredEffect(s.RightBrowTilt) ||
+            HasCenteredEffect(s.LeftBrowArch) ||
+            HasCenteredEffect(s.RightBrowArch) ||
+            HasCenteredEffect(s.LeftBrowPosition) ||
+            HasCenteredEffect(s.RightBrowPosition) ||
+            HasCenteredEffect(s.LeftBrowTail) ||
+            HasCenteredEffect(s.RightBrowTail) ||
+            HasCenteredEffect(s.NoseSize) ||
+            HasCenteredEffect(s.NoseLength) ||
+            HasCenteredEffect(s.NoseBridge) ||
+            HasCenteredEffect(s.NoseWidth) ||
+            HasCenteredEffect(s.NoseTip) ||
+            HasCenteredEffect(s.LeftNostril) ||
+            HasCenteredEffect(s.RightNostril) ||
+            HasCenteredEffect(s.MouthSize) ||
+            HasCenteredEffect(s.MouthWidth) ||
+            HasCenteredEffect(s.MouthVertical) ||
+            HasCenteredEffect(s.LeftMouthCorner) ||
+            HasCenteredEffect(s.RightMouthCorner) ||
+            HasCenteredEffect(s.LeftSmileBalance) ||
+            HasCenteredEffect(s.RightSmileBalance) ||
+            HasCenteredEffect(s.UpperLip) ||
+            HasCenteredEffect(s.LowerLip) ||
+            HasCenteredEffect(s.NeckSlim) ||
+            HasCenteredEffect(s.NeckLength) ||
             s.NeckWrinkle > 0.001 ||
             s.DoubleChin > 0.001 ||
-            s.LeftSideNeck > 0.001 ||
-            s.RightSideNeck > 0.001 ||
-            s.LeftShoulderNeck > 0.001 ||
-            s.RightShoulderNeck > 0.001;
+            HasCenteredEffect(s.LeftSideNeck) ||
+            HasCenteredEffect(s.RightSideNeck) ||
+            HasCenteredEffect(s.LeftShoulderNeck) ||
+            HasCenteredEffect(s.RightShoulderNeck);
     }
 
     private static BitmapSource BuildFaceDetailRetouchPreview(
@@ -509,12 +510,12 @@ public partial class MainWindow
         Point center = AveragePoints(outer, inner, top, bottom);
         double eyeWidth = Math.Max(1.0, Math.Abs(inner.X - outer.X));
         double eyeHeight = Math.Max(1.0, Math.Abs(bottom.Y - top.Y));
-        double distanceDx = SignedStrength(distance, eyeWidth * 0.22, isLeft ? -1 : 1);
-        double sizeX = Strength(size, eyeWidth * 0.13);
-        double sizeY = Strength(size, eyeHeight * 0.32);
-        double heightY = Strength(height, eyeHeight * 0.42);
-        double widthX = Strength(width, eyeWidth * 0.16);
-        double tiltY = Strength(tilt, eyeHeight * 0.55);
+        double distanceDx = CenteredStrengthInDirection(distance, eyeWidth * 0.22, isLeft ? -1 : 1);
+        double sizeX = CenteredStrength(size, eyeWidth * 0.13);
+        double sizeY = CenteredStrength(size, eyeHeight * 0.32);
+        double heightY = CenteredStrength(height, eyeHeight * 0.42);
+        double widthX = CenteredStrength(width, eyeWidth * 0.16);
+        double tiltY = CenteredStrength(tilt, eyeHeight * 0.55);
 
         AddControl(controls, affectedPoints, outer, distanceDx + (isLeft ? -sizeX - widthX : sizeX + widthX), isLeft ? -tiltY : -tiltY);
         AddControl(controls, affectedPoints, inner, distanceDx + (isLeft ? sizeX + widthX : -sizeX - widthX), isLeft ? tiltY : tiltY);
@@ -544,12 +545,12 @@ public partial class MainWindow
 
         Point center = AveragePoints(points);
         double browWidth = Math.Max(1.0, points.Max(p => p.X) - points.Min(p => p.X));
-        double lift = -Strength(position, browWidth * 0.10);
-        double archLift = -Strength(arch, browWidth * 0.07);
-        double thicknessLift = -Strength(thickness, browWidth * 0.035);
-        double distanceDx = SignedStrength(distance, browWidth * 0.12, isLeft ? -1 : 1);
-        double tiltY = Strength(tilt, browWidth * 0.055);
-        double tailY = -Strength(tail, browWidth * 0.075);
+        double lift = -CenteredStrength(position, browWidth * 0.10);
+        double archLift = -CenteredStrength(arch, browWidth * 0.07);
+        double thicknessLift = -CenteredStrength(thickness, browWidth * 0.035);
+        double distanceDx = CenteredStrengthInDirection(distance, browWidth * 0.12, isLeft ? -1 : 1);
+        double tiltY = CenteredStrength(tilt, browWidth * 0.055);
+        double tailY = -CenteredStrength(tail, browWidth * 0.075);
 
         for (int i = 0; i < points.Count; i++)
         {
@@ -583,16 +584,17 @@ public partial class MainWindow
         Point center = AveragePoints(tip, bridge, leftNostril, rightNostril);
         double noseWidth = Math.Max(1.0, rightNostril.X - leftNostril.X);
         double noseHeight = Math.Max(1.0, tip.Y - bridge.Y);
-        double sizePull = Strength(s.NoseSize, noseWidth * 0.13);
-        double widthPull = Strength(s.NoseWidth, noseWidth * 0.18);
-        double bridgePull = Strength(s.NoseBridge, noseWidth * 0.09);
-        double tipLift = -Strength(s.NoseTip + s.NoseLength, noseHeight * 0.09);
-        double nostrilPullL = Strength(s.LeftNostril, noseWidth * 0.16);
-        double nostrilPullR = Strength(s.RightNostril, noseWidth * 0.16);
+        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.13);
+        double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.18);
+        double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.09);
+        double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.09);
+        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.09);
+        double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.16);
+        double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.16);
 
-        AddControl(controls, affectedPoints, leftNostril, sizePull + widthPull + nostrilPullL, 0);
-        AddControl(controls, affectedPoints, rightNostril, -sizePull - widthPull - nostrilPullR, 0);
-        AddControl(controls, affectedPoints, tip, 0, tipLift);
+        AddControl(controls, affectedPoints, leftNostril, -sizeExpand - widthExpand - nostrilExpandL, 0);
+        AddControl(controls, affectedPoints, rightNostril, sizeExpand + widthExpand + nostrilExpandR, 0);
+        AddControl(controls, affectedPoints, tip, 0, tipLift + lengthDrop);
         AddControl(controls, affectedPoints, bridge, 0, -bridgePull * 0.25);
         AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.22, center.Y), bridgePull, 0);
         AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.22, center.Y), -bridgePull, 0);
@@ -615,14 +617,18 @@ public partial class MainWindow
         Point center = AveragePoints(leftCorner, rightCorner, upper, lower);
         double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
         double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
-        double sizeX = Strength(s.MouthSize, mouthWidth * 0.08);
-        double sizeY = Strength(s.MouthSize, mouthHeight * 0.24);
-        double widthX = Strength(s.MouthWidth, mouthWidth * 0.12);
-        double verticalLift = -Strength(s.MouthVertical, mouthHeight * 0.35);
-        double upperLift = -Strength(s.UpperLip, mouthHeight * 0.40);
-        double lowerDrop = Strength(s.LowerLip, mouthHeight * 0.40);
-        double leftSmile = -Strength(s.LeftSmileBalance + s.LeftMouthCorner, mouthHeight * 0.42);
-        double rightSmile = -Strength(s.RightSmileBalance + s.RightMouthCorner, mouthHeight * 0.42);
+        double sizeX = CenteredStrength(s.MouthSize, mouthWidth * 0.08);
+        double sizeY = CenteredStrength(s.MouthSize, mouthHeight * 0.24);
+        double widthX = CenteredStrength(s.MouthWidth, mouthWidth * 0.12);
+        double verticalLift = -CenteredStrength(s.MouthVertical, mouthHeight * 0.35);
+        double upperLift = -CenteredStrength(s.UpperLip, mouthHeight * 0.40);
+        double lowerDrop = CenteredStrength(s.LowerLip, mouthHeight * 0.40);
+        double leftSmile =
+            -CenteredStrength(s.LeftSmileBalance, mouthHeight * 0.28) -
+            CenteredStrength(s.LeftMouthCorner, mouthHeight * 0.28);
+        double rightSmile =
+            -CenteredStrength(s.RightSmileBalance, mouthHeight * 0.28) -
+            CenteredStrength(s.RightMouthCorner, mouthHeight * 0.28);
 
         AddControl(controls, affectedPoints, leftCorner, -sizeX - widthX, verticalLift + leftSmile);
         AddControl(controls, affectedPoints, rightCorner, sizeX + widthX, verticalLift + rightSmile);
@@ -645,14 +651,21 @@ public partial class MainWindow
         }
 
         double jawWidth = Math.Max(1.0, rightJaw.X - leftJaw.X);
-        double neckSlim = Strength(
-            s.NeckSlim + s.LeftSideNeck + s.RightSideNeck + s.LeftShoulderNeck + s.RightShoulderNeck,
-            jawWidth * 0.045);
-        double chinLift = -Strength(s.DoubleChin + s.NeckLength + s.NeckWrinkle, jawWidth * 0.035);
+        double leftNeckSlim =
+            CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
+            CenteredStrength(s.LeftSideNeck, jawWidth * 0.030) +
+            CenteredStrength(s.LeftShoulderNeck, jawWidth * 0.022);
+        double rightNeckSlim =
+            CenteredStrength(s.NeckSlim, jawWidth * 0.030) +
+            CenteredStrength(s.RightSideNeck, jawWidth * 0.030) +
+            CenteredStrength(s.RightShoulderNeck, jawWidth * 0.022);
+        double chinDy =
+            CenteredStrength(s.NeckLength, jawWidth * 0.035) -
+            Strength(s.DoubleChin + s.NeckWrinkle, jawWidth * 0.035);
 
-        AddControl(controls, affectedPoints, leftJaw, neckSlim, 0);
-        AddControl(controls, affectedPoints, rightJaw, -neckSlim, 0);
-        AddControl(controls, affectedPoints, chin, 0, chinLift);
+        AddControl(controls, affectedPoints, leftJaw, leftNeckSlim, 0);
+        AddControl(controls, affectedPoints, rightJaw, -rightNeckSlim, 0);
+        AddControl(controls, affectedPoints, chin, 0, chinDy);
     }
 
     private static FaceShapeWeightProfile CreateFaceDetailWeightProfile(
@@ -879,9 +892,20 @@ public partial class MainWindow
         return Math.Clamp(value / 100.0, 0.0, 1.0) * maxAmount;
     }
 
-    private static double SignedStrength(double value, double maxAmount, int direction)
+    private static double CenteredStrength(double value, double maxAmount)
     {
-        return Strength(value, maxAmount) * Math.Sign(direction);
+        double normalized = (Math.Clamp(value, 0.0, 100.0) - FaceDetailNeutralSliderValue) / FaceDetailNeutralSliderValue;
+        return Math.Clamp(normalized, -1.0, 1.0) * maxAmount;
+    }
+
+    private static double CenteredStrengthInDirection(double value, double maxAmount, int direction)
+    {
+        return CenteredStrength(value, maxAmount) * Math.Sign(direction);
+    }
+
+    private static bool HasCenteredEffect(double value)
+    {
+        return Math.Abs(Math.Clamp(value, 0.0, 100.0) - FaceDetailNeutralSliderValue) > 0.001;
     }
 
     private readonly record struct FaceDetailWarpPlan(
