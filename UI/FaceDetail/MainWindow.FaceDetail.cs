@@ -573,6 +573,52 @@ public partial class MainWindow
             plans,
             width,
             height,
+            marginRatio: 0.16,
+            sigmaRatio: 0.090,
+            radiusScale: 0.54,
+            solidRadius: 0.42,
+            buildControls: (controls, affectedPoints) => AddSingleMouthCornerControls(
+                landmarks,
+                isLeft: true,
+                snapshot,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.16,
+            sigmaRatio: 0.090,
+            radiusScale: 0.54,
+            solidRadius: 0.42,
+            buildControls: (controls, affectedPoints) => AddSingleMouthCornerControls(
+                landmarks,
+                isLeft: false,
+                snapshot,
+                controls,
+                affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.18,
+            sigmaRatio: 0.075,
+            radiusScale: 0.34,
+            solidRadius: 0.44,
+            buildControls: (controls, affectedPoints) => AddUpperLipThicknessControls(landmarks, snapshot, controls, affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
+            marginRatio: 0.18,
+            sigmaRatio: 0.085,
+            radiusScale: 0.38,
+            solidRadius: 0.46,
+            buildControls: (controls, affectedPoints) => AddLowerLipThicknessControls(landmarks, snapshot, controls, affectedPoints));
+        AddFaceDetailWarpPlan(
+            plans,
+            width,
+            height,
             marginRatio: 0.50,
             sigmaRatio: 0.20,
             radiusScale: 0.68,
@@ -898,44 +944,10 @@ public partial class MainWindow
         double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
         double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
         double widthX = CenteredStrength(s.MouthWidth, mouthWidth * 0.16);
-        double lipVerticalMax = Math.Max(mouthHeight * 0.72, mouthWidth * 0.055) * 7.5;
-        double cornerPullMax = Math.Max(mouthHeight * 0.76, mouthWidth * 0.060);
-        double upperLift = -CenteredStrength(s.UpperLip, lipVerticalMax);
-        double lowerDrop = CenteredStrength(s.LowerLip, lipVerticalMax);
-        double leftCornerPull = CenteredStrength(s.LeftMouthCorner, cornerPullMax);
-        double rightCornerPull = CenteredStrength(s.RightMouthCorner, cornerPullMax);
-        double leftCornerDx = -leftCornerPull * 0.30;
-        double leftCornerDy = -leftCornerPull * 0.70;
-        double rightCornerDx = rightCornerPull * 0.30;
-        double rightCornerDy = -rightCornerPull * 0.70;
-        bool hasUpperLipEffect = Math.Abs(upperLift) >= 0.01;
-        bool hasLowerLipEffect = Math.Abs(lowerDrop) >= 0.01;
-
-        int[] upperLipMoveIndices = [40, 39, 37, 0, 267, 269, 270];
-        int[] upperLipAnchorIndices = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 185, 409];
-        int[] upperLipCenterAnchorIndices = [82, 13, 312, 311];
-        int[] lowerLipMoveIndices = [91, 181, 84, 17, 314, 405, 321];
-        int[] lowerLipAnchorIndices = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 146, 375];
-        int[] lowerLipCenterAnchorIndices = [87, 14, 317, 402];
         Dictionary<int, (double Dx, double Dy)> mouthDeltas = [];
 
         AddMouthWidthDeltas(mouthDeltas, -widthX, isLeft: true);
         AddMouthWidthDeltas(mouthDeltas, widthX, isLeft: false);
-        AddMouthCornerVectorDeltas(mouthDeltas, leftCornerDx, leftCornerDy, isLeft: true);
-        AddMouthCornerVectorDeltas(mouthDeltas, rightCornerDx, rightCornerDy, isLeft: false);
-        if (hasUpperLipEffect)
-        {
-            AddLipArcControls(landmarks, upperLipMoveIndices, controls, affectedPoints, centerX: upper.X, halfWidth: mouthWidth * 0.50, maxDy: upperLift);
-            AddLipAnchorControls(landmarks, upperLipAnchorIndices, controls);
-            AddStrongLipAnchorControls(landmarks, upperLipCenterAnchorIndices, controls, repeatCount: 4);
-        }
-
-        if (hasLowerLipEffect)
-        {
-            AddLipArcControls(landmarks, lowerLipMoveIndices, controls, affectedPoints, centerX: lower.X, halfWidth: mouthWidth * 0.50, maxDy: lowerDrop);
-            AddLipAnchorControls(landmarks, lowerLipAnchorIndices, controls);
-            AddStrongLipAnchorControls(landmarks, lowerLipCenterAnchorIndices, controls, repeatCount: 4);
-        }
 
         AddMouthDeltaControls(landmarks, mouthDeltas, controls, affectedPoints);
 
@@ -943,6 +955,106 @@ public partial class MainWindow
         AddSupportControl(controls, new Point(center.X, center.Y), 0, 0);
         AddSupportControl(controls, new Point(center.X, center.Y - mouthHeight * 1.55), 0, 0);
         AddSupportControl(controls, new Point(center.X, center.Y + mouthHeight * 1.55), 0, 0);
+    }
+
+    private static void AddSingleMouthCornerControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        FaceDetailAdjustmentSnapshot s,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (!TryGetLandmark(landmarks, 61, out Point leftCorner) ||
+            !TryGetLandmark(landmarks, 291, out Point rightCorner) ||
+            !TryGetLandmark(landmarks, 13, out Point upper) ||
+            !TryGetLandmark(landmarks, 14, out Point lower))
+        {
+            return;
+        }
+
+        double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
+        double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
+        double cornerPullMax = Math.Max(mouthHeight * 0.76, mouthWidth * 0.060);
+        double cornerPull = CenteredStrength(isLeft ? s.LeftMouthCorner : s.RightMouthCorner, cornerPullMax);
+        if (Math.Abs(cornerPull) < 0.01)
+        {
+            return;
+        }
+
+        double cornerDx = (isLeft ? -1.0 : 1.0) * cornerPull * 0.30;
+        double cornerDy = -cornerPull * 0.70;
+        Dictionary<int, (double Dx, double Dy)> cornerDeltas = [];
+
+        AddMouthCornerVectorDeltas(cornerDeltas, cornerDx, cornerDy, isLeft);
+        AddMouthDeltaControls(landmarks, cornerDeltas, controls, affectedPoints);
+        AddMouthCornerBrushControls(landmarks, isLeft, cornerDx, cornerDy, controls, affectedPoints);
+        AddMouthCornerBodyAnchors(landmarks, isLeft, controls, affectedPoints);
+    }
+
+    private static void AddUpperLipThicknessControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        FaceDetailAdjustmentSnapshot s,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (!TryGetLandmark(landmarks, 61, out Point leftCorner) ||
+            !TryGetLandmark(landmarks, 291, out Point rightCorner) ||
+            !TryGetLandmark(landmarks, 13, out Point upper) ||
+            !TryGetLandmark(landmarks, 14, out Point lower))
+        {
+            return;
+        }
+
+        double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
+        double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
+        double lipVerticalMax = Math.Max(mouthHeight * 0.72, mouthWidth * 0.055) * 7.5;
+        double upperLift = -CenteredStrength(s.UpperLip, lipVerticalMax);
+        if (Math.Abs(upperLift) < 0.01)
+        {
+            return;
+        }
+
+        int[] moveIndices = [40, 39, 37, 0, 267, 269, 270];
+        int[] lowerLineIndices = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308];
+        int[] endAnchorIndices = [185, 409];
+        int[] strongCenterIndices = [82, 13, 312, 311];
+        AddUpperLipArcControls(landmarks, moveIndices, controls, affectedPoints, maxDy: upperLift);
+        AddHardLipAnchorControls(landmarks, lowerLineIndices, controls, affectedPoints, repeatCount: 14);
+        AddHardLipAnchorControls(landmarks, endAnchorIndices, controls, affectedPoints, repeatCount: 10);
+        AddHardLipAnchorControls(landmarks, strongCenterIndices, controls, affectedPoints, repeatCount: 12);
+        AddLipLineSegmentAnchors(landmarks, lowerLineIndices, controls, affectedPoints, repeatCount: 8);
+    }
+
+    private static void AddLowerLipThicknessControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        FaceDetailAdjustmentSnapshot s,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (!TryGetLandmark(landmarks, 61, out Point leftCorner) ||
+            !TryGetLandmark(landmarks, 291, out Point rightCorner) ||
+            !TryGetLandmark(landmarks, 13, out Point upper) ||
+            !TryGetLandmark(landmarks, 14, out Point lower))
+        {
+            return;
+        }
+
+        double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
+        double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
+        double lipVerticalMax = Math.Max(mouthHeight * 0.72, mouthWidth * 0.055) * 7.5;
+        double lowerDrop = CenteredStrength(s.LowerLip, lipVerticalMax);
+        if (Math.Abs(lowerDrop) < 0.01)
+        {
+            return;
+        }
+
+        int[] moveIndices = [146, 91, 181, 84, 17, 314, 405, 321, 375];
+        int[] upperLineIndices = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308];
+        int[] strongCenterIndices = [87, 14, 317, 402];
+        AddLipArcControls(landmarks, moveIndices, controls, affectedPoints, centerX: lower.X, halfWidth: mouthWidth * 0.50, maxDy: lowerDrop);
+        AddHardLipAnchorControls(landmarks, upperLineIndices, controls, affectedPoints, repeatCount: 16);
+        AddHardLipAnchorControls(landmarks, strongCenterIndices, controls, affectedPoints, repeatCount: 14);
+        AddLipLineSegmentAnchors(landmarks, upperLineIndices, controls, affectedPoints, repeatCount: 10);
     }
 
     private static void AddLipArcControls(
@@ -959,6 +1071,75 @@ public partial class MainWindow
             return;
         }
 
+        const double endpointWeight = 0.32;
+        const double peakWeight = 0.82;
+        List<(Point Point, double Dy)> arcControls = [];
+        for (int i = 0; i < indices.Count; i++)
+        {
+            int index = indices[i];
+            if (!TryGetLandmark(landmarks, index, out Point point))
+            {
+                continue;
+            }
+
+            double t = indices.Count == 1 ? 0.5 : i / (double)(indices.Count - 1);
+            double arch = Math.Clamp(1.0 - Math.Pow((t * 2.0) - 1.0, 2.0), 0.0, 1.0);
+            double weight = endpointWeight + ((peakWeight - endpointWeight) * arch);
+            double dy = maxDy * weight;
+            arcControls.Add((point, dy));
+            AddControl(controls, affectedPoints, point, 0, dy);
+        }
+
+        for (int i = 0; i < arcControls.Count - 1; i++)
+        {
+            (Point start, double startDy) = arcControls[i];
+            (Point end, double endDy) = arcControls[i + 1];
+            Point midpoint = new((start.X + end.X) * 0.5, (start.Y + end.Y) * 0.5);
+            AddControl(controls, affectedPoints, midpoint, 0, (startDy + endDy) * 0.5);
+        }
+    }
+
+    private static void AddUpperLipArcControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints,
+        double maxDy)
+    {
+        if (Math.Abs(maxDy) < 0.01)
+        {
+            return;
+        }
+
+        Dictionary<int, double> weights = new()
+        {
+            [40] = 0.40,
+            [39] = 0.48,
+            [37] = 0.56,
+            [0] = 0.58,
+            [267] = 0.56,
+            [269] = 0.48,
+            [270] = 0.40
+        };
+        foreach (int index in indices)
+        {
+            if (!TryGetLandmark(landmarks, index, out Point point) ||
+                !weights.TryGetValue(index, out double weight))
+            {
+                continue;
+            }
+
+            AddControl(controls, affectedPoints, point, 0, maxDy * weight);
+        }
+    }
+
+    private static void AddHardLipAnchorControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints,
+        int repeatCount)
+    {
         foreach (int index in indices)
         {
             if (!TryGetLandmark(landmarks, index, out Point point))
@@ -966,9 +1147,35 @@ public partial class MainWindow
                 continue;
             }
 
-            double normalizedX = Math.Clamp(Math.Abs(point.X - centerX) / Math.Max(1.0, halfWidth), 0.0, 1.0);
-            double weight = Math.Pow(1.0 - normalizedX, 1.65);
-            AddControl(controls, affectedPoints, point, 0, maxDy * weight);
+            affectedPoints.Add(point);
+            for (int repeat = 0; repeat < Math.Max(1, repeatCount); repeat++)
+            {
+                AddSupportControl(controls, point, 0, 0);
+            }
+        }
+    }
+
+    private static void AddLipLineSegmentAnchors(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> lineIndices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints,
+        int repeatCount)
+    {
+        for (int i = 0; i < lineIndices.Count - 1; i++)
+        {
+            if (!TryGetLandmark(landmarks, lineIndices[i], out Point start) ||
+                !TryGetLandmark(landmarks, lineIndices[i + 1], out Point end))
+            {
+                continue;
+            }
+
+            Point midpoint = new((start.X + end.X) * 0.5, (start.Y + end.Y) * 0.5);
+            affectedPoints.Add(midpoint);
+            for (int repeat = 0; repeat < Math.Max(1, repeatCount); repeat++)
+            {
+                AddSupportControl(controls, midpoint, 0, 0);
+            }
         }
     }
 
@@ -1358,38 +1565,97 @@ public partial class MainWindow
         (int Index, double XWeight, double YWeight)[] entries = isLeft
             ? [
                 (61, 1.00, 1.00),
-                (57, 0.56, 0.66),
-                (76, 0.46, 0.54),
-                (185, 0.40, 0.42),
-                (186, 0.34, 0.38),
-                (78, 0.28, 0.24),
-                (95, 0.22, 0.20),
-                (146, 0.20, 0.18),
-                (191, 0.22, 0.16),
-                (216, 0.22, 0.34),
-                (207, 0.20, 0.30),
-                (187, 0.18, 0.28),
-                (205, 0.16, 0.24)
+                (185, 0.42, 0.66),
+                (146, 0.25, 0.54),
+                (57, 0.10, 0.16),
+                (76, 0.10, 0.16),
+                (186, 0.10, 0.16)
             ]
             : [
                 (291, 1.00, 1.00),
-                (287, 0.56, 0.66),
-                (306, 0.46, 0.54),
-                (409, 0.40, 0.42),
-                (410, 0.34, 0.38),
-                (308, 0.28, 0.24),
-                (324, 0.22, 0.20),
-                (375, 0.20, 0.18),
-                (415, 0.22, 0.16),
-                (436, 0.22, 0.34),
-                (427, 0.20, 0.30),
-                (411, 0.18, 0.28),
-                (425, 0.16, 0.24)
+                (409, 0.42, 0.66),
+                (375, 0.25, 0.54),
+                (287, 0.10, 0.16),
+                (306, 0.10, 0.16),
+                (410, 0.10, 0.16)
             ];
 
         foreach ((int index, double xWeight, double yWeight) in entries)
         {
             AddMouthDelta(deltas, index, dx * xWeight, dy * yWeight);
+        }
+    }
+
+    private static void AddMouthCornerBrushControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        double dx,
+        double dy,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        int cornerIndex = isLeft ? 61 : 291;
+        int upperCornerIndex = isLeft ? 185 : 409;
+        int lowerCornerIndex = isLeft ? 146 : 375;
+        int upperFollowerIndex = isLeft ? 57 : 287;
+        int lowerFollowerIndex = isLeft ? 76 : 306;
+        if (!TryGetLandmark(landmarks, cornerIndex, out Point corner))
+        {
+            return;
+        }
+
+        if (TryGetLandmark(landmarks, upperCornerIndex, out Point upperCorner))
+        {
+            AddControl(controls, affectedPoints, AveragePoints(corner, upperCorner), dx * 0.60, dy * 0.80);
+        }
+
+        if (TryGetLandmark(landmarks, lowerCornerIndex, out Point lowerCorner))
+        {
+            AddControl(controls, affectedPoints, AveragePoints(corner, lowerCorner), dx * 0.42, dy * 0.62);
+        }
+
+        if (TryGetLandmark(landmarks, upperFollowerIndex, out Point upperFollower))
+        {
+            AddControl(controls, affectedPoints, AveragePoints(corner, upperFollower), dx * 0.36, dy * 0.48);
+        }
+
+        if (TryGetLandmark(landmarks, lowerFollowerIndex, out Point lowerFollower))
+        {
+            AddControl(controls, affectedPoints, AveragePoints(corner, lowerFollower), dx * 0.30, dy * 0.40);
+        }
+
+        if (TryGetLandmark(landmarks, upperCornerIndex, out upperCorner) &&
+            TryGetLandmark(landmarks, lowerCornerIndex, out lowerCorner))
+        {
+            AddControl(
+                controls,
+                affectedPoints,
+                AveragePoints(corner, upperCorner, lowerCorner),
+                dx * 0.44,
+                dy * 0.62);
+        }
+    }
+
+    private static void AddMouthCornerBodyAnchors(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        int[] anchorIndices = isLeft
+            ? [78, 95, 88, 178, 87, 82, 81, 80, 191]
+            : [308, 324, 318, 402, 317, 312, 311, 310, 415];
+
+        foreach (int index in anchorIndices)
+        {
+            if (!TryGetLandmark(landmarks, index, out Point point))
+            {
+                continue;
+            }
+
+            affectedPoints.Add(point);
+            AddSupportControl(controls, point, 0, 0);
+            AddSupportControl(controls, point, 0, 0);
         }
     }
 

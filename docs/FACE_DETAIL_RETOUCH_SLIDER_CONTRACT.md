@@ -537,14 +537,15 @@ Reference:
 
 Use upper/lower masks split by lip midline.
 Do not move teeth or inner mouth.
-Keep both mouth corners and lip ends anchored.
+Keep mouth corners stable and prevent the inner lip seam from jumping.
 For `Upper Lip`, keep the full lower/inner upper-lip line anchored, not only the center point.
 Increase only the upper outer lip vertically with an arc falloff: center strongest, ends near zero.
 For `Lower Lip`, keep the full upper/inner lower-lip line anchored and increase only the lower outer lip downward with the same arc falloff.
+The lower outer arc may include the outer lower-lip side points so the curve broadens smoothly instead of peaking only at the center.
 These sliders own the vertical lip-volume adjustment; the former vertical slider is intentionally removed.
 Current rough implementation applies 750% of the first arc-falloff lip strength for visibility tuning.
 The central inner seam uses four stronger anchor points per lip to prevent center-line jumping.
-Lip anchors are active for lip-thickness sliders only; they must not resist the mouth-corner liquify pull when only `Mouth Corner` is adjusted.
+Lip anchors are active for lip-thickness sliders only; `Mouth Corner` uses its own local corner ROI and body anchors.
 
 #### `MouthCornerLift`
 
@@ -558,8 +559,11 @@ An unlinked pair can correct asymmetric corners.
 The former `SmileBalance` slider is intentionally folded into this control.
 Pull the mouth corner diagonally upward and outward.
 Use a 70% upward and 30% outward vector.
-Keep this as a local corner liquify pull: the mouth corner is strongest, immediate corner neighbors follow lightly, and lip-edge points follow only enough to avoid tearing.
+Keep this as a local corner liquify pull in separate left/right corner warp plans.
+The mouth corner is strongest, the upper/lower corner side points follow lightly, and synthetic midpoint brush controls spread the movement into a small corner-skin area.
 Do not directly group broad cheek or nasolabial landmarks into the same pull; that reads as a block movement.
+Do not run this through the same wide mouth-span warp plan as `Mouth Width`, because that makes the whole mouth move as one block.
+Use inner lip body anchors so the mouth slit and central lip seam stay stable while the corner pocket lifts.
 
 ### Neck
 
@@ -661,8 +665,8 @@ It should be updated whenever the code changes landmark indices or replaces a la
 | Nostril | `LeftNostril`, `RightNostril` | `NostrilBalance` | centered `50` neutral | left nostril `98`, right nostril `327` |
 | Mouth Width | `MouthWidth` | `MouthWidthRefine` | centered `50` neutral | mouth corner clusters plus corners `61`, `291` |
 | Upper Lip | `UpperLip` | `UpperLipThickness` | centered `50` neutral | move upper outer lip center arc `40, 39, 37, 0, 267, 269, 270`; anchor full lower/inner upper-lip line and lip ends `78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 185, 409`; strong center anchors `82, 13, 312, 311` |
-| Lower Lip | `LowerLip` | `LowerLipThickness` | centered `50` neutral | move lower outer lip center arc `91, 181, 84, 17, 314, 405, 321`; anchor full upper/inner lower-lip line and lip ends `78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 146, 375`; strong center anchors `87, 14, 317, 402` |
-| Mouth Corner | `LeftMouthCorner`, `RightMouthCorner` | `MouthCornerLift` | centered `50` neutral | local upward/outward liquify pull; 70% up, 30% outward; core `61 / 291` 100%; near corner `57,76,185,186 / 287,306,409,410` 42%; lip edge `78,95,146,191 / 308,324,375,415` 18%; broad cheek landmarks are not directly grouped |
+| Lower Lip | `LowerLip` | `LowerLipThickness` | centered `50` neutral | move lower outer lip broad arc `146, 91, 181, 84, 17, 314, 405, 321, 375`; anchor full upper/inner lower-lip line `78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308`; strong center anchors `87, 14, 317, 402` |
+| Mouth Corner | `LeftMouthCorner`, `RightMouthCorner` | `MouthCornerLift` | centered `50` neutral | separate left/right local corner warp plans; 70% up, 30% outward; core `61 / 291` 100%; upper corner `185 / 409`; lower corner `146 / 375`; very light side followers `57,76,186 / 287,306,410`; midpoint brush controls spread motion locally; inner lip body anchors hold the mouth slit; broad cheek landmarks are not directly grouped |
 | Neck Slim | `NeckSlim` | `NeckSlimRefine` | centered `50` neutral | chin `152`, left jaw `172`, right jaw `397` |
 | Neck Length | `NeckLength` | `NeckLengthRefine` | centered `50` neutral | same chin/jaw landmark group |
 | Neck Wrinkle | `NeckWrinkle` | `NeckWrinkleSoften` | one-way `0` none | chin/jaw-derived neck ROI tone/texture softening; no shape warp |
