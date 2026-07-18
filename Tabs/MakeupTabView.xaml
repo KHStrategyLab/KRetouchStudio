@@ -97,6 +97,12 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <Style x:Key="MakeupSliderStyle" TargetType="{x:Type Slider}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="MakeupSlider_PreviewMouseLeftButtonDown"/>
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="MakeupSlider_PreviewMouseLeftButtonUp"/>
+            <EventSetter Event="ValueChanged" Handler="MakeupSlider_ValueChanged"/>
+            <EventSetter Event="KeyUp" Handler="MakeupSlider_KeyUp"/>
+        </Style>
     </UserControl.Resources>
 
     <Expander x:Name="MakeupExpander" Header="Makeup" Expanded="Expander_Expanded">
@@ -143,126 +149,126 @@
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=BasePanelVisibility}">
                 <TextBlock Text="Base" Style="{StaticResource MakeupSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Coverage" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseCoverage, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseCoverage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BaseCoverage" Value="{Binding ElementName=Root, Path=BaseCoverage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Evenness" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseEvenness, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseEvenness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BaseEvenness" Value="{Binding ElementName=Root, Path=BaseEvenness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Finish" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BaseFinish, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BaseFinish, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BaseFinish" Value="{Binding ElementName=Root, Path=BaseFinish, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=BrowPanelVisibility}">
                 <TextBlock Text="Brow" Style="{StaticResource MakeupSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Density" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowDensity, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BrowDensity" Value="{Binding ElementName=Root, Path=BrowDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Shape" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowShape, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowShape, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BrowShape" Value="{Binding ElementName=Root, Path=BrowShape, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Color" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=BrowColor, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=BrowColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="BrowColor" Value="{Binding ElementName=Root, Path=BrowColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=EyePanelVisibility}">
                 <TextBlock Text="Eye" Style="{StaticResource MakeupSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Shadow" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeShadow, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeShadow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="EyeShadow" Value="{Binding ElementName=Root, Path=EyeShadow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Liner" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeLiner, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeLiner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="EyeLiner" Value="{Binding ElementName=Root, Path=EyeLiner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Lash" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EyeLash, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=EyeLash, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="EyeLash" Value="{Binding ElementName=Root, Path=EyeLash, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=CheekPanelVisibility}">
                 <TextBlock Text="Cheek" Style="{StaticResource MakeupSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Blush" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekBlush, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekBlush, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="CheekBlush" Value="{Binding ElementName=Root, Path=CheekBlush, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Contour" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekContour, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekContour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="CheekContour" Value="{Binding ElementName=Root, Path=CheekContour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Highlight" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=CheekHighlight, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=CheekHighlight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="CheekHighlight" Value="{Binding ElementName=Root, Path=CheekHighlight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=LipPanelVisibility}">
                 <TextBlock Text="Lip" Style="{StaticResource MakeupSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Color" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipColor, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="LipColor" Value="{Binding ElementName=Root, Path=LipColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Saturation" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipSaturation, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipSaturation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="LipSaturation" Value="{Binding ElementName=Root, Path=LipSaturation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Gloss" Style="{StaticResource MakeupRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipGloss, StringFormat={}{0:0}}" Style="{StaticResource MakeupValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=LipGloss, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource MakeupSliderStyle}" Tag="LipGloss" Value="{Binding ElementName=Root, Path=LipGloss, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
         </StackPanel>

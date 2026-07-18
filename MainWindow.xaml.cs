@@ -419,6 +419,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         BlemishRetouchTab.BlemishAdjustmentPreviewChanged += BlemishRetouchTab_BlemishAdjustmentPreviewChanged;
         BlemishRetouchTab.BlemishAdjustmentCommitted += BlemishRetouchTab_BlemishAdjustmentCommitted;
         BlemishRetouchTab.BlemishResetRequested += BlemishRetouchTab_BlemishResetRequested;
+        WrinkleRetouchTab.WrinkleAdjustmentPreviewChanged += WrinkleRetouchTab_WrinkleAdjustmentPreviewChanged;
+        WrinkleRetouchTab.WrinkleAdjustmentCommitted += WrinkleRetouchTab_WrinkleAdjustmentCommitted;
+        WrinkleRetouchTab.WrinkleResetRequested += WrinkleRetouchTab_WrinkleResetRequested;
+        MakeupRetouchTab.MakeupAdjustmentPreviewChanged += MakeupRetouchTab_MakeupAdjustmentPreviewChanged;
+        MakeupRetouchTab.MakeupAdjustmentCommitted += MakeupRetouchTab_MakeupAdjustmentCommitted;
+        MakeupRetouchTab.MakeupResetRequested += MakeupRetouchTab_MakeupResetRequested;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         FaceShapeRetouchTab.FaceShapeControlAdjustmentPreviewChanged += FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged;
         FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
@@ -500,6 +506,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearFaceDetailRetouchSession();
             ClearSkinRetouchSession();
             ClearBlemishRetouchSession();
+            ClearWrinkleRetouchSession();
             ClearRectangleSelection();
             ClearPathTool();
             ClearTypeTextTool();
@@ -6133,6 +6140,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             textItems,
             CaptureSkinSectionState(),
             CaptureBlemishSectionState(),
+            CaptureWrinkleSectionState(),
+            CaptureMakeupSectionState(),
             title,
             detail,
             DateTime.Now);
@@ -6279,6 +6288,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 AdjustedImageFile = adjustedImageFileName,
                 SkinState = state.SkinState,
                 BlemishState = state.BlemishState,
+                WrinkleState = state.WrinkleState,
+                MakeupState = state.MakeupState,
                 TextItems = state.TextItems.Select(PersistPreviewTextItemSnapshot).ToList()
             });
         }
@@ -6363,6 +6374,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 persistedState.TextItems.Select(RestorePreviewTextItemSnapshot).ToList(),
                 persistedState.SkinState,
                 persistedState.BlemishState,
+                persistedState.WrinkleState,
+                persistedState.MakeupState,
                 persistedState.Title,
                 persistedState.Detail,
                 persistedState.Timestamp));
@@ -6471,7 +6484,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
             ClearFaceDetailRetouchSession();
-            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState);
+            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState, snapshot.WrinkleState, snapshot.MakeupState);
 
             if (snapshot.AdjustedImage is null)
             {
@@ -6544,6 +6557,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdateFaceDetailHistoryResetState();
         UpdateSkinHistoryResetState();
         UpdateBlemishHistoryResetState();
+        UpdateWrinkleHistoryResetState();
+        UpdateMakeupHistoryResetState();
     }
 
     private sealed class EditorHistorySession
@@ -6588,6 +6603,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         public BlemishAdjustmentSnapshot? BlemishState { get; set; }
 
+        public WrinkleAdjustmentSnapshot? WrinkleState { get; set; }
+
+        public MakeupAdjustmentSnapshot? MakeupState { get; set; }
+
         public List<PersistedPreviewTextItemSnapshot> TextItems { get; set; } = [];
     }
 
@@ -6630,6 +6649,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             IReadOnlyList<PreviewTextItemSnapshot> textItems,
             SkinAdjustmentSnapshot? skinState,
             BlemishAdjustmentSnapshot? blemishState,
+            WrinkleAdjustmentSnapshot? wrinkleState,
+            MakeupAdjustmentSnapshot? makeupState,
             string title,
             string detail,
             DateTime timestamp)
@@ -6639,6 +6660,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             TextItems = textItems;
             SkinState = skinState;
             BlemishState = blemishState;
+            WrinkleState = wrinkleState;
+            MakeupState = makeupState;
             Title = title;
             Detail = detail;
             Timestamp = timestamp;
@@ -6653,6 +6676,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public SkinAdjustmentSnapshot? SkinState { get; }
 
         public BlemishAdjustmentSnapshot? BlemishState { get; }
+
+        public WrinkleAdjustmentSnapshot? WrinkleState { get; }
+
+        public MakeupAdjustmentSnapshot? MakeupState { get; }
 
         public string Title { get; }
 

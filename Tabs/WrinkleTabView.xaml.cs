@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace KRetouchStudio.Tabs;
 
@@ -27,6 +30,9 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
     private double _chinCrease;
     private double _neck;
     private bool _canResetWrinkleTab;
+    private bool _isSliderInteracting;
+    private string? _lastPreviewOperationId;
+    private double _lastPreviewValue = double.NaN;
 
     public WrinkleTabView()
     {
@@ -35,10 +41,16 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public event EventHandler<WrinkleAdjustmentEventArgs>? WrinkleAdjustmentPreviewChanged;
+
+    public event EventHandler<WrinkleAdjustmentEventArgs>? WrinkleAdjustmentCommitted;
+
+    public event EventHandler? WrinkleResetRequested;
+
     public bool CanResetWrinkleTab
     {
         get => _canResetWrinkleTab;
-        private set
+        set
         {
             if (_canResetWrinkleTab == value)
             {
@@ -180,9 +192,49 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         ResetWrinkleTabValues();
     }
 
-    private void ResetWrinkleTabButton_Click(object sender, RoutedEventArgs e)
+    public void ResetAfterHistoryReset()
     {
         ResetWrinkleTabValues();
+    }
+
+    public void RestoreSnapshot(WrinkleAdjustmentSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ResetWrinkleTabValues();
+            return;
+        }
+
+        _forehead = snapshot.Forehead;
+        _frown = snapshot.Frown;
+        _leftCrowsFeet = snapshot.LeftCrowsFeet;
+        _rightCrowsFeet = snapshot.RightCrowsFeet;
+        _crowsFeetLinked = snapshot.CrowsFeetLinked;
+        _leftUnderEye = snapshot.LeftUnderEye;
+        _rightUnderEye = snapshot.RightUnderEye;
+        _underEyeLinked = snapshot.UnderEyeLinked;
+        _leftBunny = snapshot.LeftBunny;
+        _rightBunny = snapshot.RightBunny;
+        _bunnyLinked = snapshot.BunnyLinked;
+        _leftSmileFold = snapshot.LeftSmileFold;
+        _rightSmileFold = snapshot.RightSmileFold;
+        _smileFoldLinked = snapshot.SmileFoldLinked;
+        _lipLines = snapshot.LipLines;
+        _leftMarionette = snapshot.LeftMarionette;
+        _rightMarionette = snapshot.RightMarionette;
+        _marionetteLinked = snapshot.MarionetteLinked;
+        _chinCrease = snapshot.ChinCrease;
+        _neck = snapshot.Neck;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+        UpdateCanResetWrinkleTab();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetWrinkleTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        WrinkleResetRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -208,8 +260,145 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         _marionetteLinked = true;
         _chinCrease = 0;
         _neck = 0;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
         CanResetWrinkleTab = false;
         OnPropertyChanged(string.Empty);
+    }
+
+    private void WrinkleSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSliderInteracting = true;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+    }
+
+    private void WrinkleSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSliderInteracting = false;
+        RaiseWrinkleCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void WrinkleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting)
+        {
+            _isSliderInteracting = true;
+            _lastPreviewOperationId = null;
+            _lastPreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastPreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastPreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastPreviewOperationId = operationId;
+        _lastPreviewValue = previewValue;
+        RaiseWrinklePreview(operationId, previewValue);
+    }
+
+    private void WrinkleSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseWrinkleCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void PairSlider_SliderPreviewChanged(object? sender, FaceDetailSliderAdjustmentEventArgs e)
+    {
+        RaiseWrinklePreview(e.OperationId, e.Value);
+    }
+
+    private void PairSlider_SliderCommitted(object? sender, FaceDetailSliderAdjustmentEventArgs e)
+    {
+        RaiseWrinkleCommitted(e.OperationId, e.Value);
+    }
+
+    private void RaiseWrinklePreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        WrinkleAdjustmentPreviewChanged?.Invoke(
+            this,
+            new WrinkleAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseWrinkleCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        WrinkleAdjustmentCommitted?.Invoke(
+            this,
+            new WrinkleAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private WrinkleAdjustmentSnapshot CreateSnapshot()
+    {
+        return new WrinkleAdjustmentSnapshot(
+            Forehead,
+            Frown,
+            LeftCrowsFeet,
+            RightCrowsFeet,
+            CrowsFeetLinked,
+            LeftUnderEye,
+            RightUnderEye,
+            UnderEyeLinked,
+            LeftBunny,
+            RightBunny,
+            BunnyLinked,
+            LeftSmileFold,
+            RightSmileFold,
+            SmileFoldLinked,
+            LipLines,
+            LeftMarionette,
+            RightMarionette,
+            MarionetteLinked,
+            ChinCrease,
+            Neck);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -283,3 +472,37 @@ public partial class WrinkleTabView : System.Windows.Controls.UserControl, INoti
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class WrinkleAdjustmentEventArgs(
+    string operationId,
+    double value,
+    WrinkleAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public WrinkleAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record WrinkleAdjustmentSnapshot(
+    double Forehead,
+    double Frown,
+    double LeftCrowsFeet,
+    double RightCrowsFeet,
+    bool CrowsFeetLinked,
+    double LeftUnderEye,
+    double RightUnderEye,
+    bool UnderEyeLinked,
+    double LeftBunny,
+    double RightBunny,
+    bool BunnyLinked,
+    double LeftSmileFold,
+    double RightSmileFold,
+    bool SmileFoldLinked,
+    double LipLines,
+    double LeftMarionette,
+    double RightMarionette,
+    bool MarionetteLinked,
+    double ChinCrease,
+    double Neck);

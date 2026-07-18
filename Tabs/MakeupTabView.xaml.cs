@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace KRetouchStudio.Tabs;
 
@@ -32,6 +35,9 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
     private double _lipSaturation;
     private double _lipGloss;
     private bool _canResetMakeupTab;
+    private bool _isSliderInteracting;
+    private string? _lastPreviewOperationId;
+    private double _lastPreviewValue = double.NaN;
 
     public MakeupTabView()
     {
@@ -39,6 +45,12 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<MakeupAdjustmentEventArgs>? MakeupAdjustmentPreviewChanged;
+
+    public event EventHandler<MakeupAdjustmentEventArgs>? MakeupAdjustmentCommitted;
+
+    public event EventHandler? MakeupResetRequested;
 
     public bool IsBaseModeActive => _activeMakeupMode == MakeupMode.Base;
     public bool IsBrowModeActive => _activeMakeupMode == MakeupMode.Brow;
@@ -55,7 +67,7 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
     public bool CanResetMakeupTab
     {
         get => _canResetMakeupTab;
-        private set
+        set
         {
             if (_canResetMakeupTab == value)
             {
@@ -93,9 +105,44 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
         ResetMakeupTabValues();
     }
 
-    private void ResetMakeupTabButton_Click(object sender, RoutedEventArgs e)
+    public void ResetAfterHistoryReset()
     {
         ResetMakeupTabValues();
+    }
+
+    public void RestoreSnapshot(MakeupAdjustmentSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ResetMakeupTabValues();
+            return;
+        }
+
+        _baseCoverage = snapshot.BaseCoverage;
+        _baseEvenness = snapshot.BaseEvenness;
+        _baseFinish = snapshot.BaseFinish;
+        _browDensity = snapshot.BrowDensity;
+        _browShape = snapshot.BrowShape;
+        _browColor = snapshot.BrowColor;
+        _eyeShadow = snapshot.EyeShadow;
+        _eyeLiner = snapshot.EyeLiner;
+        _eyeLash = snapshot.EyeLash;
+        _cheekBlush = snapshot.CheekBlush;
+        _cheekContour = snapshot.CheekContour;
+        _cheekHighlight = snapshot.CheekHighlight;
+        _lipColor = snapshot.LipColor;
+        _lipSaturation = snapshot.LipSaturation;
+        _lipGloss = snapshot.LipGloss;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+        UpdateCanResetMakeupTab();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetMakeupTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        MakeupResetRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -117,8 +164,130 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
         _lipColor = 0;
         _lipSaturation = 0;
         _lipGloss = 0;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
         CanResetMakeupTab = false;
         OnPropertyChanged(string.Empty);
+    }
+
+    private void MakeupSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSliderInteracting = true;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+    }
+
+    private void MakeupSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSliderInteracting = false;
+        RaiseMakeupCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void MakeupSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting)
+        {
+            _isSliderInteracting = true;
+            _lastPreviewOperationId = null;
+            _lastPreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastPreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastPreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastPreviewOperationId = operationId;
+        _lastPreviewValue = previewValue;
+        RaiseMakeupPreview(operationId, previewValue);
+    }
+
+    private void MakeupSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseMakeupCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void RaiseMakeupPreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        MakeupAdjustmentPreviewChanged?.Invoke(
+            this,
+            new MakeupAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseMakeupCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        MakeupAdjustmentCommitted?.Invoke(
+            this,
+            new MakeupAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private MakeupAdjustmentSnapshot CreateSnapshot()
+    {
+        return new MakeupAdjustmentSnapshot(
+            BaseCoverage,
+            BaseEvenness,
+            BaseFinish,
+            BrowDensity,
+            BrowShape,
+            BrowColor,
+            EyeShadow,
+            EyeLiner,
+            EyeLash,
+            CheekBlush,
+            CheekContour,
+            CheekHighlight,
+            LipColor,
+            LipSaturation,
+            LipGloss);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -235,3 +404,32 @@ public partial class MakeupTabView : System.Windows.Controls.UserControl, INotif
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class MakeupAdjustmentEventArgs(
+    string operationId,
+    double value,
+    MakeupAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public MakeupAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record MakeupAdjustmentSnapshot(
+    double BaseCoverage,
+    double BaseEvenness,
+    double BaseFinish,
+    double BrowDensity,
+    double BrowShape,
+    double BrowColor,
+    double EyeShadow,
+    double EyeLiner,
+    double EyeLash,
+    double CheekBlush,
+    double CheekContour,
+    double CheekHighlight,
+    double LipColor,
+    double LipSaturation,
+    double LipGloss);

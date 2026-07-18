@@ -55,6 +55,12 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <Style x:Key="WrinkleSliderStyle" TargetType="{x:Type Slider}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="WrinkleSlider_PreviewMouseLeftButtonDown"/>
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="WrinkleSlider_PreviewMouseLeftButtonUp"/>
+            <EventSetter Event="ValueChanged" Handler="WrinkleSlider_ValueChanged"/>
+            <EventSetter Event="KeyUp" Handler="WrinkleSlider_KeyUp"/>
+        </Style>
     </UserControl.Resources>
 
     <Expander x:Name="WrinkleExpander" Header="Wrinkle" Expanded="Expander_Expanded">
@@ -79,6 +85,8 @@
                 <TextBlock Text="Forehead" Style="{StaticResource WrinkleRowLabelStyle}"/>
                 <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Forehead, StringFormat={}{0:0}}" Style="{StaticResource WrinkleValueStyle}"/>
                 <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                        Style="{StaticResource WrinkleSliderStyle}"
+                        Tag="Forehead"
                         Value="{Binding ElementName=Root, Path=Forehead, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
 
@@ -94,12 +102,18 @@
                 <TextBlock Text="Frown" Style="{StaticResource WrinkleRowLabelStyle}"/>
                 <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Frown, StringFormat={}{0:0}}" Style="{StaticResource WrinkleValueStyle}"/>
                 <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                        Style="{StaticResource WrinkleSliderStyle}"
+                        Tag="Frown"
                         Value="{Binding ElementName=Root, Path=Frown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
 
             <tabs:LinkedPairSliderRow Label="Crow's Feet"
                                       Margin="0,0,0,9"
                                       UseStackedLayout="True"
+                                      LeftOperationId="LeftCrowsFeet"
+                                      RightOperationId="RightCrowsFeet"
+                                      SliderPreviewChanged="PairSlider_SliderPreviewChanged"
+                                      SliderCommitted="PairSlider_SliderCommitted"
                                       LeftValue="{Binding ElementName=Root, Path=LeftCrowsFeet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       RightValue="{Binding ElementName=Root, Path=RightCrowsFeet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsLinked="{Binding ElementName=Root, Path=CrowsFeetLinked, Mode=TwoWay}"/>
@@ -107,6 +121,10 @@
             <tabs:LinkedPairSliderRow Label="Under Eye"
                                       Margin="0,0,0,9"
                                       UseStackedLayout="True"
+                                      LeftOperationId="LeftUnderEye"
+                                      RightOperationId="RightUnderEye"
+                                      SliderPreviewChanged="PairSlider_SliderPreviewChanged"
+                                      SliderCommitted="PairSlider_SliderCommitted"
                                       LeftValue="{Binding ElementName=Root, Path=LeftUnderEye, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       RightValue="{Binding ElementName=Root, Path=RightUnderEye, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsLinked="{Binding ElementName=Root, Path=UnderEyeLinked, Mode=TwoWay}"/>
@@ -114,6 +132,10 @@
             <tabs:LinkedPairSliderRow Label="Bunny"
                                       Margin="0,0,0,9"
                                       UseStackedLayout="True"
+                                      LeftOperationId="LeftBunny"
+                                      RightOperationId="RightBunny"
+                                      SliderPreviewChanged="PairSlider_SliderPreviewChanged"
+                                      SliderCommitted="PairSlider_SliderCommitted"
                                       LeftValue="{Binding ElementName=Root, Path=LeftBunny, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       RightValue="{Binding ElementName=Root, Path=RightBunny, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsLinked="{Binding ElementName=Root, Path=BunnyLinked, Mode=TwoWay}"/>
@@ -121,6 +143,10 @@
             <tabs:LinkedPairSliderRow Label="Smile Fold"
                                       Margin="0,0,0,9"
                                       UseStackedLayout="True"
+                                      LeftOperationId="LeftSmileFold"
+                                      RightOperationId="RightSmileFold"
+                                      SliderPreviewChanged="PairSlider_SliderPreviewChanged"
+                                      SliderCommitted="PairSlider_SliderCommitted"
                                       LeftValue="{Binding ElementName=Root, Path=LeftSmileFold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       RightValue="{Binding ElementName=Root, Path=RightSmileFold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsLinked="{Binding ElementName=Root, Path=SmileFoldLinked, Mode=TwoWay}"/>
@@ -128,6 +154,10 @@
             <tabs:LinkedPairSliderRow Label="Marionette"
                                       Margin="0,0,0,9"
                                       UseStackedLayout="True"
+                                      LeftOperationId="LeftMarionette"
+                                      RightOperationId="RightMarionette"
+                                      SliderPreviewChanged="PairSlider_SliderPreviewChanged"
+                                      SliderCommitted="PairSlider_SliderCommitted"
                                       LeftValue="{Binding ElementName=Root, Path=LeftMarionette, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       RightValue="{Binding ElementName=Root, Path=RightMarionette, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       IsLinked="{Binding ElementName=Root, Path=MarionetteLinked, Mode=TwoWay}"/>
@@ -144,6 +174,8 @@
                 <TextBlock Text="Lip Lines" Style="{StaticResource WrinkleRowLabelStyle}"/>
                 <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=LipLines, StringFormat={}{0:0}}" Style="{StaticResource WrinkleValueStyle}"/>
                 <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                        Style="{StaticResource WrinkleSliderStyle}"
+                        Tag="LipLines"
                         Value="{Binding ElementName=Root, Path=LipLines, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
 
@@ -159,6 +191,8 @@
                 <TextBlock Text="Chin Crease" Style="{StaticResource WrinkleRowLabelStyle}"/>
                 <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ChinCrease, StringFormat={}{0:0}}" Style="{StaticResource WrinkleValueStyle}"/>
                 <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                        Style="{StaticResource WrinkleSliderStyle}"
+                        Tag="ChinCrease"
                         Value="{Binding ElementName=Root, Path=ChinCrease, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
 
@@ -174,6 +208,8 @@
                 <TextBlock Text="Neck" Style="{StaticResource WrinkleRowLabelStyle}"/>
                 <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Neck, StringFormat={}{0:0}}" Style="{StaticResource WrinkleValueStyle}"/>
                 <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                        Style="{StaticResource WrinkleSliderStyle}"
+                        Tag="Neck"
                         Value="{Binding ElementName=Root, Path=Neck, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
         </StackPanel>

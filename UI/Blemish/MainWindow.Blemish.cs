@@ -45,7 +45,11 @@ public partial class MainWindow
         int renderVersion = Interlocked.Increment(ref _connectedRetouchRenderVersion);
         BitmapSource baseSource = GetConnectedRetouchRenderSource(targetPhoto);
         BitmapSource proxySource = GetOrCreateFaceShapeHeadPoseDragProxy(targetPhoto, baseSource);
-        if (!HasEffectiveConnectedRetouchAdjustment(_committedSkinSectionState, args.Snapshot))
+        if (!HasEffectiveConnectedRetouchAdjustment(
+                _committedSkinSectionState,
+                args.Snapshot,
+                _committedWrinkleSectionState,
+                _committedMakeupSectionState))
         {
             SetFaceShapeHeadPoseDragPreview(targetPhoto, proxySource, baseSource.PixelWidth, baseSource.PixelHeight);
             MediaPipeStatusText = "Blemish: preview reset";
@@ -77,6 +81,8 @@ public partial class MainWindow
             safePointMap,
             _committedSkinSectionState,
             args.Snapshot,
+            _committedWrinkleSectionState,
+            _committedMakeupSectionState,
             () => renderVersion != _connectedRetouchRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -140,7 +146,11 @@ public partial class MainWindow
         BlemishAdjustmentSnapshot? requestedBlemishState = HasEffectiveBlemishAdjustment(args.Snapshot)
             ? args.Snapshot
             : null;
-        if (!HasEffectiveConnectedRetouchAdjustment(_committedSkinSectionState, requestedBlemishState))
+        if (!HasEffectiveConnectedRetouchAdjustment(
+                _committedSkinSectionState,
+                requestedBlemishState,
+                _committedWrinkleSectionState,
+                _committedMakeupSectionState))
         {
             targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             SetCommittedBlemishSectionState(null);
@@ -178,6 +188,8 @@ public partial class MainWindow
             safePointMap,
             _committedSkinSectionState,
             requestedBlemishState,
+            _committedWrinkleSectionState,
+            _committedMakeupSectionState,
             () => renderVersion != _connectedRetouchRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -227,7 +239,9 @@ public partial class MainWindow
         int renderVersion = Interlocked.Increment(ref _connectedRetouchRenderVersion);
         BitmapSource baseSource = GetConnectedRetouchRenderSource(targetPhoto);
         BitmapSource resetResult = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
-        if (_committedSkinSectionState is not null && HasEffectiveSkinAdjustment(_committedSkinSectionState))
+        if ((_committedSkinSectionState is not null && HasEffectiveSkinAdjustment(_committedSkinSectionState)) ||
+            (_committedWrinkleSectionState is not null && HasEffectiveWrinkleAdjustment(_committedWrinkleSectionState)) ||
+            (_committedMakeupSectionState is not null && HasEffectiveMakeupAdjustment(_committedMakeupSectionState)))
         {
             List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, "Blemish Reset");
             if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -253,6 +267,8 @@ public partial class MainWindow
                 safePointMap,
                 _committedSkinSectionState,
                 null,
+                _committedWrinkleSectionState,
+                _committedMakeupSectionState,
                 () => renderVersion != _connectedRetouchRenderVersion));
             if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
             {
