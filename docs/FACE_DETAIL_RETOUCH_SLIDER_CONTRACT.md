@@ -448,7 +448,11 @@ Keep brow head/body damped.
 Current implementation note:
 
 - Nose sliders currently use landmark indices `4`, `168`, `98`, and `327`.
-- Additional side control points are derived synthetically from those landmarks.
+- Additional tapered row controls and side guard points are derived synthetically from those landmarks.
+- `Size` changes the horizontal width of the full visible nose mass from the bridge root to the nostril base. It is not a nose-tip-only scale.
+- `Length` extends the full nose mass along the bridge axis while keeping the bridge root fixed.
+- The current rough `Length` route does not push the philtrum or mouth. The earlier follower path was removed because it moved the upper-lip area too strongly.
+- Upper nose guards keep the inner-eye area from following the nose-width warp.
 - `Bridge` is currently a warp control, not a separate bridge tone mask.
 
 Reference:
@@ -467,14 +471,16 @@ PhiltrumAnchor = PhiltrumMask damped
 
 #### `NoseSizeRefine`
 
-One-way studio refinement.
-Use center-axis constrained compression.
-Do not flatten the bridge or drag the mouth.
+Use a centered horizontal width adjustment for the whole tapered nose mass.
+`50` is neutral, lower values compress the nose toward its center axis, and higher values widen it.
+The bridge root receives the lowest movement, the middle side planes follow progressively, and the nostril base receives the full approved width movement.
+Do not flatten the bridge, drag the inner eyes, or move the mouth.
 
 #### `NoseLengthRefine`
 
-Move lower nose mass along the nose bridge axis toward the studio target.
-Keep bridge root and philtrum damped.
+Move the nose mass progressively along the bridge axis, from a fixed bridge root to the strongest movement at the tip.
+Nostril support follows at a lower weight so the lower nose remains connected.
+Keep the bridge root fixed and do not push the philtrum or mouth in the current rough route.
 
 #### `NoseBridgeRefine`
 
@@ -564,6 +570,13 @@ The mouth corner is strongest, the upper/lower corner side points follow lightly
 Do not directly group broad cheek or nasolabial landmarks into the same pull; that reads as a block movement.
 Do not run this through the same wide mouth-span warp plan as `Mouth Width`, because that makes the whole mouth move as one block.
 Use inner lip body anchors so the mouth slit and central lip seam stay stable while the corner pocket lifts.
+
+Current rough implementation note:
+
+- Main destination points are `61`, `185`, `146` on the left and `291`, `409`, `375` on the right.
+- The inner seam guard is strongest at `78`, `95`, `308`, and `324`, with additional upper/lower line and segment anchors.
+- Gaussian interpolation and the strong seam anchors reduce visible corner travel, so the implementation uses tuned horizontal/vertical coefficients plus a final `1.30` strength multiplier.
+- The 70% upward / 30% outward rule remains the visible motion target, not a literal coefficient split before interpolation.
 
 ### Neck
 

@@ -909,22 +909,129 @@ public partial class MainWindow
         Point center = AveragePoints(tip, bridge, leftNostril, rightNostril);
         double noseWidth = Math.Max(1.0, rightNostril.X - leftNostril.X);
         double noseHeight = Math.Max(1.0, tip.Y - bridge.Y);
-        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.24);
+        double sizeExpand = CenteredStrength(s.NoseSize, noseWidth * 0.20);
         double widthExpand = CenteredStrength(s.NoseWidth, noseWidth * 0.32);
         double bridgePull = CenteredStrength(s.NoseBridge, noseWidth * 0.20);
         double tipLift = -CenteredStrength(s.NoseTip, noseHeight * 0.18);
-        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.16);
+        double lengthDrop = CenteredStrength(s.NoseLength, noseHeight * 0.22);
         double nostrilExpandL = CenteredStrength(s.LeftNostril, noseWidth * 0.26);
         double nostrilExpandR = CenteredStrength(s.RightNostril, noseWidth * 0.26);
 
-        AddControl(controls, affectedPoints, leftNostril, -sizeExpand - widthExpand - nostrilExpandL, 0);
-        AddControl(controls, affectedPoints, rightNostril, sizeExpand + widthExpand + nostrilExpandR, 0);
-        AddControl(controls, affectedPoints, tip, 0, tipLift + lengthDrop);
+        AddNoseBoxWidthControls(bridge, tip, leftNostril, rightNostril, noseWidth, noseHeight, sizeExpand, controls, affectedPoints);
+        AddNoseBoxLengthControls(landmarks, bridge, tip, leftNostril, rightNostril, noseWidth, noseHeight, lengthDrop, controls, affectedPoints);
+        AddControl(controls, affectedPoints, leftNostril, -widthExpand - nostrilExpandL, 0);
+        AddControl(controls, affectedPoints, rightNostril, widthExpand + nostrilExpandR, 0);
+        AddControl(controls, affectedPoints, tip, 0, tipLift);
         AddControl(controls, affectedPoints, bridge, 0, -bridgePull * 0.32);
         AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.22, center.Y), bridgePull * 1.05, 0);
         AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.22, center.Y), -bridgePull * 1.05, 0);
         AddControl(controls, affectedPoints, new Point(center.X - noseWidth * 0.34, center.Y + noseHeight * 0.18), bridgePull + (widthExpand * 0.52), 0);
         AddControl(controls, affectedPoints, new Point(center.X + noseWidth * 0.34, center.Y + noseHeight * 0.18), -bridgePull - (widthExpand * 0.52), 0);
+    }
+
+    private static void AddNoseBoxWidthControls(
+        Point bridge,
+        Point tip,
+        Point leftNostril,
+        Point rightNostril,
+        double noseWidth,
+        double noseHeight,
+        double sizeExpand,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (Math.Abs(sizeExpand) < 0.01)
+        {
+            return;
+        }
+
+        double axisTopX = bridge.X;
+        double axisBottomX = tip.X;
+        double halfBoxWidth = Math.Max(1.0, noseWidth * 0.50);
+        (double T, double HalfWeight, double MoveWeight)[] rows =
+        [
+            (0.03, 0.24, 0.18),
+            (0.24, 0.44, 0.42),
+            (0.50, 0.70, 0.72),
+            (0.78, 1.00, 1.00),
+            (0.96, 0.94, 0.92)
+        ];
+
+        foreach ((double t, double halfWeight, double moveWeight) in rows)
+        {
+            double centerX = Lerp(axisTopX, axisBottomX, t);
+            double y = bridge.Y + (noseHeight * t);
+            double half = halfBoxWidth * halfWeight;
+            AddControl(controls, affectedPoints, new Point(centerX - half, y), -sizeExpand * moveWeight, 0);
+            AddControl(controls, affectedPoints, new Point(centerX + half, y), sizeExpand * moveWeight, 0);
+            AddSupportControl(controls, new Point(centerX, y), 0, 0);
+        }
+
+        AddControl(controls, affectedPoints, leftNostril, -sizeExpand, 0);
+        AddControl(controls, affectedPoints, rightNostril, sizeExpand, 0);
+        AddNoseEyeAnchorControls(bridge, noseWidth, noseHeight, controls);
+    }
+
+    private static void AddNoseBoxLengthControls(
+        IReadOnlyDictionary<int, Point> landmarks,
+        Point bridge,
+        Point tip,
+        Point leftNostril,
+        Point rightNostril,
+        double noseWidth,
+        double noseHeight,
+        double lengthDrop,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (Math.Abs(lengthDrop) < 0.01)
+        {
+            return;
+        }
+
+        AddSupportControl(controls, bridge, 0, 0);
+        AddSupportControl(controls, new Point(bridge.X - (noseWidth * 0.28), bridge.Y + (noseHeight * 0.06)), 0, 0);
+        AddSupportControl(controls, new Point(bridge.X + (noseWidth * 0.28), bridge.Y + (noseHeight * 0.06)), 0, 0);
+        AddNoseEyeAnchorControls(bridge, noseWidth, noseHeight, controls);
+
+        (double T, double WidthWeight, double MoveWeight)[] rows =
+        [
+            (0.22, 0.36, 0.10),
+            (0.46, 0.58, 0.34),
+            (0.72, 0.92, 0.70),
+            (0.96, 1.00, 1.00)
+        ];
+
+        foreach ((double t, double widthWeight, double moveWeight) in rows)
+        {
+            double centerX = Lerp(bridge.X, tip.X, t);
+            double y = bridge.Y + (noseHeight * t);
+            double half = noseWidth * 0.50 * widthWeight;
+            double dy = lengthDrop * moveWeight;
+            AddControl(controls, affectedPoints, new Point(centerX, y), 0, dy);
+            AddControl(controls, affectedPoints, new Point(centerX - half, y), 0, dy * 0.82);
+            AddControl(controls, affectedPoints, new Point(centerX + half, y), 0, dy * 0.82);
+        }
+
+        AddControl(controls, affectedPoints, tip, 0, lengthDrop);
+        AddControl(controls, affectedPoints, leftNostril, 0, lengthDrop * 0.72);
+        AddControl(controls, affectedPoints, rightNostril, 0, lengthDrop * 0.72);
+    }
+
+    private static void AddNoseEyeAnchorControls(
+        Point bridge,
+        double noseWidth,
+        double noseHeight,
+        List<FaceShapeControlPoint> controls)
+    {
+        double topY = bridge.Y - (noseHeight * 0.04);
+        double sideY = bridge.Y + (noseHeight * 0.12);
+        double innerEyeX = noseWidth * 0.78;
+        double outerGuardX = noseWidth * 1.10;
+        AddSupportControl(controls, new Point(bridge.X - innerEyeX, topY), 0, 0);
+        AddSupportControl(controls, new Point(bridge.X + innerEyeX, topY), 0, 0);
+        AddSupportControl(controls, new Point(bridge.X - outerGuardX, sideY), 0, 0);
+        AddSupportControl(controls, new Point(bridge.X + outerGuardX, sideY), 0, 0);
     }
 
     private static void AddMouthDetailControls(
@@ -974,19 +1081,20 @@ public partial class MainWindow
 
         double mouthWidth = Math.Max(1.0, rightCorner.X - leftCorner.X);
         double mouthHeight = Math.Max(1.0, lower.Y - upper.Y);
-        double cornerPullMax = Math.Max(mouthHeight * 0.76, mouthWidth * 0.060);
-        double cornerPull = CenteredStrength(isLeft ? s.LeftMouthCorner : s.RightMouthCorner, cornerPullMax);
+        double cornerPullMax = Math.Max(mouthHeight * 0.95, mouthWidth * 0.105);
+        double cornerPull = CenteredStrength(isLeft ? s.LeftMouthCorner : s.RightMouthCorner, cornerPullMax) * 1.30;
         if (Math.Abs(cornerPull) < 0.01)
         {
             return;
         }
 
-        double cornerDx = (isLeft ? -1.0 : 1.0) * cornerPull * 0.30;
-        double cornerDy = -cornerPull * 0.70;
+        double cornerDx = (isLeft ? -1.0 : 1.0) * cornerPull * 0.58;
+        double cornerDy = -cornerPull * 0.78;
         Dictionary<int, (double Dx, double Dy)> cornerDeltas = [];
 
         AddMouthCornerVectorDeltas(cornerDeltas, cornerDx, cornerDy, isLeft);
         AddMouthDeltaControls(landmarks, cornerDeltas, controls, affectedPoints);
+        AddMouthCornerDestinationBoosts(landmarks, isLeft, cornerDx, cornerDy, controls, affectedPoints);
         AddMouthCornerBrushControls(landmarks, isLeft, cornerDx, cornerDy, controls, affectedPoints);
         AddMouthCornerBodyAnchors(landmarks, isLeft, controls, affectedPoints);
     }
@@ -1565,24 +1673,58 @@ public partial class MainWindow
         (int Index, double XWeight, double YWeight)[] entries = isLeft
             ? [
                 (61, 1.00, 1.00),
-                (185, 0.42, 0.66),
-                (146, 0.25, 0.54),
-                (57, 0.10, 0.16),
-                (76, 0.10, 0.16),
-                (186, 0.10, 0.16)
+                (185, 0.66, 0.82),
+                (146, 0.52, 0.72),
+                (57, 0.32, 0.42),
+                (76, 0.30, 0.44),
+                (186, 0.22, 0.32)
             ]
             : [
                 (291, 1.00, 1.00),
-                (409, 0.42, 0.66),
-                (375, 0.25, 0.54),
-                (287, 0.10, 0.16),
-                (306, 0.10, 0.16),
-                (410, 0.10, 0.16)
+                (409, 0.66, 0.82),
+                (375, 0.52, 0.72),
+                (287, 0.32, 0.42),
+                (306, 0.30, 0.44),
+                (410, 0.22, 0.32)
             ];
 
         foreach ((int index, double xWeight, double yWeight) in entries)
         {
             AddMouthDelta(deltas, index, dx * xWeight, dy * yWeight);
+        }
+    }
+
+    private static void AddMouthCornerDestinationBoosts(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        double dx,
+        double dy,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        (int Index, double XWeight, double YWeight, int Repeat)[] entries = isLeft
+            ? [
+                (61, 1.00, 1.00, 3),
+                (185, 0.66, 0.82, 2),
+                (146, 0.52, 0.72, 2)
+            ]
+            : [
+                (291, 1.00, 1.00, 3),
+                (409, 0.66, 0.82, 2),
+                (375, 0.52, 0.72, 2)
+            ];
+
+        foreach ((int index, double xWeight, double yWeight, int repeat) in entries)
+        {
+            if (!TryGetLandmark(landmarks, index, out Point point))
+            {
+                continue;
+            }
+
+            for (int i = 0; i < repeat; i++)
+            {
+                AddControl(controls, affectedPoints, point, dx * xWeight, dy * yWeight);
+            }
         }
     }
 
@@ -1606,22 +1748,22 @@ public partial class MainWindow
 
         if (TryGetLandmark(landmarks, upperCornerIndex, out Point upperCorner))
         {
-            AddControl(controls, affectedPoints, AveragePoints(corner, upperCorner), dx * 0.60, dy * 0.80);
+            AddControl(controls, affectedPoints, AveragePoints(corner, upperCorner), dx * 0.72, dy * 0.82);
         }
 
         if (TryGetLandmark(landmarks, lowerCornerIndex, out Point lowerCorner))
         {
-            AddControl(controls, affectedPoints, AveragePoints(corner, lowerCorner), dx * 0.42, dy * 0.62);
+            AddControl(controls, affectedPoints, AveragePoints(corner, lowerCorner), dx * 0.58, dy * 0.68);
         }
 
         if (TryGetLandmark(landmarks, upperFollowerIndex, out Point upperFollower))
         {
-            AddControl(controls, affectedPoints, AveragePoints(corner, upperFollower), dx * 0.36, dy * 0.48);
+            AddControl(controls, affectedPoints, AveragePoints(corner, upperFollower), dx * 0.38, dy * 0.42);
         }
 
         if (TryGetLandmark(landmarks, lowerFollowerIndex, out Point lowerFollower))
         {
-            AddControl(controls, affectedPoints, AveragePoints(corner, lowerFollower), dx * 0.30, dy * 0.40);
+            AddControl(controls, affectedPoints, AveragePoints(corner, lowerFollower), dx * 0.36, dy * 0.42);
         }
 
         if (TryGetLandmark(landmarks, upperCornerIndex, out upperCorner) &&
@@ -1631,8 +1773,8 @@ public partial class MainWindow
                 controls,
                 affectedPoints,
                 AveragePoints(corner, upperCorner, lowerCorner),
-                dx * 0.44,
-                dy * 0.62);
+                dx * 0.58,
+                dy * 0.66);
         }
     }
 
@@ -1642,21 +1784,104 @@ public partial class MainWindow
         List<FaceShapeControlPoint> controls,
         List<Point> affectedPoints)
     {
-        int[] anchorIndices = isLeft
-            ? [78, 95, 88, 178, 87, 82, 81, 80, 191]
-            : [308, 324, 318, 402, 317, 312, 311, 310, 415];
+        int[] lowerLineIndices = isLeft
+            ? [78, 95, 88, 178, 87]
+            : [308, 324, 318, 402, 317];
+        int[] upperLineIndices = isLeft
+            ? [78, 191, 80, 81, 82]
+            : [308, 415, 310, 311, 312];
 
-        foreach (int index in anchorIndices)
+        foreach (int index in lowerLineIndices)
         {
-            if (!TryGetLandmark(landmarks, index, out Point point))
+            AddMouthCornerAnchorPoint(landmarks, index, controls, affectedPoints);
+        }
+
+        foreach (int index in upperLineIndices)
+        {
+            AddMouthCornerAnchorPoint(landmarks, index, controls, affectedPoints);
+        }
+
+        AddMouthCornerAnchorSegments(landmarks, lowerLineIndices, controls, affectedPoints);
+        AddMouthCornerAnchorSegments(landmarks, upperLineIndices, controls, affectedPoints);
+        AddMouthCornerInnerGuardAnchors(landmarks, isLeft, controls, affectedPoints);
+    }
+
+    private static void AddMouthCornerAnchorPoint(
+        IReadOnlyDictionary<int, Point> landmarks,
+        int index,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        if (!TryGetLandmark(landmarks, index, out Point point))
+        {
+            return;
+        }
+
+        affectedPoints.Add(point);
+        int repeatCount = IsMouthInnerCornerAnchor(index) ? 32 : 14;
+        for (int repeat = 0; repeat < repeatCount; repeat++)
+        {
+            AddSupportControl(controls, point, 0, 0);
+        }
+    }
+
+    private static void AddMouthCornerAnchorSegments(
+        IReadOnlyDictionary<int, Point> landmarks,
+        IReadOnlyList<int> indices,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        for (int i = 0; i < indices.Count - 1; i++)
+        {
+            if (!TryGetLandmark(landmarks, indices[i], out Point start) ||
+                !TryGetLandmark(landmarks, indices[i + 1], out Point end))
             {
                 continue;
             }
 
-            affectedPoints.Add(point);
-            AddSupportControl(controls, point, 0, 0);
-            AddSupportControl(controls, point, 0, 0);
+            Point midpoint = new((start.X + end.X) * 0.5, (start.Y + end.Y) * 0.5);
+            affectedPoints.Add(midpoint);
+            for (int repeat = 0; repeat < 12; repeat++)
+            {
+                AddSupportControl(controls, midpoint, 0, 0);
+            }
         }
+    }
+
+    private static void AddMouthCornerInnerGuardAnchors(
+        IReadOnlyDictionary<int, Point> landmarks,
+        bool isLeft,
+        List<FaceShapeControlPoint> controls,
+        List<Point> affectedPoints)
+    {
+        int cornerIndex = isLeft ? 61 : 291;
+        int[] innerIndices = isLeft ? [78, 95] : [308, 324];
+        if (!TryGetLandmark(landmarks, cornerIndex, out Point corner))
+        {
+            return;
+        }
+
+        foreach (int innerIndex in innerIndices)
+        {
+            if (!TryGetLandmark(landmarks, innerIndex, out Point inner))
+            {
+                continue;
+            }
+
+            Point guard = new(
+                (inner.X * 0.72) + (corner.X * 0.28),
+                (inner.Y * 0.72) + (corner.Y * 0.28));
+            affectedPoints.Add(guard);
+            for (int repeat = 0; repeat < 18; repeat++)
+            {
+                AddSupportControl(controls, guard, 0, 0);
+            }
+        }
+    }
+
+    private static bool IsMouthInnerCornerAnchor(int index)
+    {
+        return index is 78 or 95 or 308 or 324;
     }
 
     private static void AddMouthDelta(
@@ -1823,6 +2048,11 @@ public partial class MainWindow
         }
 
         return new Point(x / points.Count, y / points.Count);
+    }
+
+    private static double Lerp(double start, double end, double amount)
+    {
+        return start + ((end - start) * amount);
     }
 
     private static double Strength(double value, double maxAmount)
