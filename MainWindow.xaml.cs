@@ -413,6 +413,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DataContext = this;
         AddHandler(Expander.CollapsedEvent, new RoutedEventHandler(RetouchExpander_Collapsed));
         PhotoAdjustRetouchTab.CurvePreviewChanged += PhotoAdjustRetouchTab_CurvePreviewChanged;
+        SkinRetouchTab.SkinAdjustmentPreviewChanged += SkinRetouchTab_SkinAdjustmentPreviewChanged;
+        SkinRetouchTab.SkinAdjustmentCommitted += SkinRetouchTab_SkinAdjustmentCommitted;
+        SkinRetouchTab.SkinResetRequested += SkinRetouchTab_SkinResetRequested;
+        BlemishRetouchTab.BlemishAdjustmentPreviewChanged += BlemishRetouchTab_BlemishAdjustmentPreviewChanged;
+        BlemishRetouchTab.BlemishAdjustmentCommitted += BlemishRetouchTab_BlemishAdjustmentCommitted;
+        BlemishRetouchTab.BlemishResetRequested += BlemishRetouchTab_BlemishResetRequested;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         FaceShapeRetouchTab.FaceShapeControlAdjustmentPreviewChanged += FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged;
         FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
@@ -492,6 +498,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
             ClearFaceDetailRetouchSession();
+            ClearSkinRetouchSession();
+            ClearBlemishRetouchSession();
             ClearRectangleSelection();
             ClearPathTool();
             ClearTypeTextTool();
@@ -517,6 +525,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FaceShapeRetouchTab?.ResetForPhotoChange();
         FaceDetailRetouchTab?.ResetForPhotoChange();
         HairRetouchTab?.ResetForPhotoChange();
+        ClearRetouchSectionStateForPhotoChange();
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeProjectionDebugOverlay();
     }
@@ -6093,6 +6102,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private EditorHistoryState CaptureEditorHistoryState(PhotoItem photo, string title, string detail)
     {
+        PrepareRetouchSectionStateForHistoryCapture(title);
         BitmapSource? adjustedImage = photo.Image is BitmapSource image && !ReferenceEquals(image, photo.BaseImage)
             ? CloneBitmapSource(image)
             : null;
@@ -6117,7 +6127,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 item.TextAlignment));
         }
 
-        return new EditorHistoryState(photo.Path, adjustedImage, textItems, title, detail, DateTime.Now);
+        return new EditorHistoryState(
+            photo.Path,
+            adjustedImage,
+            textItems,
+            CaptureSkinSectionState(),
+            CaptureBlemishSectionState(),
+            title,
+            detail,
+            DateTime.Now);
     }
 
     private void TryUndoEditorHistory()
@@ -6259,6 +6277,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Detail = state.Detail,
                 Timestamp = state.Timestamp,
                 AdjustedImageFile = adjustedImageFileName,
+                SkinState = state.SkinState,
+                BlemishState = state.BlemishState,
                 TextItems = state.TextItems.Select(PersistPreviewTextItemSnapshot).ToList()
             });
         }
@@ -6341,6 +6361,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 photoPath,
                 adjustedImage,
                 persistedState.TextItems.Select(RestorePreviewTextItemSnapshot).ToList(),
+                persistedState.SkinState,
+                persistedState.BlemishState,
                 persistedState.Title,
                 persistedState.Detail,
                 persistedState.Timestamp));
@@ -6449,6 +6471,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
             ClearFaceDetailRetouchSession();
+            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState);
 
             if (snapshot.AdjustedImage is null)
             {
@@ -6519,6 +6542,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         UpdateFaceShapeHistoryResetState();
         UpdateFaceDetailHistoryResetState();
+        UpdateSkinHistoryResetState();
+        UpdateBlemishHistoryResetState();
     }
 
     private sealed class EditorHistorySession
@@ -6558,6 +6583,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public DateTime Timestamp { get; set; }
 
         public string? AdjustedImageFile { get; set; }
+
+        public SkinAdjustmentSnapshot? SkinState { get; set; }
+
+        public BlemishAdjustmentSnapshot? BlemishState { get; set; }
 
         public List<PersistedPreviewTextItemSnapshot> TextItems { get; set; } = [];
     }
@@ -6599,6 +6628,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             string photoPath,
             BitmapSource? adjustedImage,
             IReadOnlyList<PreviewTextItemSnapshot> textItems,
+            SkinAdjustmentSnapshot? skinState,
+            BlemishAdjustmentSnapshot? blemishState,
             string title,
             string detail,
             DateTime timestamp)
@@ -6606,6 +6637,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PhotoPath = photoPath;
             AdjustedImage = adjustedImage;
             TextItems = textItems;
+            SkinState = skinState;
+            BlemishState = blemishState;
             Title = title;
             Detail = detail;
             Timestamp = timestamp;
@@ -6616,6 +6649,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public BitmapSource? AdjustedImage { get; }
 
         public IReadOnlyList<PreviewTextItemSnapshot> TextItems { get; }
+
+        public SkinAdjustmentSnapshot? SkinState { get; }
+
+        public BlemishAdjustmentSnapshot? BlemishState { get; }
 
         public string Title { get; }
 

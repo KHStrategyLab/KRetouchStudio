@@ -97,6 +97,12 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <Style TargetType="{x:Type Slider}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="BlemishSlider_PreviewMouseLeftButtonDown"/>
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="BlemishSlider_PreviewMouseLeftButtonUp"/>
+            <EventSetter Event="ValueChanged" Handler="BlemishSlider_ValueChanged"/>
+            <EventSetter Event="KeyUp" Handler="BlemishSlider_KeyUp"/>
+        </Style>
     </UserControl.Resources>
 
     <Expander x:Name="BlemishExpander" Header="Blemish" Expanded="Expander_Expanded">
@@ -143,126 +149,126 @@
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=AcnePanelVisibility}">
                 <TextBlock Text="Acne" Style="{StaticResource BlemishSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Reduce" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneReduce, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="AcneReduce" Value="{Binding ElementName=Root, Path=AcneReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Redness" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneRedness, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneRedness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="AcneRedness" Value="{Binding ElementName=Root, Path=AcneRedness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Bump" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=AcneBump, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=AcneBump, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="AcneBump" Value="{Binding ElementName=Root, Path=AcneBump, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=SpotPanelVisibility}">
                 <TextBlock Text="Spot" Style="{StaticResource BlemishSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Remove" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotRemove, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotRemove, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="SpotRemove" Value="{Binding ElementName=Root, Path=SpotRemove, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="SpotBlend" Value="{Binding ElementName=Root, Path=SpotBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Texture Match" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=SpotTextureMatch, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=SpotTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="SpotTextureMatch" Value="{Binding ElementName=Root, Path=SpotTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=MolePanelVisibility}">
                 <TextBlock Text="Mole" Style="{StaticResource BlemishSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Reduce" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleReduce, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="MoleReduce" Value="{Binding ElementName=Root, Path=MoleReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Protect" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleProtect, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="MoleProtect" Value="{Binding ElementName=Root, Path=MoleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Edge Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=MoleEdgeBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=MoleEdgeBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="MoleEdgeBlend" Value="{Binding ElementName=Root, Path=MoleEdgeBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=FrecklePanelVisibility}">
                 <TextBlock Text="Freckle" Style="{StaticResource BlemishSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Fade" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleFade, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleFade, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="FreckleFade" Value="{Binding ElementName=Root, Path=FreckleFade, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Density" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleDensity, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="FreckleDensity" Value="{Binding ElementName=Root, Path=FreckleDensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Protect" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FreckleProtect, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=FreckleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="FreckleProtect" Value="{Binding ElementName=Root, Path=FreckleProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=ScarPanelVisibility}">
                 <TextBlock Text="Scar" Style="{StaticResource BlemishSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Soften" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarSoften, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarSoften, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="ScarSoften" Value="{Binding ElementName=Root, Path=ScarSoften, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Tone Blend" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarToneBlend, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarToneBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="ScarToneBlend" Value="{Binding ElementName=Root, Path=ScarToneBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Texture Match" Style="{StaticResource BlemishRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ScarTextureMatch, StringFormat={}{0:0}}" Style="{StaticResource BlemishValueStyle}"/>
-                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Value="{Binding ElementName=Root, Path=ScarTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1" Tag="ScarTextureMatch" Value="{Binding ElementName=Root, Path=ScarTextureMatch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
         </StackPanel>

@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace KRetouchStudio.Tabs;
 
@@ -20,18 +23,21 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
     private double _toneLift;
     private double _colorCast;
     private double _softness;
-    private double _textureProtect = 50;
-    private double _detailReturn = 50;
+    private double _textureProtect;
+    private double _detailReturn;
     private double _poreReduce;
-    private double _fineTexture = 50;
-    private double _poreEdgeProtect = 50;
+    private double _fineTexture;
+    private double _poreEdgeProtect;
     private double _redReduce;
     private double _toneBlend;
-    private double _naturalColor = 50;
+    private double _naturalColor;
     private double _shineReduce;
-    private double _highlightProtect = 50;
-    private double _shineTextureReturn = 50;
+    private double _highlightProtect;
+    private double _shineTextureReturn;
     private bool _canResetSkinTab;
+    private bool _isSliderInteracting;
+    private string? _lastPreviewOperationId;
+    private double _lastPreviewValue = double.NaN;
 
     public SkinTabView()
     {
@@ -39,6 +45,12 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<SkinAdjustmentEventArgs>? SkinAdjustmentPreviewChanged;
+
+    public event EventHandler<SkinAdjustmentEventArgs>? SkinAdjustmentCommitted;
+
+    public event EventHandler? SkinResetRequested;
 
     public bool IsToneModeActive => _activeSkinMode == SkinMode.Tone;
 
@@ -63,7 +75,7 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
     public bool CanResetSkinTab
     {
         get => _canResetSkinTab;
-        private set
+        set
         {
             if (_canResetSkinTab == value)
             {
@@ -175,9 +187,44 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
         ResetSkinTabValues();
     }
 
-    private void ResetSkinTabButton_Click(object sender, RoutedEventArgs e)
+    public void ResetAfterHistoryReset()
     {
         ResetSkinTabValues();
+    }
+
+    public void RestoreSnapshot(SkinAdjustmentSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ResetSkinTabValues();
+            return;
+        }
+
+        _evenTone = snapshot.EvenTone;
+        _toneLift = snapshot.ToneLift;
+        _colorCast = snapshot.ColorCast;
+        _softness = snapshot.Softness;
+        _textureProtect = snapshot.TextureProtect;
+        _detailReturn = snapshot.DetailReturn;
+        _poreReduce = snapshot.PoreReduce;
+        _fineTexture = snapshot.FineTexture;
+        _poreEdgeProtect = snapshot.PoreEdgeProtect;
+        _redReduce = snapshot.RedReduce;
+        _toneBlend = snapshot.ToneBlend;
+        _naturalColor = snapshot.NaturalColor;
+        _shineReduce = snapshot.ShineReduce;
+        _highlightProtect = snapshot.HighlightProtect;
+        _shineTextureReturn = snapshot.ShineTextureReturn;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+        UpdateCanResetSkinTab();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetSkinTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        SkinResetRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -188,19 +235,141 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
         _toneLift = 0;
         _colorCast = 0;
         _softness = 0;
-        _textureProtect = 50;
-        _detailReturn = 50;
+        _textureProtect = 0;
+        _detailReturn = 0;
         _poreReduce = 0;
-        _fineTexture = 50;
-        _poreEdgeProtect = 50;
+        _fineTexture = 0;
+        _poreEdgeProtect = 0;
         _redReduce = 0;
         _toneBlend = 0;
-        _naturalColor = 50;
+        _naturalColor = 0;
         _shineReduce = 0;
-        _highlightProtect = 50;
-        _shineTextureReturn = 50;
+        _highlightProtect = 0;
+        _shineTextureReturn = 0;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
         CanResetSkinTab = false;
         OnPropertyChanged(string.Empty);
+    }
+
+    private void SkinSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSliderInteracting = true;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+    }
+
+    private void SkinSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSliderInteracting = false;
+        RaiseSkinCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void SkinSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting)
+        {
+            _isSliderInteracting = true;
+            _lastPreviewOperationId = null;
+            _lastPreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastPreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastPreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastPreviewOperationId = operationId;
+        _lastPreviewValue = previewValue;
+        RaiseSkinPreview(operationId, previewValue);
+    }
+
+    private void SkinSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseSkinCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void RaiseSkinPreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        SkinAdjustmentPreviewChanged?.Invoke(
+            this,
+            new SkinAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseSkinCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        SkinAdjustmentCommitted?.Invoke(
+            this,
+            new SkinAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private SkinAdjustmentSnapshot CreateSnapshot()
+    {
+        return new SkinAdjustmentSnapshot(
+            EvenTone,
+            ToneLift,
+            ColorCast,
+            Softness,
+            TextureProtect,
+            DetailReturn,
+            PoreReduce,
+            FineTexture,
+            PoreEdgeProtect,
+            RedReduce,
+            ToneBlend,
+            NaturalColor,
+            ShineReduce,
+            HighlightProtect,
+            ShineTextureReturn);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -294,17 +463,17 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
             IsNonDefault(_toneLift, 0) ||
             IsNonDefault(_colorCast, 0) ||
             IsNonDefault(_softness, 0) ||
-            IsNonDefault(_textureProtect, 50) ||
-            IsNonDefault(_detailReturn, 50) ||
+            IsNonDefault(_textureProtect, 0) ||
+            IsNonDefault(_detailReturn, 0) ||
             IsNonDefault(_poreReduce, 0) ||
-            IsNonDefault(_fineTexture, 50) ||
-            IsNonDefault(_poreEdgeProtect, 50) ||
+            IsNonDefault(_fineTexture, 0) ||
+            IsNonDefault(_poreEdgeProtect, 0) ||
             IsNonDefault(_redReduce, 0) ||
             IsNonDefault(_toneBlend, 0) ||
-            IsNonDefault(_naturalColor, 50) ||
+            IsNonDefault(_naturalColor, 0) ||
             IsNonDefault(_shineReduce, 0) ||
-            IsNonDefault(_highlightProtect, 50) ||
-            IsNonDefault(_shineTextureReturn, 50);
+            IsNonDefault(_highlightProtect, 0) ||
+            IsNonDefault(_shineTextureReturn, 0);
     }
 
     private static bool IsNonDefault(double value, double defaultValue)
@@ -317,3 +486,32 @@ public partial class SkinTabView : System.Windows.Controls.UserControl, INotifyP
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class SkinAdjustmentEventArgs(
+    string operationId,
+    double value,
+    SkinAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public SkinAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record SkinAdjustmentSnapshot(
+    double EvenTone,
+    double ToneLift,
+    double ColorCast,
+    double Softness,
+    double TextureProtect,
+    double DetailReturn,
+    double PoreReduce,
+    double FineTexture,
+    double PoreEdgeProtect,
+    double RedReduce,
+    double ToneBlend,
+    double NaturalColor,
+    double ShineReduce,
+    double HighlightProtect,
+    double ShineTextureReturn);

@@ -97,6 +97,12 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <Style x:Key="SkinSliderStyle" TargetType="{x:Type Slider}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="SkinSlider_PreviewMouseLeftButtonDown"/>
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="SkinSlider_PreviewMouseLeftButtonUp"/>
+            <EventSetter Event="ValueChanged" Handler="SkinSlider_ValueChanged"/>
+            <EventSetter Event="KeyUp" Handler="SkinSlider_KeyUp"/>
+        </Style>
     </UserControl.Resources>
 
     <Expander x:Name="SkinExpander" Header="Skin" Expanded="Expander_Expanded">
@@ -143,7 +149,7 @@
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=TonePanelVisibility}">
                 <TextBlock Text="Tone" Style="{StaticResource SkinSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -155,9 +161,11 @@
                     <TextBlock Text="Even Tone" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=EvenTone, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="EvenTone"
                             Value="{Binding ElementName=Root, Path=EvenTone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -169,9 +177,11 @@
                     <TextBlock Text="Tone Lift" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ToneLift, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="ToneLift"
                             Value="{Binding ElementName=Root, Path=ToneLift, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -183,13 +193,15 @@
                     <TextBlock Text="Color Cast" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ColorCast, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="ColorCast"
                             Value="{Binding ElementName=Root, Path=ColorCast, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=SmoothPanelVisibility}">
                 <TextBlock Text="Smooth" Style="{StaticResource SkinSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -201,9 +213,11 @@
                     <TextBlock Text="Softness" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=Softness, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="Softness"
                             Value="{Binding ElementName=Root, Path=Softness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -215,9 +229,11 @@
                     <TextBlock Text="Texture Protect" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=TextureProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="TextureProtect"
                             Value="{Binding ElementName=Root, Path=TextureProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -229,13 +245,15 @@
                     <TextBlock Text="Detail Return" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=DetailReturn, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="DetailReturn"
                             Value="{Binding ElementName=Root, Path=DetailReturn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=PorePanelVisibility}">
                 <TextBlock Text="Pores" Style="{StaticResource SkinSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -247,9 +265,11 @@
                     <TextBlock Text="Pore Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=PoreReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="PoreReduce"
                             Value="{Binding ElementName=Root, Path=PoreReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -261,9 +281,11 @@
                     <TextBlock Text="Fine Texture" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=FineTexture, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="FineTexture"
                             Value="{Binding ElementName=Root, Path=FineTexture, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -275,13 +297,15 @@
                     <TextBlock Text="Edge Protect" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=PoreEdgeProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="PoreEdgeProtect"
                             Value="{Binding ElementName=Root, Path=PoreEdgeProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=RednessPanelVisibility}">
                 <TextBlock Text="Redness" Style="{StaticResource SkinSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -293,9 +317,11 @@
                     <TextBlock Text="Red Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=RedReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="RedReduce"
                             Value="{Binding ElementName=Root, Path=RedReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -307,9 +333,11 @@
                     <TextBlock Text="Tone Blend" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ToneBlend, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="ToneBlend"
                             Value="{Binding ElementName=Root, Path=ToneBlend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -321,13 +349,15 @@
                     <TextBlock Text="Natural Color" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=NaturalColor, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="NaturalColor"
                             Value="{Binding ElementName=Root, Path=NaturalColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Visibility="{Binding ElementName=Root, Path=ShinePanelVisibility}">
                 <TextBlock Text="Shine" Style="{StaticResource SkinSectionLabelStyle}"/>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -339,9 +369,11 @@
                     <TextBlock Text="Shine Reduce" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ShineReduce, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="ShineReduce"
                             Value="{Binding ElementName=Root, Path=ShineReduce, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -353,9 +385,11 @@
                     <TextBlock Text="Highlight Protect" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=HighlightProtect, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="HighlightProtect"
                             Value="{Binding ElementName=Root, Path=HighlightProtect, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                <Grid Margin="0,0,0,8" IsEnabled="False">
+                <Grid Margin="0,0,0,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -367,6 +401,8 @@
                     <TextBlock Text="Texture Return" Style="{StaticResource SkinRowLabelStyle}"/>
                     <TextBlock Grid.Column="1" Text="{Binding ElementName=Root, Path=ShineTextureReturn, StringFormat={}{0:0}}" Style="{StaticResource SkinValueStyle}"/>
                     <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="100" TickFrequency="1"
+                            Style="{StaticResource SkinSliderStyle}"
+                            Tag="ShineTextureReturn"
                             Value="{Binding ElementName=Root, Path=ShineTextureReturn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
             </StackPanel>

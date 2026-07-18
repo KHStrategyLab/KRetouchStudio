@@ -75,8 +75,8 @@ All sliders are unsigned:
 
 Do not interpret these sliders as `-100..100`.
 
-The first UI pass is parameter-only.
-Image processing can be connected later through documented mask and work-area routing.
+The first rough image-processing pass is connected.
+All 15 sliders use `0` as their neutral default and dispatch the same state snapshot to preview and commit.
 
 ## Button Definitions
 
@@ -129,13 +129,43 @@ Skin must stay separate from:
 - `Makeup`: base, brow, eye, cheek, and lip styling.
 - `Face Shape` / `Face Detail`: shape and landmark-driven structure edits.
 
-## Future Routing
+## Current Routing
 
-Later engine wiring should resolve:
+The rough implementation now uses:
+
+- cached MediaPipe 478-point face landmarks
+- an inward-feathered face-oval skin mask
+- protection regions for eyes, brows, lips, and nostril openings
+- a reduced skin-color gate for dark or strongly saturated pixels
+- proxy rendering during slider drag
+- full-resolution rendering on commit
+- one replaceable `Skin` history state while Skin remains the current connected section
+- persisted Skin slider state for history undo, redo, and session reload
+
+The five groups have separate rough pixel behavior:
+
+- `Tone`: broad local-tone balance, conservative lift, and color-cast neutralization
+- `Smooth`: fine/broad softening with texture protection and detail return
+- `Pores`: fine-radius reduction, texture return, and edge protection
+- `Redness`: red-excess reduction, local tone blend, and natural-color restoration
+- `Shine`: local highlight reduction, highlight protection, and texture return
+
+## Transition Limit
+
+`Skin` and `Blemish` are on the new connected-section route.
+They recompose in `Skin -> Blemish` order, and either tab can reset while preserving the other active section.
+If a legacy flattened tool commits afterward, the connected result is baked into that image and both live section states are cleared.
+This prevents a later tab reset from deleting newer unrelated edits, but a baked connected result cannot yet be removed independently.
+
+Final selected-tab reset semantics require `Wrinkle`, `Hair`, `Makeup`, `Face Shape`, and `Face Detail` to move onto ordered section recomposition.
+
+## Future Mask Routing
+
+Later mask-engine wiring should replace or refine the rough landmark mask with:
 
 - `SkinMask`
 - `SkinSafeMask`
 - `FaceSkinMask`
 - protect masks for eyes, brows, lashes, lips, hair, facial hair, clothing, and accessories
 
-If a required mask or work area is unavailable, the operation should no-op and avoid writing history.
+If landmarks, a required mask, or a work area is unavailable, the operation should no-op and avoid writing history.

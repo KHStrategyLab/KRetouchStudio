@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace KRetouchStudio.Tabs;
 
@@ -20,18 +23,21 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
     private double _acneRedness;
     private double _acneBump;
     private double _spotRemove;
-    private double _spotBlend = 50;
-    private double _spotTextureMatch = 50;
+    private double _spotBlend;
+    private double _spotTextureMatch;
     private double _moleReduce;
-    private double _moleProtect = 50;
-    private double _moleEdgeBlend = 50;
+    private double _moleProtect;
+    private double _moleEdgeBlend;
     private double _freckleFade;
-    private double _freckleDensity = 50;
-    private double _freckleProtect = 50;
+    private double _freckleDensity;
+    private double _freckleProtect;
     private double _scarSoften;
     private double _scarToneBlend;
-    private double _scarTextureMatch = 50;
+    private double _scarTextureMatch;
     private bool _canResetBlemishTab;
+    private bool _isSliderInteracting;
+    private string? _lastPreviewOperationId;
+    private double _lastPreviewValue = double.NaN;
 
     public BlemishTabView()
     {
@@ -39,6 +45,12 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<BlemishAdjustmentEventArgs>? BlemishAdjustmentPreviewChanged;
+
+    public event EventHandler<BlemishAdjustmentEventArgs>? BlemishAdjustmentCommitted;
+
+    public event EventHandler? BlemishResetRequested;
 
     public bool IsAcneModeActive => _activeBlemishMode == BlemishMode.Acne;
     public bool IsSpotModeActive => _activeBlemishMode == BlemishMode.Spot;
@@ -55,7 +67,7 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
     public bool CanResetBlemishTab
     {
         get => _canResetBlemishTab;
-        private set
+        set
         {
             if (_canResetBlemishTab == value)
             {
@@ -93,9 +105,44 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
         ResetBlemishTabValues();
     }
 
-    private void ResetBlemishTabButton_Click(object sender, RoutedEventArgs e)
+    public void ResetAfterHistoryReset()
     {
         ResetBlemishTabValues();
+    }
+
+    public void RestoreSnapshot(BlemishAdjustmentSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ResetBlemishTabValues();
+            return;
+        }
+
+        _acneReduce = snapshot.AcneReduce;
+        _acneRedness = snapshot.AcneRedness;
+        _acneBump = snapshot.AcneBump;
+        _spotRemove = snapshot.SpotRemove;
+        _spotBlend = snapshot.SpotBlend;
+        _spotTextureMatch = snapshot.SpotTextureMatch;
+        _moleReduce = snapshot.MoleReduce;
+        _moleProtect = snapshot.MoleProtect;
+        _moleEdgeBlend = snapshot.MoleEdgeBlend;
+        _freckleFade = snapshot.FreckleFade;
+        _freckleDensity = snapshot.FreckleDensity;
+        _freckleProtect = snapshot.FreckleProtect;
+        _scarSoften = snapshot.ScarSoften;
+        _scarToneBlend = snapshot.ScarToneBlend;
+        _scarTextureMatch = snapshot.ScarTextureMatch;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+        UpdateCanResetBlemishTab();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetBlemishTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        BlemishResetRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -106,19 +153,141 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
         _acneRedness = 0;
         _acneBump = 0;
         _spotRemove = 0;
-        _spotBlend = 50;
-        _spotTextureMatch = 50;
+        _spotBlend = 0;
+        _spotTextureMatch = 0;
         _moleReduce = 0;
-        _moleProtect = 50;
-        _moleEdgeBlend = 50;
+        _moleProtect = 0;
+        _moleEdgeBlend = 0;
         _freckleFade = 0;
-        _freckleDensity = 50;
-        _freckleProtect = 50;
+        _freckleDensity = 0;
+        _freckleProtect = 0;
         _scarSoften = 0;
         _scarToneBlend = 0;
-        _scarTextureMatch = 50;
+        _scarTextureMatch = 0;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
         CanResetBlemishTab = false;
         OnPropertyChanged(string.Empty);
+    }
+
+    private void BlemishSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSliderInteracting = true;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+    }
+
+    private void BlemishSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSliderInteracting = false;
+        RaiseBlemishCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void BlemishSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting)
+        {
+            _isSliderInteracting = true;
+            _lastPreviewOperationId = null;
+            _lastPreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastPreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastPreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastPreviewOperationId = operationId;
+        _lastPreviewValue = previewValue;
+        RaiseBlemishPreview(operationId, previewValue);
+    }
+
+    private void BlemishSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseBlemishCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void RaiseBlemishPreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        BlemishAdjustmentPreviewChanged?.Invoke(
+            this,
+            new BlemishAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseBlemishCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        BlemishAdjustmentCommitted?.Invoke(
+            this,
+            new BlemishAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private BlemishAdjustmentSnapshot CreateSnapshot()
+    {
+        return new BlemishAdjustmentSnapshot(
+            AcneReduce,
+            AcneRedness,
+            AcneBump,
+            SpotRemove,
+            SpotBlend,
+            SpotTextureMatch,
+            MoleReduce,
+            MoleProtect,
+            MoleEdgeBlend,
+            FreckleFade,
+            FreckleDensity,
+            FreckleProtect,
+            ScarSoften,
+            ScarToneBlend,
+            ScarTextureMatch);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -212,17 +381,17 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
             IsNonDefault(_acneRedness, 0) ||
             IsNonDefault(_acneBump, 0) ||
             IsNonDefault(_spotRemove, 0) ||
-            IsNonDefault(_spotBlend, 50) ||
-            IsNonDefault(_spotTextureMatch, 50) ||
+            IsNonDefault(_spotBlend, 0) ||
+            IsNonDefault(_spotTextureMatch, 0) ||
             IsNonDefault(_moleReduce, 0) ||
-            IsNonDefault(_moleProtect, 50) ||
-            IsNonDefault(_moleEdgeBlend, 50) ||
+            IsNonDefault(_moleProtect, 0) ||
+            IsNonDefault(_moleEdgeBlend, 0) ||
             IsNonDefault(_freckleFade, 0) ||
-            IsNonDefault(_freckleDensity, 50) ||
-            IsNonDefault(_freckleProtect, 50) ||
+            IsNonDefault(_freckleDensity, 0) ||
+            IsNonDefault(_freckleProtect, 0) ||
             IsNonDefault(_scarSoften, 0) ||
             IsNonDefault(_scarToneBlend, 0) ||
-            IsNonDefault(_scarTextureMatch, 50);
+            IsNonDefault(_scarTextureMatch, 0);
     }
 
     private static bool IsNonDefault(double value, double defaultValue)
@@ -235,3 +404,32 @@ public partial class BlemishTabView : System.Windows.Controls.UserControl, INoti
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class BlemishAdjustmentEventArgs(
+    string operationId,
+    double value,
+    BlemishAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public BlemishAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record BlemishAdjustmentSnapshot(
+    double AcneReduce,
+    double AcneRedness,
+    double AcneBump,
+    double SpotRemove,
+    double SpotBlend,
+    double SpotTextureMatch,
+    double MoleReduce,
+    double MoleProtect,
+    double MoleEdgeBlend,
+    double FreckleFade,
+    double FreckleDensity,
+    double FreckleProtect,
+    double ScarSoften,
+    double ScarToneBlend,
+    double ScarTextureMatch);

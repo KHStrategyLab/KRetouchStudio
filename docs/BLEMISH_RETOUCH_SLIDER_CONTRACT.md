@@ -75,8 +75,8 @@ All sliders are unsigned:
 
 Do not interpret these sliders as `-100..100`.
 
-The first UI pass is parameter-only.
-Image processing can be connected later through documented mask and work-area routing.
+The first rough image-processing pass is connected.
+All 15 sliders use `0` as their neutral default and dispatch one complete Blemish state to preview and commit.
 
 ## Button Definitions
 
@@ -132,9 +132,52 @@ Blemish must stay separate from:
 `Size` is not a Blemish panel slider.
 Target size belongs to selection, brush, work-area, or local proxy tooling.
 
-## Future Routing
+## Current Routing
 
-Later engine wiring should resolve:
+The rough implementation now uses:
+
+- cached MediaPipe 478-point face landmarks
+- the same protected face-skin region used by the connected Skin pass
+- local fine and broad tone comparisons to find candidate marks
+- separate candidate weights for redness, local bumps, dark spots, likely moles, freckles, and scar-like contrast
+- proxy rendering during slider drag
+- full-resolution rendering on commit
+- persisted Blemish state for history undo, redo, reset, and session reload
+
+The five groups have separate rough behavior:
+
+- `Acne`: red/local-detail candidate reduction, redness correction, and bump softening
+- `Spot`: dark local-mark reduction, surrounding-tone blend, and detail return
+- `Mole`: stronger dark-mark reduction with preservation and edge-blend modifiers
+- `Freckle`: dark fine-mark fading with candidate-density and preservation modifiers
+- `Scar`: local contrast softening, tone blend, and texture return
+
+`Protect`, `Blend`, `Density`, and `Texture Match` are support controls.
+They are expected to have little or no visible effect when their group's primary correction slider is `0`.
+
+## Connected Section Order
+
+Skin and Blemish are recomposed from one stable section base in this order:
+
+```text
+Base image
+-> Skin
+-> Blemish
+-> Preview or commit
+```
+
+Resetting Skin preserves and rerenders active Blemish state.
+Resetting Blemish preserves and rerenders active Skin state.
+Both states are stored in every connected-section history snapshot.
+
+## Transition Limit
+
+`Wrinkle`, `Hair`, `Makeup`, `Face Shape`, and `Face Detail` are not yet on ordered section recomposition.
+A later legacy-tool commit bakes the connected Skin/Blemish result and clears both live section states so later reset cannot delete newer unrelated work.
+
+## Future Mask Routing
+
+Later mask-engine wiring should replace or refine rough pixel candidates with:
 
 - `SkinBlemishMask`
 - `BlemishSpotMask`
@@ -145,4 +188,4 @@ Later engine wiring should resolve:
 - `SkinSafeMask`
 - `FaceSkinMask`
 
-If a required mask or work area is unavailable, the operation should no-op and avoid writing history.
+If landmarks, a required mask, or a work area is unavailable, the operation should no-op and avoid writing history.
