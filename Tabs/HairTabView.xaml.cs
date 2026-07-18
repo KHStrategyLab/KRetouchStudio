@@ -1,6 +1,9 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace KRetouchStudio.Tabs;
 
@@ -33,6 +36,9 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
     private double _darken;
     private double _colorStrength;
     private bool _canResetHairTab;
+    private bool _isSliderInteracting;
+    private string? _lastPreviewOperationId;
+    private double _lastPreviewValue = double.NaN;
 
     public HairTabView()
     {
@@ -40,6 +46,12 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler<HairAdjustmentEventArgs>? HairAdjustmentPreviewChanged;
+
+    public event EventHandler<HairAdjustmentEventArgs>? HairAdjustmentCommitted;
+
+    public event EventHandler? HairResetRequested;
 
     public bool IsHairlineModeActive => _activeHairMode == HairMode.Hairline;
 
@@ -64,7 +76,7 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
     public bool CanResetHairTab
     {
         get => _canResetHairTab;
-        private set
+        set
         {
             if (_canResetHairTab == value)
             {
@@ -182,9 +194,45 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
         ResetHairTabValues();
     }
 
-    private void ResetHairTabButton_Click(object sender, RoutedEventArgs e)
+    public void ResetAfterHistoryReset()
     {
         ResetHairTabValues();
+    }
+
+    public void RestoreSnapshot(HairAdjustmentSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ResetHairTabValues();
+            return;
+        }
+
+        _hairlineHeight = snapshot.HairlineHeight;
+        _templeBalance = snapshot.TempleBalance;
+        _babyHairProtect = snapshot.BabyHairProtect;
+        _topVolume = snapshot.TopVolume;
+        _sideVolume = snapshot.SideVolume;
+        _crownLift = snapshot.CrownLift;
+        _strayHair = snapshot.StrayHair;
+        _frizz = snapshot.Frizz;
+        _edgeCleanup = snapshot.EdgeCleanup;
+        _shine = snapshot.Shine;
+        _depth = snapshot.Depth;
+        _scalpCover = snapshot.ScalpCover;
+        _tint = snapshot.Tint;
+        _warmCool = snapshot.WarmCool;
+        _darken = snapshot.Darken;
+        _colorStrength = snapshot.ColorStrength;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+        UpdateCanResetHairTab();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetHairTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        HairResetRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -207,8 +255,131 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
         _warmCool = 50;
         _darken = 0;
         _colorStrength = 0;
+        _isSliderInteracting = false;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
         CanResetHairTab = false;
         OnPropertyChanged(string.Empty);
+    }
+
+    private void HairSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isSliderInteracting = true;
+        _lastPreviewOperationId = null;
+        _lastPreviewValue = double.NaN;
+    }
+
+    private void HairSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        _isSliderInteracting = false;
+        RaiseHairCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void HairSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (sender is not Slider slider)
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting &&
+            (Mouse.LeftButton != MouseButtonState.Pressed || !slider.IsMouseCaptureWithin))
+        {
+            return;
+        }
+
+        if (!_isSliderInteracting)
+        {
+            _isSliderInteracting = true;
+            _lastPreviewOperationId = null;
+            _lastPreviewValue = double.NaN;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        string operationId = GetOperationId(slider);
+        double previewValue = Math.Clamp(Math.Round(e.NewValue), 0, 100);
+        if (string.IsNullOrWhiteSpace(operationId) ||
+            (string.Equals(_lastPreviewOperationId, operationId, StringComparison.Ordinal) &&
+             Math.Abs(_lastPreviewValue - previewValue) <= 0.001))
+        {
+            return;
+        }
+
+        _lastPreviewOperationId = operationId;
+        _lastPreviewValue = previewValue;
+        RaiseHairPreview(operationId, previewValue);
+    }
+
+    private void HairSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (!IsSliderCommitKey(e.Key) || sender is not Slider slider)
+        {
+            return;
+        }
+
+        slider.GetBindingExpression(Slider.ValueProperty)?.UpdateSource();
+        RaiseHairCommitted(GetOperationId(slider), slider.Value);
+    }
+
+    private void RaiseHairPreview(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        HairAdjustmentPreviewChanged?.Invoke(
+            this,
+            new HairAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private void RaiseHairCommitted(string operationId, double value)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+        {
+            return;
+        }
+
+        HairAdjustmentCommitted?.Invoke(
+            this,
+            new HairAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+    }
+
+    private HairAdjustmentSnapshot CreateSnapshot()
+    {
+        return new HairAdjustmentSnapshot(
+            HairlineHeight,
+            TempleBalance,
+            BabyHairProtect,
+            TopVolume,
+            SideVolume,
+            CrownLift,
+            StrayHair,
+            Frizz,
+            EdgeCleanup,
+            Shine,
+            Depth,
+            ScalpCover,
+            Tint,
+            WarmCool,
+            Darken,
+            ColorStrength);
+    }
+
+    private static string GetOperationId(Slider slider)
+    {
+        return slider.Tag as string ?? string.Empty;
+    }
+
+    private static bool IsSliderCommitKey(Key key)
+    {
+        return key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
     }
 
     private void Expander_Expanded(object sender, RoutedEventArgs e)
@@ -326,3 +497,33 @@ public partial class HairTabView : System.Windows.Controls.UserControl, INotifyP
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public sealed class HairAdjustmentEventArgs(
+    string operationId,
+    double value,
+    HairAdjustmentSnapshot snapshot) : EventArgs
+{
+    public string OperationId { get; } = operationId;
+
+    public double Value { get; } = value;
+
+    public HairAdjustmentSnapshot Snapshot { get; } = snapshot;
+}
+
+public sealed record HairAdjustmentSnapshot(
+    double HairlineHeight,
+    double TempleBalance,
+    double BabyHairProtect,
+    double TopVolume,
+    double SideVolume,
+    double CrownLift,
+    double StrayHair,
+    double Frizz,
+    double EdgeCleanup,
+    double Shine,
+    double Depth,
+    double ScalpCover,
+    double Tint,
+    double WarmCool,
+    double Darken,
+    double ColorStrength);

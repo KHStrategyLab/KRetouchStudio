@@ -160,10 +160,11 @@
                     Height="28"
                     Margin="0"
                     Padding="0"
-                    IsEnabled="False"
+                    IsEnabled="{Binding ElementName=Root, Path=CanResetBackgroundTab}"
                     ToolTipService.ShowOnDisabled="True"
                     Style="{StaticResource DummyBackgroundSlotStyle}"
-                    ToolTip="배경 전체 되돌림 준비 중"/>
+                    Click="ResetBackgroundTabButton_Click"
+                    ToolTip="Reset Background tab"/>
         </Expander.Tag>
         <StackPanel>
             <UniformGrid Columns="5" Margin="0,0,0,10">

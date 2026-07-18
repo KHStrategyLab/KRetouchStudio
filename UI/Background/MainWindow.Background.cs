@@ -17,6 +17,7 @@ public partial class MainWindow
     private const string GrayBackgroundHistoryDetail = "Gray background";
     private const string ColorBackgroundHistoryDetail = "Color background";
     private const string ImageBackgroundHistoryDetail = "Image background";
+    private const string BackgroundResetHistoryDetail = "Reset";
     private const string PersonAlphaEngineMediaPipe = "MediaPipe";
     private const string PersonAlphaEngineBiRefNet = "BiRefNet";
     private const byte WhiteBackgroundAlphaLowCutoff = 24;
@@ -303,6 +304,11 @@ public partial class MainWindow
         }
 
         await ApplyBackgroundReplacementPreviewAsync();
+    }
+
+    private async void BackgroundRetouchTab_BackgroundResetRequested(object? sender, EventArgs e)
+    {
+        await TryResetBackgroundHistoryAsync();
     }
 
     private bool CanUseBackgroundColorPickPreview()
@@ -1226,9 +1232,100 @@ public partial class MainWindow
                 _editorUndoHistory[^1].Detail.StartsWith(ImageBackgroundHistoryDetail, StringComparison.Ordinal));
     }
 
+    private static bool IsBackgroundReplacementHistory(EditorHistoryState history)
+    {
+        return string.Equals(history.Title, BackgroundReplacementHistoryTitle, StringComparison.Ordinal) &&
+               (history.Detail.StartsWith(WhiteBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                history.Detail.StartsWith(GrayBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                history.Detail.StartsWith(ColorBackgroundHistoryDetail, StringComparison.Ordinal) ||
+                history.Detail.StartsWith(ImageBackgroundHistoryDetail, StringComparison.Ordinal));
+    }
+
+    private static bool IsBackgroundResetHistory(EditorHistoryState history)
+    {
+        return string.Equals(history.Title, BackgroundReplacementHistoryTitle, StringComparison.Ordinal) &&
+               string.Equals(history.Detail, BackgroundResetHistoryDetail, StringComparison.Ordinal);
+    }
+
+    private bool HasActiveBackgroundHistory()
+    {
+        for (int i = _editorUndoHistory.Count - 1; i >= 0; i--)
+        {
+            EditorHistoryState history = _editorUndoHistory[i];
+            if (IsBackgroundResetHistory(history))
+            {
+                return false;
+            }
+
+            if (IsBackgroundReplacementHistory(history))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateBackgroundHistoryResetState()
+    {
+        if (BackgroundRetouchTab is not null)
+        {
+            BackgroundRetouchTab.CanResetBackgroundTab = HasActiveBackgroundHistory();
+        }
+    }
+
+    private async Task TryResetBackgroundHistoryAsync()
+    {
+        if (SelectedPhoto is not PhotoItem targetPhoto || !HasActiveBackgroundHistory())
+        {
+            UpdateBackgroundHistoryResetState();
+            return;
+        }
+
+        if (!TryGetSafeTabResetSource(
+                targetPhoto,
+                IsBackgroundReplacementHistory,
+                IsBackgroundResetHistory,
+                out BitmapSource resetSource,
+                out string blockingHistoryTitle))
+        {
+            MediaPipeStatusText = string.IsNullOrWhiteSpace(blockingHistoryTitle)
+                ? "Background: nothing to reset"
+                : $"Background: reset blocked to preserve {blockingHistoryTitle}";
+            UpdateBackgroundHistoryResetState();
+            return;
+        }
+
+        MediaPipeStatusText = "Background: rebuilding other tabs...";
+        BitmapSource? rebuiltImage = await RebuildConnectedRetouchSectionsAsync(
+            targetPhoto,
+            resetSource,
+            "Background Reset");
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) || rebuiltImage is null)
+        {
+            MediaPipeStatusText = "Background: reset cancelled; other tabs could not be rebuilt";
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(rebuiltImage);
+        BackgroundRetouchTab.ResetAfterHistoryReset();
+        ClearBackgroundPreview();
+        SetConnectedRetouchSessionBase(targetPhoto, resetSource);
+        UpdatePreviewLayout();
+        PushEditorHistorySnapshot(BackgroundReplacementHistoryTitle, BackgroundResetHistoryDetail);
+        UpdateBackgroundHistoryResetState();
+        MediaPipeStatusText = "Background: reset";
+    }
+
     private BitmapSource GetBackgroundReplacementRenderSource(PhotoItem photo, bool replaceCurrentBackground)
     {
-        return photo.BaseImage;
+        if (replaceCurrentBackground && _editorUndoHistory.Count >= 2)
+        {
+            EditorHistoryState previous = _editorUndoHistory[^2];
+            return previous.AdjustedImage ?? photo.BaseImage;
+        }
+
+        return GetCurrentDisplayBitmapSource(photo);
     }
 
     private void ReplaceCurrentBackgroundReplacementHistorySnapshot(PhotoItem photo, string historyDetail)

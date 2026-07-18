@@ -19,11 +19,15 @@ public partial class MainWindow
     private const string MakeupHistoryTitle = "Makeup";
     private const string MakeupHistoryDetail = "Makeup";
     private const string MakeupResetHistoryDetail = "Reset";
+    private const string HairHistoryTitle = "Hair";
+    private const string HairHistoryDetail = "Hair";
+    private const string HairResetHistoryDetail = "Reset";
 
     private SkinAdjustmentSnapshot? _committedSkinSectionState;
     private BlemishAdjustmentSnapshot? _committedBlemishSectionState;
     private WrinkleAdjustmentSnapshot? _committedWrinkleSectionState;
     private MakeupAdjustmentSnapshot? _committedMakeupSectionState;
+    private HairAdjustmentSnapshot? _committedHairSectionState;
     private PhotoItem? _connectedRetouchSessionPhoto;
     private string? _connectedRetouchSessionPath;
     private BitmapSource? _connectedRetouchSessionBaseImage;
@@ -69,25 +73,39 @@ public partial class MainWindow
         return _committedMakeupSectionState;
     }
 
+    private void SetCommittedHairSectionState(HairAdjustmentSnapshot? snapshot)
+    {
+        _committedHairSectionState = snapshot;
+    }
+
+    private HairAdjustmentSnapshot? CaptureHairSectionState()
+    {
+        return _committedHairSectionState;
+    }
+
     private void RestoreRetouchSectionState(
         SkinAdjustmentSnapshot? skinState,
         BlemishAdjustmentSnapshot? blemishState,
         WrinkleAdjustmentSnapshot? wrinkleState,
-        MakeupAdjustmentSnapshot? makeupState)
+        MakeupAdjustmentSnapshot? makeupState,
+        HairAdjustmentSnapshot? hairState)
     {
         _committedSkinSectionState = skinState;
         _committedBlemishSectionState = blemishState;
         _committedWrinkleSectionState = wrinkleState;
         _committedMakeupSectionState = makeupState;
+        _committedHairSectionState = hairState;
         ClearConnectedRetouchSession();
         ClearSkinRetouchSession();
         ClearBlemishRetouchSession();
         ClearWrinkleRetouchSession();
         ClearMakeupRetouchSession();
+        ClearHairRetouchSession();
         SkinRetouchTab?.RestoreSnapshot(skinState);
         BlemishRetouchTab?.RestoreSnapshot(blemishState);
         WrinkleRetouchTab?.RestoreSnapshot(wrinkleState);
         MakeupRetouchTab?.RestoreSnapshot(makeupState);
+        HairRetouchTab?.RestoreSnapshot(hairState);
     }
 
     private void ClearRetouchSectionStateForPhotoChange()
@@ -96,20 +114,23 @@ public partial class MainWindow
         _committedBlemishSectionState = null;
         _committedWrinkleSectionState = null;
         _committedMakeupSectionState = null;
+        _committedHairSectionState = null;
         ClearConnectedRetouchSession();
         ClearSkinRetouchSession();
         ClearBlemishRetouchSession();
         ClearWrinkleRetouchSession();
         ClearMakeupRetouchSession();
+        ClearHairRetouchSession();
     }
 
-    private void PrepareRetouchSectionStateForHistoryCapture(string historyTitle)
+    private void PrepareRetouchSectionStateForHistoryCapture(string historyTitle, string historyDetail)
     {
-        if (IsComposableRetouchSectionHistoryTitle(historyTitle) ||
+        if (IsComposableRetouchSectionHistory(historyTitle, historyDetail) ||
             (_committedSkinSectionState is null &&
              _committedBlemishSectionState is null &&
              _committedWrinkleSectionState is null &&
-             _committedMakeupSectionState is null))
+             _committedMakeupSectionState is null &&
+             _committedHairSectionState is null))
         {
             return;
         }
@@ -120,15 +141,18 @@ public partial class MainWindow
         _committedBlemishSectionState = null;
         _committedWrinkleSectionState = null;
         _committedMakeupSectionState = null;
+        _committedHairSectionState = null;
         ClearConnectedRetouchSession();
         ClearSkinRetouchSession();
         ClearBlemishRetouchSession();
         ClearWrinkleRetouchSession();
         ClearMakeupRetouchSession();
+        ClearHairRetouchSession();
         SkinRetouchTab?.RestoreSnapshot(null);
         BlemishRetouchTab?.RestoreSnapshot(null);
         WrinkleRetouchTab?.RestoreSnapshot(null);
         MakeupRetouchTab?.RestoreSnapshot(null);
+        HairRetouchTab?.RestoreSnapshot(null);
     }
 
     private static bool IsComposableRetouchSectionHistoryTitle(string historyTitle)
@@ -136,7 +160,24 @@ public partial class MainWindow
         return string.Equals(historyTitle, SkinHistoryTitle, StringComparison.Ordinal) ||
                string.Equals(historyTitle, BlemishHistoryTitle, StringComparison.Ordinal) ||
                string.Equals(historyTitle, WrinkleHistoryTitle, StringComparison.Ordinal) ||
-               string.Equals(historyTitle, MakeupHistoryTitle, StringComparison.Ordinal);
+               string.Equals(historyTitle, MakeupHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, HairHistoryTitle, StringComparison.Ordinal);
+    }
+
+    private static bool IsComposableRetouchSectionHistory(string historyTitle, string historyDetail)
+    {
+        return IsComposableRetouchSectionHistoryTitle(historyTitle) ||
+               (string.Equals(historyTitle, FaceShapeResetHistoryTitle, StringComparison.Ordinal) &&
+                string.Equals(historyDetail, FaceShapeResetHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(historyTitle, FaceDetailHistoryTitle, StringComparison.Ordinal) &&
+                string.Equals(historyDetail, FaceDetailResetHistoryDetail, StringComparison.Ordinal)) ||
+               (string.Equals(historyTitle, BackgroundReplacementHistoryTitle, StringComparison.Ordinal) &&
+                string.Equals(historyDetail, BackgroundResetHistoryDetail, StringComparison.Ordinal));
+    }
+
+    private static bool IsComposableRetouchSectionHistory(EditorHistoryState history)
+    {
+        return IsComposableRetouchSectionHistory(history.Title, history.Detail);
     }
 
     private BitmapSource GetConnectedRetouchRenderSource(PhotoItem photo)
@@ -151,9 +192,9 @@ public partial class MainWindow
 
         BitmapSource source = GetCurrentDisplayBitmapSource(photo);
         int historyIndex = _editorUndoHistory.Count - 1;
-        if (historyIndex >= 0 && IsComposableRetouchSectionHistoryTitle(_editorUndoHistory[historyIndex].Title))
+        if (historyIndex >= 0 && IsComposableRetouchSectionHistory(_editorUndoHistory[historyIndex]))
         {
-            while (historyIndex >= 0 && IsComposableRetouchSectionHistoryTitle(_editorUndoHistory[historyIndex].Title))
+            while (historyIndex >= 0 && IsComposableRetouchSectionHistory(_editorUndoHistory[historyIndex]))
             {
                 historyIndex--;
             }
@@ -176,16 +217,125 @@ public partial class MainWindow
         _connectedRetouchSessionBaseImage = null;
     }
 
+    private void SetConnectedRetouchSessionBase(PhotoItem photo, BitmapSource source)
+    {
+        _connectedRetouchSessionPhoto = photo;
+        _connectedRetouchSessionPath = photo.Path;
+        _connectedRetouchSessionBaseImage = source.IsFrozen ? source : CloneBitmapSource(source);
+    }
+
+    private bool TryGetSafeTabResetSource(
+        PhotoItem photo,
+        Func<EditorHistoryState, bool> isTargetEffect,
+        Func<EditorHistoryState, bool> isTargetReset,
+        out BitmapSource source,
+        out string blockingHistoryTitle)
+    {
+        source = photo.BaseImage;
+        blockingHistoryTitle = string.Empty;
+        int firstActiveTargetIndex = -1;
+        for (int i = 0; i < _editorUndoHistory.Count; i++)
+        {
+            EditorHistoryState history = _editorUndoHistory[i];
+            if (isTargetReset(history))
+            {
+                firstActiveTargetIndex = -1;
+                continue;
+            }
+
+            if (firstActiveTargetIndex < 0 && isTargetEffect(history))
+            {
+                firstActiveTargetIndex = i;
+            }
+        }
+
+        if (firstActiveTargetIndex < 0)
+        {
+            return false;
+        }
+
+        for (int i = firstActiveTargetIndex + 1; i < _editorUndoHistory.Count; i++)
+        {
+            EditorHistoryState history = _editorUndoHistory[i];
+            if (isTargetEffect(history) || isTargetReset(history) || IsComposableRetouchSectionHistory(history))
+            {
+                continue;
+            }
+
+            blockingHistoryTitle = history.Title;
+            return false;
+        }
+
+        if (firstActiveTargetIndex == 0)
+        {
+            source = photo.BaseImage;
+            return true;
+        }
+
+        EditorHistoryState resetBase = _editorUndoHistory[firstActiveTargetIndex - 1];
+        source = resetBase.AdjustedImage ?? photo.BaseImage;
+        return true;
+    }
+
+    private async Task<BitmapSource?> RebuildConnectedRetouchSectionsAsync(
+        PhotoItem photo,
+        BitmapSource source,
+        string statusPrefix)
+    {
+        if (!HasEffectiveConnectedRetouchAdjustment(
+                _committedSkinSectionState,
+                _committedBlemishSectionState,
+                _committedWrinkleSectionState,
+                _committedMakeupSectionState,
+                _committedHairSectionState))
+        {
+            return source.IsFrozen ? source : CloneBitmapSource(source);
+        }
+
+        int renderVersion = Interlocked.Increment(ref _connectedRetouchRenderVersion);
+        List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(photo, statusPrefix);
+        if (!ReferenceEquals(SelectedPhoto, photo) ||
+            renderVersion != _connectedRetouchRenderVersion ||
+            landmarks.Count == 0)
+        {
+            return null;
+        }
+
+        IReadOnlyDictionary<int, Point> pointMap = GetOrCreateFaceShapePointMap(
+            photo,
+            landmarks,
+            source.PixelWidth,
+            source.PixelHeight);
+        BitmapSource safeSource = CloneBitmapSource(source);
+        SkinAdjustmentSnapshot? skinState = _committedSkinSectionState;
+        BlemishAdjustmentSnapshot? blemishState = _committedBlemishSectionState;
+        WrinkleAdjustmentSnapshot? wrinkleState = _committedWrinkleSectionState;
+        MakeupAdjustmentSnapshot? makeupState = _committedMakeupSectionState;
+        HairAdjustmentSnapshot? hairState = _committedHairSectionState;
+
+        return await Task.Run(() => RenderConnectedRetouchSections(
+            safeSource,
+            pointMap,
+            skinState,
+            blemishState,
+            wrinkleState,
+            makeupState,
+            hairState,
+            () => renderVersion != _connectedRetouchRenderVersion));
+    }
+
     private static bool HasEffectiveConnectedRetouchAdjustment(
         SkinAdjustmentSnapshot? skinState,
         BlemishAdjustmentSnapshot? blemishState,
         WrinkleAdjustmentSnapshot? wrinkleState,
-        MakeupAdjustmentSnapshot? makeupState)
+        MakeupAdjustmentSnapshot? makeupState,
+        HairAdjustmentSnapshot? hairState)
     {
         return (skinState is not null && HasEffectiveSkinAdjustment(skinState)) ||
                (blemishState is not null && HasEffectiveBlemishAdjustment(blemishState)) ||
                (wrinkleState is not null && HasEffectiveWrinkleAdjustment(wrinkleState)) ||
-               (makeupState is not null && HasEffectiveMakeupAdjustment(makeupState));
+               (makeupState is not null && HasEffectiveMakeupAdjustment(makeupState)) ||
+               (hairState is not null && HasEffectiveHairAdjustment(hairState));
     }
 
     private static BitmapSource RenderConnectedRetouchSections(
@@ -195,6 +345,7 @@ public partial class MainWindow
         BlemishAdjustmentSnapshot? blemishState,
         WrinkleAdjustmentSnapshot? wrinkleState,
         MakeupAdjustmentSnapshot? makeupState,
+        HairAdjustmentSnapshot? hairState,
         Func<bool> shouldCancel)
     {
         BitmapSource result = source;
@@ -216,6 +367,11 @@ public partial class MainWindow
         if (!shouldCancel() && makeupState is not null && HasEffectiveMakeupAdjustment(makeupState))
         {
             result = RenderMakeupAdjustments(result, pointMap, makeupState, shouldCancel);
+        }
+
+        if (!shouldCancel() && hairState is not null && HasEffectiveHairAdjustment(hairState))
+        {
+            result = RenderHairAdjustments(result, pointMap, hairState, shouldCancel);
         }
 
         return ReferenceEquals(result, source) ? CloneBitmapSource(source) : result;

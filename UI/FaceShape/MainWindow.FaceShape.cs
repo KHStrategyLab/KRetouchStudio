@@ -406,9 +406,9 @@ public partial class MainWindow
         await ApplyFaceShapeCommittedAsync();
     }
 
-    private void FaceShapeRetouchTab_FaceShapeResetRequested(object? sender, EventArgs e)
+    private async void FaceShapeRetouchTab_FaceShapeResetRequested(object? sender, EventArgs e)
     {
-        TryResetFaceShapeHistory();
+        await TryResetFaceShapeHistoryAsync();
     }
 
     private async Task ApplyFaceShapeCommittedAsync()
@@ -1964,20 +1964,44 @@ public partial class MainWindow
         return true;
     }
 
-    private void TryResetFaceShapeHistory()
+    private async Task TryResetFaceShapeHistoryAsync()
     {
-        if (!CanResetFaceShapeHistory() ||
-            SelectedPhoto is not PhotoItem targetPhoto ||
-            !TryGetFaceShapeResetSource(targetPhoto, out BitmapSource resetSource))
+        if (!CanResetFaceShapeHistory() || SelectedPhoto is not PhotoItem targetPhoto)
         {
             UpdateFaceShapeHistoryResetState();
             return;
         }
 
-        targetPhoto.SetAdjustedImage(resetSource.IsFrozen ? resetSource : CloneBitmapSource(resetSource));
+        if (!TryGetSafeTabResetSource(
+                targetPhoto,
+                IsFaceShapeEffectHistory,
+                IsFaceShapeResetHistory,
+                out BitmapSource resetSource,
+                out string blockingHistoryTitle))
+        {
+            MediaPipeStatusText = string.IsNullOrWhiteSpace(blockingHistoryTitle)
+                ? "Facial Reshape: nothing to reset"
+                : $"Facial Reshape: reset blocked to preserve {blockingHistoryTitle}";
+            UpdateFaceShapeHistoryResetState();
+            return;
+        }
+
+        MediaPipeStatusText = "Facial Reshape: rebuilding other tabs...";
+        BitmapSource? rebuiltImage = await RebuildConnectedRetouchSectionsAsync(
+            targetPhoto,
+            resetSource,
+            "Facial Reshape Reset");
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) || rebuiltImage is null)
+        {
+            MediaPipeStatusText = "Facial Reshape: reset cancelled; other tabs could not be rebuilt";
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(rebuiltImage);
         FaceShapeRetouchTab.ResetAfterHistoryReset();
         ClearFaceShapeSymmetrySession();
         ClearFaceShapeProjectionDebugOverlay();
+        SetConnectedRetouchSessionBase(targetPhoto, resetSource);
         UpdatePreviewLayout();
         PushEditorHistorySnapshot(FaceShapeResetHistoryTitle, FaceShapeResetHistoryDetail);
         MediaPipeStatusText = "Facial Reshape: reset";

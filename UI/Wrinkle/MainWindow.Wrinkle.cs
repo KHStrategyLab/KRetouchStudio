@@ -49,7 +49,8 @@ public partial class MainWindow
                 _committedSkinSectionState,
                 _committedBlemishSectionState,
                 args.Snapshot,
-                _committedMakeupSectionState))
+                _committedMakeupSectionState,
+                _committedHairSectionState))
         {
             SetFaceShapeHeadPoseDragPreview(targetPhoto, proxySource, baseSource.PixelWidth, baseSource.PixelHeight);
             MediaPipeStatusText = "Wrinkle: preview reset";
@@ -83,6 +84,7 @@ public partial class MainWindow
             _committedBlemishSectionState,
             args.Snapshot,
             _committedMakeupSectionState,
+            _committedHairSectionState,
             () => renderVersion != _connectedRetouchRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -150,7 +152,8 @@ public partial class MainWindow
                 _committedSkinSectionState,
                 _committedBlemishSectionState,
                 requestedWrinkleState,
-                _committedMakeupSectionState))
+                _committedMakeupSectionState,
+                _committedHairSectionState))
         {
             targetPhoto.SetAdjustedImage(baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource));
             SetCommittedWrinkleSectionState(null);
@@ -190,6 +193,7 @@ public partial class MainWindow
             _committedBlemishSectionState,
             requestedWrinkleState,
             _committedMakeupSectionState,
+            _committedHairSectionState,
             () => renderVersion != _connectedRetouchRenderVersion));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -241,7 +245,8 @@ public partial class MainWindow
         BitmapSource resetResult = baseSource.IsFrozen ? baseSource : CloneBitmapSource(baseSource);
         if ((_committedSkinSectionState is not null && HasEffectiveSkinAdjustment(_committedSkinSectionState)) ||
             (_committedBlemishSectionState is not null && HasEffectiveBlemishAdjustment(_committedBlemishSectionState)) ||
-            (_committedMakeupSectionState is not null && HasEffectiveMakeupAdjustment(_committedMakeupSectionState)))
+            (_committedMakeupSectionState is not null && HasEffectiveMakeupAdjustment(_committedMakeupSectionState)) ||
+            (_committedHairSectionState is not null && HasEffectiveHairAdjustment(_committedHairSectionState)))
         {
             List<MediaPipeLandmarkPoint> landmarks = await GetOrCreateFaceShapeLandmarksAsync(targetPhoto, "Wrinkle Reset");
             if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
@@ -269,6 +274,7 @@ public partial class MainWindow
                 _committedBlemishSectionState,
                 null,
                 _committedMakeupSectionState,
+                _committedHairSectionState,
                 () => renderVersion != _connectedRetouchRenderVersion));
             if (!ReferenceEquals(SelectedPhoto, targetPhoto) || renderVersion != _connectedRetouchRenderVersion)
             {

@@ -39,9 +39,9 @@ public partial class MainWindow
         await ApplyFaceDetailCommittedAsync(e);
     }
 
-    private void FaceDetailRetouchTab_FaceDetailResetRequested(object? sender, EventArgs e)
+    private async void FaceDetailRetouchTab_FaceDetailResetRequested(object? sender, EventArgs e)
     {
-        TryResetFaceDetailHistory();
+        await TryResetFaceDetailHistoryAsync();
     }
 
     private async Task ApplyFaceDetailDragPreviewAsync(FaceDetailAdjustmentEventArgs args)
@@ -319,21 +319,45 @@ public partial class MainWindow
         return true;
     }
 
-    private void TryResetFaceDetailHistory()
+    private async Task TryResetFaceDetailHistoryAsync()
     {
-        if (!CanResetFaceDetailHistory() ||
-            SelectedPhoto is not PhotoItem targetPhoto ||
-            !TryGetFaceDetailResetSource(targetPhoto, out BitmapSource resetSource))
+        if (!CanResetFaceDetailHistory() || SelectedPhoto is not PhotoItem targetPhoto)
         {
             UpdateFaceDetailHistoryResetState();
             return;
         }
 
-        targetPhoto.SetAdjustedImage(resetSource.IsFrozen ? resetSource : CloneBitmapSource(resetSource));
+        if (!TryGetSafeTabResetSource(
+                targetPhoto,
+                IsFaceDetailEffectHistory,
+                IsFaceDetailResetHistory,
+                out BitmapSource resetSource,
+                out string blockingHistoryTitle))
+        {
+            MediaPipeStatusText = string.IsNullOrWhiteSpace(blockingHistoryTitle)
+                ? "Face Detail: nothing to reset"
+                : $"Face Detail: reset blocked to preserve {blockingHistoryTitle}";
+            UpdateFaceDetailHistoryResetState();
+            return;
+        }
+
+        MediaPipeStatusText = "Face Detail: rebuilding other tabs...";
+        BitmapSource? rebuiltImage = await RebuildConnectedRetouchSectionsAsync(
+            targetPhoto,
+            resetSource,
+            "Face Detail Reset");
+        if (!ReferenceEquals(SelectedPhoto, targetPhoto) || rebuiltImage is null)
+        {
+            MediaPipeStatusText = "Face Detail: reset cancelled; other tabs could not be rebuilt";
+            return;
+        }
+
+        targetPhoto.SetAdjustedImage(rebuiltImage);
         FaceDetailRetouchTab.ResetAfterHistoryReset();
         ClearFaceDetailRetouchSession();
         ClearFaceShapeHeadPoseDragPreview();
         ClearFaceShapeHeadPoseDragProxy();
+        SetConnectedRetouchSessionBase(targetPhoto, resetSource);
         UpdatePreviewLayout();
         PushEditorHistorySnapshot(FaceDetailHistoryTitle, FaceDetailResetHistoryDetail);
         MediaPipeStatusText = "Face Detail: reset";

@@ -425,6 +425,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         MakeupRetouchTab.MakeupAdjustmentPreviewChanged += MakeupRetouchTab_MakeupAdjustmentPreviewChanged;
         MakeupRetouchTab.MakeupAdjustmentCommitted += MakeupRetouchTab_MakeupAdjustmentCommitted;
         MakeupRetouchTab.MakeupResetRequested += MakeupRetouchTab_MakeupResetRequested;
+        HairRetouchTab.HairAdjustmentPreviewChanged += HairRetouchTab_HairAdjustmentPreviewChanged;
+        HairRetouchTab.HairAdjustmentCommitted += HairRetouchTab_HairAdjustmentCommitted;
+        HairRetouchTab.HairResetRequested += HairRetouchTab_HairResetRequested;
         FaceShapeRetouchTab.FaceShapeAdjustmentCommitted += FaceShapeRetouchTab_FaceShapeAdjustmentCommitted;
         FaceShapeRetouchTab.FaceShapeControlAdjustmentPreviewChanged += FaceShapeRetouchTab_FaceShapeControlAdjustmentPreviewChanged;
         FaceShapeRetouchTab.SymmetrizeAdjustmentPreviewChanged += FaceShapeRetouchTab_SymmetrizeAdjustmentPreviewChanged;
@@ -441,6 +444,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         BackgroundRetouchTab.BackgroundImageImportRequested += BackgroundRetouchTab_BackgroundImageImportRequested;
         BackgroundRetouchTab.BackgroundImageSelected += BackgroundRetouchTab_BackgroundImageSelected;
         BackgroundRetouchTab.BackgroundImageRemoved += BackgroundRetouchTab_BackgroundImageRemoved;
+        BackgroundRetouchTab.BackgroundResetRequested += BackgroundRetouchTab_BackgroundResetRequested;
         HistoryPanelItems.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HistoryPanelListVisibility));
@@ -6109,7 +6113,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private EditorHistoryState CaptureEditorHistoryState(PhotoItem photo, string title, string detail)
     {
-        PrepareRetouchSectionStateForHistoryCapture(title);
+        PrepareRetouchSectionStateForHistoryCapture(title, detail);
         BitmapSource? adjustedImage = photo.Image is BitmapSource image && !ReferenceEquals(image, photo.BaseImage)
             ? CloneBitmapSource(image)
             : null;
@@ -6142,6 +6146,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             CaptureBlemishSectionState(),
             CaptureWrinkleSectionState(),
             CaptureMakeupSectionState(),
+            CaptureHairSectionState(),
             title,
             detail,
             DateTime.Now);
@@ -6290,6 +6295,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 BlemishState = state.BlemishState,
                 WrinkleState = state.WrinkleState,
                 MakeupState = state.MakeupState,
+                HairState = state.HairState,
                 TextItems = state.TextItems.Select(PersistPreviewTextItemSnapshot).ToList()
             });
         }
@@ -6376,6 +6382,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 persistedState.BlemishState,
                 persistedState.WrinkleState,
                 persistedState.MakeupState,
+                persistedState.HairState,
                 persistedState.Title,
                 persistedState.Detail,
                 persistedState.Timestamp));
@@ -6484,7 +6491,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
             ClearFaceDetailRetouchSession();
-            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState, snapshot.WrinkleState, snapshot.MakeupState);
+            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState, snapshot.WrinkleState, snapshot.MakeupState, snapshot.HairState);
 
             if (snapshot.AdjustedImage is null)
             {
@@ -6559,6 +6566,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdateBlemishHistoryResetState();
         UpdateWrinkleHistoryResetState();
         UpdateMakeupHistoryResetState();
+        UpdateHairHistoryResetState();
+        UpdateBackgroundHistoryResetState();
     }
 
     private sealed class EditorHistorySession
@@ -6607,6 +6616,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         public MakeupAdjustmentSnapshot? MakeupState { get; set; }
 
+        public HairAdjustmentSnapshot? HairState { get; set; }
+
         public List<PersistedPreviewTextItemSnapshot> TextItems { get; set; } = [];
     }
 
@@ -6651,6 +6662,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             BlemishAdjustmentSnapshot? blemishState,
             WrinkleAdjustmentSnapshot? wrinkleState,
             MakeupAdjustmentSnapshot? makeupState,
+            HairAdjustmentSnapshot? hairState,
             string title,
             string detail,
             DateTime timestamp)
@@ -6662,6 +6674,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             BlemishState = blemishState;
             WrinkleState = wrinkleState;
             MakeupState = makeupState;
+            HairState = hairState;
             Title = title;
             Detail = detail;
             Timestamp = timestamp;
@@ -6680,6 +6693,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public WrinkleAdjustmentSnapshot? WrinkleState { get; }
 
         public MakeupAdjustmentSnapshot? MakeupState { get; }
+
+        public HairAdjustmentSnapshot? HairState { get; }
 
         public string Title { get; }
 

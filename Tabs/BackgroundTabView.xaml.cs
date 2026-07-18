@@ -32,6 +32,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private double _softAlphaStrength;
     private double _alphaGammaStrength;
     private bool _isBackgroundAdjustmentSliderInteracting;
+    private bool _canResetBackgroundTab;
 
     public BackgroundTabView()
     {
@@ -55,9 +56,26 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     public event EventHandler? BackgroundTabOpened;
 
+    public event EventHandler? BackgroundResetRequested;
+
     public System.Windows.Media.Brush CustomBackgroundBrush { get; }
 
     public ObservableCollection<BackgroundImageSlot> BackgroundImages { get; } = new();
+
+    public bool CanResetBackgroundTab
+    {
+        get => _canResetBackgroundTab;
+        set
+        {
+            if (_canResetBackgroundTab == value)
+            {
+                return;
+            }
+
+            _canResetBackgroundTab = value;
+            OnPropertyChanged();
+        }
+    }
 
     public string? SelectedBackgroundImagePath { get; private set; }
 
@@ -133,6 +151,28 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             _edgeBlurStrength = clamped;
             OnPropertyChanged();
         }
+    }
+
+    public void ResetAfterHistoryReset()
+    {
+        _activeBackgroundMode = BackgroundMode.None;
+        _backgroundOpacity = 100;
+        _boundaryProbeStrength = 0;
+        _boundaryCleanStrength = 0;
+        _edgeBlurStrength = 0;
+        _alphaShrinkStrength = 0;
+        _softAlphaStrength = 0;
+        _alphaGammaStrength = 0;
+        _isBackgroundAdjustmentSliderInteracting = false;
+        CanResetBackgroundTab = false;
+        NotifyBackgroundModeProperties();
+        OnPropertyChanged(string.Empty);
+    }
+
+    private void ResetBackgroundTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        BackgroundResetRequested?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
     }
 
     public double AlphaShrinkStrength
