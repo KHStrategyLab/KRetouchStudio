@@ -452,6 +452,16 @@ public partial class MainWindow
                 g += (originalG - fineG) * detailAmount;
                 r += (originalR - fineR) * detailAmount;
 
+                double textureProtectAmount = textureProtect * 0.12;
+                b += (originalB - fineB) * textureProtectAmount;
+                g += (originalG - fineG) * textureProtectAmount;
+                r += (originalR - fineR) * textureProtectAmount;
+
+                double edgeRestoreAmount = edgeProtect * Math.Clamp(localEdge / 44.0, 0.0, 1.0) * 0.10;
+                b += (originalB - fineB) * edgeRestoreAmount;
+                g += (originalG - fineG) * edgeRestoreAmount;
+                r += (originalR - fineR) * edgeRestoreAmount;
+
                 double redExcess = Math.Max(0.0, r - ((g * 0.68) + (b * 0.32)) - 3.0);
                 double rednessGate = Math.Clamp(redExcess / 42.0, 0.0, 1.0);
                 if (redReduce > 0.001 && rednessGate > 0.001)
@@ -466,6 +476,11 @@ public partial class MainWindow
                 b += (broadB - b) * redBlendAmount;
                 g += (broadG - g) * redBlendAmount;
                 r += (broadR - r) * redBlendAmount;
+
+                double naturalReduction = redExcess * naturalColor * rednessGate * 0.16;
+                r -= naturalReduction;
+                g += naturalReduction * 0.08;
+                b += naturalReduction * 0.03;
 
                 if (naturalColor > 0.001 && (redReduce > 0.001 || toneBlend > 0.001))
                 {
@@ -488,6 +503,12 @@ public partial class MainWindow
                     g -= reduction;
                     r -= reduction;
                 }
+
+                double highlightPresence = Math.Clamp((originalLuma - 160.0) / 70.0, 0.0, 1.0);
+                double highlightLift = highlightProtect * highlightPresence * 3.5;
+                b += highlightLift;
+                g += highlightLift;
+                r += highlightLift;
 
                 double shineDetailAmount = shineTextureReturn * 0.26;
                 b += (originalB - fineB) * shineDetailAmount;

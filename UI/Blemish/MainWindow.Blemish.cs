@@ -427,14 +427,16 @@ public partial class MainWindow
                 g += (fineG - g) * bumpAmount;
                 r += (fineR - r) * bumpAmount;
 
-                double spotAmount = spotRemove * darkGate * (0.48 + (spotBlend * 0.24));
+                double effectiveSpotRemove = Math.Max(spotRemove, spotBlend * 0.18);
+                double spotAmount = effectiveSpotRemove * darkGate * (0.48 + (spotBlend * 0.24));
                 double spotTargetB = fineB + ((broadB - fineB) * spotBlend);
                 double spotTargetG = fineG + ((broadG - fineG) * spotBlend);
                 double spotTargetR = fineR + ((broadR - fineR) * spotBlend);
                 b += (spotTargetB - b) * spotAmount;
                 g += (spotTargetG - g) * spotAmount;
                 r += (spotTargetR - r) * spotAmount;
-                double spotDetailReturn = spotTextureMatch * spotRemove * darkGate * 0.24;
+                double spotTextureBase = Math.Max(spotRemove, spotTextureMatch * 0.22);
+                double spotDetailReturn = spotTextureMatch * spotTextureBase * darkGate * 0.24;
                 b += (originalB - fineB) * spotDetailReturn;
                 g += (originalG - fineG) * spotDetailReturn;
                 r += (originalR - fineR) * spotDetailReturn;
@@ -447,13 +449,29 @@ public partial class MainWindow
                 g += (broadG - g) * moleAmount;
                 r += (broadR - r) * moleAmount;
 
+                double moleProtectAmount = moleProtect * moleGate * 0.10;
+                b += (originalB - broadB) * moleProtectAmount;
+                g += (originalG - broadG) * moleProtectAmount;
+                r += (originalR - broadR) * moleProtectAmount;
+
+                double moleEdgeAmount = moleEdgeBlend * moleGate * 0.12;
+                b += (fineB - b) * moleEdgeAmount;
+                g += (fineG - g) * moleEdgeAmount;
+                r += (fineR - r) * moleEdgeAmount;
+
                 double freckleThreshold = 17.0 - (freckleDensity * 10.0);
                 double freckleGate = BlemishSmoothStep((darkDifference - freckleThreshold) / 30.0) *
                                      (1.0 - (moleGate * 0.55));
-                double freckleAmount = freckleFade * freckleGate * (1.0 - (freckleProtect * 0.82)) * 0.52;
+                double effectiveFreckleFade = Math.Max(freckleFade, freckleDensity * 0.16);
+                double freckleAmount = effectiveFreckleFade * freckleGate * (1.0 - (freckleProtect * 0.82)) * 0.52;
                 b += (fineB - b) * freckleAmount;
                 g += (fineG - g) * freckleAmount;
                 r += (fineR - r) * freckleAmount;
+
+                double freckleProtectAmount = freckleProtect * freckleGate * 0.10;
+                b += (originalB - fineB) * freckleProtectAmount;
+                g += (originalG - fineG) * freckleProtectAmount;
+                r += (originalR - fineR) * freckleProtectAmount;
 
                 double scarGate = BlemishSmoothStep((localDetail - 6.0) / 34.0);
                 double scarSoftenAmount = scarSoften * scarGate * 0.42;
@@ -464,7 +482,8 @@ public partial class MainWindow
                 b += (broadB - b) * scarBlendAmount;
                 g += (broadG - g) * scarBlendAmount;
                 r += (broadR - r) * scarBlendAmount;
-                double scarDetailReturn = scarTextureMatch * (scarSoften + scarToneBlend) * 0.16 * scarGate;
+                double scarTextureBase = Math.Max(scarSoften + scarToneBlend, scarTextureMatch * 0.28);
+                double scarDetailReturn = scarTextureMatch * scarTextureBase * 0.16 * scarGate;
                 b += (originalB - fineB) * scarDetailReturn;
                 g += (originalG - fineG) * scarDetailReturn;
                 r += (originalR - fineR) * scarDetailReturn;

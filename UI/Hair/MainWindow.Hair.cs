@@ -312,6 +312,7 @@ public partial class MainWindow
     {
         return HasCenteredEffect(snapshot.HairlineHeight) ||
                HasCenteredEffect(snapshot.TempleBalance) ||
+               HasCenteredEffect(snapshot.BabyHairProtect) ||
                HasCenteredEffect(snapshot.TopVolume) ||
                HasCenteredEffect(snapshot.SideVolume) ||
                HasCenteredEffect(snapshot.CrownLift) ||
@@ -415,6 +416,7 @@ public partial class MainWindow
         bool hasPixelEffect = snapshot.StrayHair > 0.001 ||
                               snapshot.Frizz > 0.001 ||
                               snapshot.EdgeCleanup > 0.001 ||
+                              HasCenteredEffect(snapshot.BabyHairProtect) ||
                               snapshot.Shine > 0.001 ||
                               snapshot.Depth > 0.001 ||
                               snapshot.ScalpCover > 0.001 ||
@@ -448,6 +450,7 @@ public partial class MainWindow
         double darken = snapshot.Darken / 100.0;
         double colorStrength = snapshot.ColorStrength / 100.0;
         double protect = Math.Clamp(snapshot.BabyHairProtect / 100.0, 0.0, 1.0);
+        double babyHairDelta = (snapshot.BabyHairProtect - 50.0) / 50.0;
 
         for (int y = 0; y < height; y++)
         {
@@ -481,6 +484,21 @@ public partial class MainWindow
                 b += (smoothPixels[index] - b) * cleanupAmount;
                 g += (smoothPixels[index + 1] - g) * cleanupAmount;
                 r += (smoothPixels[index + 2] - r) * cleanupAmount;
+
+                double babyHairAmount = babyHairDelta * mask * Math.Exp(-(hairlineDistance * hairlineDistance));
+                if (babyHairAmount >= 0.0)
+                {
+                    b += (originalB - smoothPixels[index]) * babyHairAmount * 0.50;
+                    g += (originalG - smoothPixels[index + 1]) * babyHairAmount * 0.50;
+                    r += (originalR - smoothPixels[index + 2]) * babyHairAmount * 0.50;
+                }
+                else
+                {
+                    double softenAmount = -babyHairAmount * 0.34;
+                    b += (smoothPixels[index] - b) * softenAmount;
+                    g += (smoothPixels[index + 1] - g) * softenAmount;
+                    r += (smoothPixels[index + 2] - r) * softenAmount;
+                }
 
                 double luma = GetSkinLuma(b, g, r);
                 double shineLift = shine * protectedMask * (16.0 + (18.0 * Math.Clamp((luma - 40.0) / 180.0, 0.0, 1.0)));
