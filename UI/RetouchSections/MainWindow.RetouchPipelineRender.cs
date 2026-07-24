@@ -198,10 +198,20 @@ public partial class MainWindow
 
                     case RetouchStageId.Background when
                         snapshot.BackgroundState is { HasEffectiveAdjustment: true }:
-                        await EnsurePersonAlphaAsync();
+                        string? backgroundAlphaPath = await GetOrCreatePipelinePersonAlphaPathAsync(
+                            photo,
+                            current,
+                            snapshot.BaseRevision,
+                            session,
+                            ticket);
+                        if (string.IsNullOrWhiteSpace(backgroundAlphaPath))
+                        {
+                            throw new InvalidOperationException("The transformed subject mask is unavailable.");
+                        }
+
                         output = await RenderBackgroundPipelineStageAsync(
                             current,
-                            personAlphaPath!,
+                            backgroundAlphaPath,
                             snapshot.BackgroundState,
                             ticket);
                         break;
@@ -334,7 +344,8 @@ public partial class MainWindow
                 state.EdgeBlurStrength,
                 state.AlphaShrinkStrength,
                 state.SoftAlphaStrength,
-                state.AlphaGammaStrength),
+                state.AlphaGammaStrength,
+                PersonAlphaEngineBiRefNet),
                 ticket.CancellationToken);
         }
         finally

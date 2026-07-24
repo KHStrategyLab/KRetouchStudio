@@ -8,11 +8,19 @@ public readonly record struct RetouchRenderTicket(
     long RenderVersion,
     CancellationToken CancellationToken);
 
+public sealed record RetouchSubjectAlphaCacheEntry(
+    long BaseRevision,
+    long GeometryRevision,
+    int PixelWidth,
+    int PixelHeight,
+    string AlphaPath);
+
 public sealed class PhotoRetouchPipelineSession : IDisposable
 {
     private readonly Dictionary<RetouchStageId, long> _stageStateRevisions = [];
     private CancellationTokenSource? _previewRenderCancellation;
     private CancellationTokenSource? _fullResolutionRenderCancellation;
+    private RetouchSubjectAlphaCacheEntry? _subjectAlphaCache;
     private long _previewRenderVersion;
     private long _fullResolutionRenderVersion;
     private bool _isDisposed;
@@ -87,6 +95,43 @@ public sealed class PhotoRetouchPipelineSession : IDisposable
         return AnalysisRevision;
     }
 
+    public bool TryGetSubjectAlpha(
+        long baseRevision,
+        long geometryRevision,
+        out string? alphaPath)
+    {
+        ThrowIfDisposed();
+        RetouchSubjectAlphaCacheEntry? cached = _subjectAlphaCache;
+        if (cached is not null &&
+            cached.BaseRevision == baseRevision &&
+            cached.GeometryRevision == geometryRevision &&
+            System.IO.File.Exists(cached.AlphaPath))
+        {
+            alphaPath = cached.AlphaPath;
+            return true;
+        }
+
+        alphaPath = null;
+        return false;
+    }
+
+    public void PublishSubjectAlpha(
+        long baseRevision,
+        long geometryRevision,
+        int pixelWidth,
+        int pixelHeight,
+        string alphaPath)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(alphaPath);
+        _subjectAlphaCache = new RetouchSubjectAlphaCacheEntry(
+            baseRevision,
+            geometryRevision,
+            pixelWidth,
+            pixelHeight,
+            alphaPath);
+    }
+
     public RetouchRenderTicket BeginRender(
         RetouchRenderQuality quality,
         RetouchStageId firstDirtyStage)
@@ -152,6 +197,7 @@ public sealed class PhotoRetouchPipelineSession : IDisposable
         _fullResolutionRenderCancellation?.Dispose();
         _previewRenderCancellation = null;
         _fullResolutionRenderCancellation = null;
+        _subjectAlphaCache = null;
         Cache.Clear();
     }
 

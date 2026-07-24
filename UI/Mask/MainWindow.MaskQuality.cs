@@ -13,7 +13,11 @@ public partial class MainWindow
     private readonly object _refinedPersonAlphaMaskSync = new();
     private readonly List<RefinedPersonAlphaMask> _refinedPersonAlphaMasks = new();
 
-    private byte[] GetOrCreateRefinedPersonAlphaMask(string alphaPath, int width, int height)
+    private byte[] GetOrCreateRefinedPersonAlphaMask(
+        string alphaPath,
+        int width,
+        int height,
+        string? alphaEngine = null)
     {
         lock (_refinedPersonAlphaMaskSync)
         {
@@ -25,7 +29,8 @@ public partial class MainWindow
         }
 
         byte[] rawAlpha = LoadPersonAlphaGray8Pixels(alphaPath, width, height);
-        byte[] refinedAlpha = string.Equals(_personAlphaEngine, PersonAlphaEngineBiRefNet, StringComparison.OrdinalIgnoreCase)
+        string? effectiveAlphaEngine = alphaEngine ?? _personAlphaEngine;
+        byte[] refinedAlpha = string.Equals(effectiveAlphaEngine, PersonAlphaEngineBiRefNet, StringComparison.OrdinalIgnoreCase)
             ? (byte[])rawAlpha.Clone()
             : RefinePersonAlphaMask(rawAlpha, width, height);
         lock (_refinedPersonAlphaMaskSync)

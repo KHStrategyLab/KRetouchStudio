@@ -669,6 +669,122 @@ public partial class MainWindow
         }
     }
 
+    private async Task<string?> GetOrCreatePipelinePersonAlphaPathAsync(
+        PhotoItem targetPhoto,
+        BitmapSource transformedSource,
+        long baseRevision,
+        PhotoRetouchPipelineSession session,
+        RetouchRenderTicket ticket)
+    {
+        long geometryRevision = session.GeometryRevision;
+        if (geometryRevision <= 0)
+        {
+            return await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+        }
+
+        if (session.TryGetSubjectAlpha(
+                baseRevision,
+                geometryRevision,
+                out string? cachedAlphaPath))
+        {
+            AppendBackgroundDiagnosticLog(
+                $"pipeline alpha cache hit | photo=\"{targetPhoto.Path}\" | geometry={geometryRevision} | alpha=\"{cachedAlphaPath}\"");
+            return cachedAlphaPath;
+        }
+
+        // Keep slider dragging responsive. The committed render refreshes the matte once.
+        if (ticket.Quality == RetouchRenderQuality.Preview)
+        {
+            AppendBackgroundDiagnosticLog(
+                $"pipeline alpha preview fallback | photo=\"{targetPhoto.Path}\" | geometry={geometryRevision}");
+            return await GetOrCreatePersonAlphaPathAsync(targetPhoto);
+        }
+
+        await _personAlphaCreateGate.WaitAsync(ticket.CancellationToken);
+        try
+        {
+            if (session.TryGetSubjectAlpha(
+                    baseRevision,
+                    geometryRevision,
+                    out cachedAlphaPath))
+            {
+                return cachedAlphaPath;
+            }
+
+            if (!session.IsCurrent(ticket))
+            {
+                throw new OperationCanceledException(ticket.CancellationToken);
+            }
+
+            BitmapSource safeSource = CreateBackgroundRenderThreadSource(transformedSource);
+            string outputDirectory = Path.Combine(
+                BiRefNetOutputRoot,
+                DateTime.Now.ToString("yyyyMMdd_HHmmssfff") +
+                $"_pipeline_geometry_{geometryRevision}_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(outputDirectory);
+            string transformedInputPath = Path.Combine(outputDirectory, "transformed_subject_source.png");
+
+            MediaPipeStatusText = "Background: refreshing mask for transformed subject...";
+            AppendBackgroundDiagnosticLog(
+                $"pipeline alpha run start | photo=\"{targetPhoto.Path}\" | geometry={geometryRevision} | input=\"{transformedInputPath}\"");
+            await Task.Run(
+                () => SaveBitmapSourceAsPng(safeSource, transformedInputPath),
+                ticket.CancellationToken);
+
+            BiRefNetMattingRunRequest request = new(
+                _appConfig.MediaPipe.HelperRuntime,
+                Path.Combine(AppContext.BaseDirectory, "Tools", "BiRefNet", "birefnet_helper.py"),
+                transformedInputPath,
+                null,
+                outputDirectory,
+                "ZhengPeng7/BiRefNet_lite-matting",
+                1024,
+                BiRefNetInputSharpenStrength,
+                "auto");
+
+            BiRefNetMattingRunResult result;
+            using (CancellationTokenSource timeout =
+                   CancellationTokenSource.CreateLinkedTokenSource(ticket.CancellationToken))
+            {
+                timeout.CancelAfter(BiRefNetAlphaTimeout);
+                try
+                {
+                    result = await BiRefNetMattingService.RunAsync(request, timeout.Token);
+                }
+                catch (OperationCanceledException) when (!ticket.CancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException("BiRefNet transformed subject mask timed out.");
+                }
+            }
+
+            if (!session.IsCurrent(ticket))
+            {
+                throw new OperationCanceledException(ticket.CancellationToken);
+            }
+
+            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.AlphaPath))
+            {
+                AppendBackgroundDiagnosticLog(
+                    $"pipeline alpha run failed | photo=\"{targetPhoto.Path}\" | geometry={geometryRevision} | status=\"{result.SummaryText}\"");
+                throw new InvalidOperationException(result.SummaryText);
+            }
+
+            session.PublishSubjectAlpha(
+                baseRevision,
+                geometryRevision,
+                safeSource.PixelWidth,
+                safeSource.PixelHeight,
+                result.AlphaPath);
+            AppendBackgroundDiagnosticLog(
+                $"pipeline alpha run success | photo=\"{targetPhoto.Path}\" | geometry={geometryRevision} | alpha=\"{result.AlphaPath}\" | mode={result.RunMode}");
+            return result.AlphaPath;
+        }
+        finally
+        {
+            _personAlphaCreateGate.Release();
+        }
+    }
+
     private async Task<string?> GetOrCreatePersonAlphaPathAsync(PhotoItem targetPhoto)
     {
         if (IsCachedPersonAlphaValid(targetPhoto, PersonAlphaEngineBiRefNet))
@@ -1084,7 +1200,8 @@ public partial class MainWindow
         double edgeBlurStrength,
         double alphaShrinkStrength,
         double softAlphaStrength,
-        double alphaGammaStrength)
+        double alphaGammaStrength,
+        string? alphaEngine = null)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
 
@@ -1092,7 +1209,11 @@ public partial class MainWindow
         int height = bgraSource.PixelHeight;
         int sourceStride = CalculateStride(width, PixelFormats.Bgra32);
         byte[] sourcePixels = new byte[sourceStride * height];
-        byte[] alphaPixels = GetOrCreateRefinedPersonAlphaMask(alphaPath, width, height);
+        byte[] alphaPixels = GetOrCreateRefinedPersonAlphaMask(
+            alphaPath,
+            width,
+            height,
+            alphaEngine);
         byte[] resultPixels = new byte[sourceStride * height];
         byte[]? backgroundPixels = TryCreateImageBackgroundPixels(
             imagePath,
