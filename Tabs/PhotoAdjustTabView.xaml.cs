@@ -124,6 +124,10 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
         Math.Abs(_toneWhiteBalanceValue) > 0.001 ||
         Math.Abs(_toneSharpnessValue) > 0.001;
 
+    public bool HasEffectiveToneAdjustment => !CaptureSnapshot().IsNeutral;
+
+    public bool IsToneAdjustmentNeutral => !HasEffectiveToneAdjustment;
+
     public double ToneExposureValue => _toneExposureValue;
 
     public double ToneContrastValue => _toneContrastValue;
@@ -176,6 +180,52 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
         PhotoAdjustExpander.IsExpanded = false;
     }
 
+    public ToneAdjustmentSnapshot CaptureSnapshot()
+    {
+        return new ToneAdjustmentSnapshot(
+            CurveState.CaptureSnapshot(),
+            _toneExposureValue,
+            _toneContrastValue,
+            _toneSaturationValue,
+            _toneWhiteBalanceValue,
+            _toneSharpnessValue);
+    }
+
+    public void RestoreSnapshot(ToneAdjustmentSnapshot? snapshot)
+    {
+        ToneAdjustmentSnapshot restored = snapshot ?? ToneAdjustmentSnapshot.Neutral;
+        bool wasRefreshingCurvePreview = _isRefreshingCurvePreview;
+        _curveDragPreviewTimer.Stop();
+        _toneQuickPreviewTimer.Stop();
+        _draggingCurvePoint = null;
+        _isDraggingCurvePoint = false;
+        _isDraggingCurveStrengthControl = false;
+        _hasDeferredCurvePreview = false;
+        _isDraggingToneQuickControl = false;
+        _hasDeferredToneQuickPreview = false;
+
+        _isRefreshingCurvePreview = true;
+        try
+        {
+            ClearSelectedCurvePoint();
+            CurveState.RestoreSnapshot(restored.Curve);
+            _toneExposureValue = NormalizeToneValue(restored.Exposure, -15, 15);
+            _toneContrastValue = NormalizeToneValue(restored.Contrast, -25, 25);
+            _toneSaturationValue = NormalizeToneValue(restored.Saturation, -100, 100);
+            _toneWhiteBalanceValue = NormalizeToneValue(restored.WhiteBalance, -100, 100);
+            _toneSharpnessValue = NormalizeToneValue(restored.Sharpness, -100, 100);
+            UpdateTrackedCurveGuidePoint();
+            RaiseCurveGuidePropertyChanged();
+            NotifyToneQuickControlValuesChanged();
+            OnPropertyChanged(nameof(HasEffectiveToneAdjustment));
+            OnPropertyChanged(nameof(IsToneAdjustmentNeutral));
+        }
+        finally
+        {
+            _isRefreshingCurvePreview = wasRefreshingCurvePreview;
+        }
+    }
+
     public void RefreshForPhoto(BitmapSource? source)
     {
         _curveHistogramRefreshTimer.Stop();
@@ -194,14 +244,8 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
         try
         {
             CurvePreviewBaseSource = source;
-            ClearSelectedCurvePoint();
-            CurveState.ResetAllChannels();
             SetActiveToneQuickControl(ToneQuickControlKind.Exposure);
-            _toneExposureValue = 0;
-            _toneContrastValue = 0;
-            _toneSaturationValue = 0;
-            _toneWhiteBalanceValue = 0;
-            _toneSharpnessValue = 0;
+            RestoreSnapshot(null);
             CurveState.SetCurveHistogramSource(source);
             UpdateTrackedCurveGuidePoint();
             RaiseCurveGuidePropertyChanged();
@@ -461,6 +505,8 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
 
         if (e.PropertyName is nameof(ToneCurveEditorState.CurvePolylinePoints) or nameof(ToneCurveEditorState.Value))
         {
+            OnPropertyChanged(nameof(HasEffectiveToneAdjustment));
+            OnPropertyChanged(nameof(IsToneAdjustmentNeutral));
             RequestCurvePreviewChanged();
         }
     }
@@ -533,32 +579,7 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
 
     private void ResetToneCorrection()
     {
-        _isDraggingCurvePoint = false;
-        _isDraggingCurveStrengthControl = false;
-        _hasDeferredCurvePreview = false;
-        _isDraggingToneQuickControl = false;
-        _hasDeferredToneQuickPreview = false;
-        _curveDragPreviewTimer.Stop();
-        _toneQuickPreviewTimer.Stop();
-
-        _isRefreshingCurvePreview = true;
-        try
-        {
-            CurveState.ResetAllChannels();
-            _toneExposureValue = 0;
-            _toneContrastValue = 0;
-            _toneSaturationValue = 0;
-            _toneWhiteBalanceValue = 0;
-            _toneSharpnessValue = 0;
-        }
-        finally
-        {
-            _isRefreshingCurvePreview = false;
-        }
-
-        NotifyToneQuickControlValuesChanged();
-        UpdateTrackedCurveGuidePoint();
-        RaiseCurveGuidePropertyChanged();
+        RestoreSnapshot(null);
         RaiseCurvePreviewChanged(useFastPreview: false);
     }
 
@@ -572,6 +593,15 @@ public partial class PhotoAdjustTabView : System.Windows.Controls.UserControl, I
         OnPropertyChanged(nameof(ActiveToneQuickControlValue));
         OnPropertyChanged(nameof(ActiveToneQuickControlValueDisplay));
         OnPropertyChanged(nameof(HasEffectiveToneQuickAdjustment));
+        OnPropertyChanged(nameof(HasEffectiveToneAdjustment));
+        OnPropertyChanged(nameof(IsToneAdjustmentNeutral));
+    }
+
+    private static double NormalizeToneValue(double value, double minimum, double maximum)
+    {
+        return double.IsFinite(value)
+            ? Math.Clamp(value, minimum, maximum)
+            : 0;
     }
 
     private void MoveDraggingCurvePoint(System.Windows.Controls.Canvas canvas, System.Windows.Input.MouseEventArgs e)

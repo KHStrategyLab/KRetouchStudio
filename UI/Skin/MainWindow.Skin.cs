@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,7 +17,18 @@ public partial class MainWindow
     {
         try
         {
-            await ApplySkinDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            SetCommittedSkinSectionState(HasEffectiveSkinAdjustment(e.Snapshot) ? e.Snapshot : null);
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Skin);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.Skin,
+                RetouchRenderQuality.Preview,
+                "Skin");
         }
         catch (Exception ex)
         {
@@ -26,12 +38,45 @@ public partial class MainWindow
 
     private async void SkinRetouchTab_SkinAdjustmentCommitted(object? sender, SkinAdjustmentEventArgs e)
     {
-        await ApplySkinCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedSkinSectionState(HasEffectiveSkinAdjustment(e.Snapshot) ? e.Snapshot : null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Skin);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Skin,
+            RetouchRenderQuality.FullResolution,
+            "Skin");
+        if (applied)
+        {
+            PushOrReplaceSkinHistory(photo, e.OperationId, e.Value);
+            UpdateSkinHistoryResetState();
+        }
     }
 
     private async void SkinRetouchTab_SkinResetRequested(object? sender, EventArgs e)
     {
-        await TryResetSkinSectionAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedSkinSectionState(null);
+        SkinRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Skin);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Skin,
+            RetouchRenderQuality.FullResolution,
+            "Skin Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(SkinHistoryTitle, SkinResetHistoryDetail);
+            UpdateSkinHistoryResetState();
+        }
     }
 
     private async Task ApplySkinDragPreviewAsync(SkinAdjustmentEventArgs args)

@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -25,7 +26,17 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyFaceDetailDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceDetail);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.FaceDetail,
+                RetouchRenderQuality.Preview,
+                "Face Detail");
         }
         catch (Exception ex)
         {
@@ -36,12 +47,43 @@ public partial class MainWindow
 
     private async void FaceDetailRetouchTab_FaceDetailAdjustmentCommitted(object? sender, FaceDetailAdjustmentEventArgs e)
     {
-        await ApplyFaceDetailCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceDetail);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.FaceDetail,
+            RetouchRenderQuality.FullResolution,
+            "Face Detail");
+        if (applied)
+        {
+            PushOrReplaceFaceDetailHistory(photo, e.OperationId, e.Value);
+            UpdateFaceDetailHistoryResetState();
+        }
     }
 
     private async void FaceDetailRetouchTab_FaceDetailResetRequested(object? sender, EventArgs e)
     {
-        await TryResetFaceDetailHistoryAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        FaceDetailRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceDetail);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.FaceDetail,
+            RetouchRenderQuality.FullResolution,
+            "Face Detail Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(FaceDetailHistoryTitle, FaceDetailResetHistoryDetail);
+            UpdateFaceDetailHistoryResetState();
+        }
     }
 
     private async Task ApplyFaceDetailDragPreviewAsync(FaceDetailAdjustmentEventArgs args)

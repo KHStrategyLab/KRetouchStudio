@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using KRetouchStudio.Pipeline;
 using KRetouchStudio.Tabs;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -485,6 +486,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             PhotoItem? previousPhoto = _selectedPhoto;
             StoreCurrentEditorHistorySession(previousPhoto, persistToDisk: true);
+            CancelRetouchPipelineRenders(previousPhoto);
 
             if (_selectedPhoto is not null)
             {
@@ -498,6 +500,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 QueuePreviewProxy1200Build(_selectedPhoto);
             }
 
+            ClearRetouchPipelinePreviewCachesExcept(_selectedPhoto);
             CancelToneCurvePreviewRender();
             ClearToneCurveFastPreviewCache();
             PhotoAdjustRetouchTab?.RefreshForPhoto(_selectedPhoto is null ? null : GetCurrentDisplayBitmapSource(_selectedPhoto));
@@ -516,6 +519,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearTypeTextTool();
             ClearMediaPipePreviewOverlay();
             ClearBackgroundPreview();
+            BackgroundRetouchTab?.ResetForPhotoChange();
             ResetBackgroundAdjustmentSliders();
             LoadEditorHistoryForSelectedPhoto();
             OnPropertyChanged();
@@ -1140,9 +1144,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private BitmapSource? GetCurrentSaveBitmapSource(PhotoItem photo)
     {
-        return TryGetBackgroundPreviewBitmapSource(photo, out BitmapSource backgroundPreview)
-            ? backgroundPreview
-            : photo.Image as BitmapSource;
+        // Save only the last committed full-resolution result. Drag previews may be 1200 px.
+        return photo.Image as BitmapSource;
     }
 
     private static string GetSaveOutputExtension(string sourceExtension)
@@ -3713,6 +3716,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: true);
         FlushToolboxDefaultsSave();
         CancelToneCurvePreviewRender();
+        DisposeRetouchPipelineSessions();
         ResetPreviewProxy1200BuildQueue();
         MediaPipeConnectionService.ShutdownWorker();
         BiRefNetMattingService.ShutdownWorker();
@@ -5476,9 +5480,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdateSinglePreviewPan(nextLeft, nextTop);
     }
 
-    private void PhotoAdjustRetouchTab_CurvePreviewChanged(object? sender, TonePreviewChangedEventArgs e)
+    private async void PhotoAdjustRetouchTab_CurvePreviewChanged(object? sender, TonePreviewChangedEventArgs e)
     {
-        ApplyToneCurvePreview(e.UseFastPreview);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        ToneAdjustmentSnapshot state = PhotoAdjustRetouchTab.CaptureSnapshot();
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Tone);
+        RetouchRenderQuality quality = e.UseFastPreview
+            ? RetouchRenderQuality.Preview
+            : RetouchRenderQuality.FullResolution;
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Tone,
+            quality,
+            "Tone");
+        if (applied && quality == RetouchRenderQuality.FullResolution)
+        {
+            if (state.IsNeutral)
+            {
+                PushEditorHistorySnapshot(ToneHistoryTitle, ToneResetHistoryDetail);
+            }
+            else
+            {
+                PushOrReplacePipelineHistory(
+                    photo,
+                    ToneHistoryTitle,
+                    CreateTonePipelineHistoryDetail(state));
+            }
+        }
     }
 
     private void ApplyToneCurvePreview(bool useFastPreview = false)
@@ -6114,6 +6146,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private EditorHistoryState CaptureEditorHistoryState(PhotoItem photo, string title, string detail)
     {
         PrepareRetouchSectionStateForHistoryCapture(title, detail);
+        PhotoEditStateSnapshot editState = CaptureCurrentPhotoEditState(photo);
         BitmapSource? adjustedImage = photo.Image is BitmapSource image && !ReferenceEquals(image, photo.BaseImage)
             ? CloneBitmapSource(image)
             : null;
@@ -6142,6 +6175,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             photo.Path,
             adjustedImage,
             textItems,
+            editState,
             CaptureSkinSectionState(),
             CaptureBlemishSectionState(),
             CaptureWrinkleSectionState(),
@@ -6255,6 +6289,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         PersistedEditorHistoryDocument document = new()
         {
+            SchemaVersion = PhotoEditStateSnapshot.CurrentSchemaVersion,
             PhotoPath = photoPath,
             NormalizedPath = normalizedPath,
             SavedAtUtc = DateTime.UtcNow,
@@ -6291,6 +6326,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Detail = state.Detail,
                 Timestamp = state.Timestamp,
                 AdjustedImageFile = adjustedImageFileName,
+                EditState = state.EditState,
                 SkinState = state.SkinState,
                 BlemishState = state.BlemishState,
                 WrinkleState = state.WrinkleState,
@@ -6378,6 +6414,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 photoPath,
                 adjustedImage,
                 persistedState.TextItems.Select(RestorePreviewTextItemSnapshot).ToList(),
+                persistedState.EditState,
                 persistedState.SkinState,
                 persistedState.BlemishState,
                 persistedState.WrinkleState,
@@ -6491,7 +6528,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ClearLiquifySession(false);
             ClearFaceShapeSymmetrySession();
             ClearFaceDetailRetouchSession();
-            RestoreRetouchSectionState(snapshot.SkinState, snapshot.BlemishState, snapshot.WrinkleState, snapshot.MakeupState, snapshot.HairState);
+            RestorePhotoEditState(
+                photo,
+                snapshot.EditState,
+                snapshot.SkinState,
+                snapshot.BlemishState,
+                snapshot.WrinkleState,
+                snapshot.MakeupState,
+                snapshot.HairState);
 
             if (snapshot.AdjustedImage is null)
             {
@@ -6587,6 +6631,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private sealed class PersistedEditorHistoryDocument
     {
+        public int SchemaVersion { get; set; }
+
         public string PhotoPath { get; set; } = string.Empty;
 
         public string NormalizedPath { get; set; } = string.Empty;
@@ -6607,6 +6653,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public DateTime Timestamp { get; set; }
 
         public string? AdjustedImageFile { get; set; }
+
+        public PhotoEditStateSnapshot? EditState { get; set; }
 
         public SkinAdjustmentSnapshot? SkinState { get; set; }
 
@@ -6658,6 +6706,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             string photoPath,
             BitmapSource? adjustedImage,
             IReadOnlyList<PreviewTextItemSnapshot> textItems,
+            PhotoEditStateSnapshot? editState,
             SkinAdjustmentSnapshot? skinState,
             BlemishAdjustmentSnapshot? blemishState,
             WrinkleAdjustmentSnapshot? wrinkleState,
@@ -6670,6 +6719,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PhotoPath = photoPath;
             AdjustedImage = adjustedImage;
             TextItems = textItems;
+            EditState = editState;
             SkinState = skinState;
             BlemishState = blemishState;
             WrinkleState = wrinkleState;
@@ -6685,6 +6735,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public BitmapSource? AdjustedImage { get; }
 
         public IReadOnlyList<PreviewTextItemSnapshot> TextItems { get; }
+
+        public PhotoEditStateSnapshot? EditState { get; }
 
         public SkinAdjustmentSnapshot? SkinState { get; }
 
@@ -6775,7 +6827,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            await ApplyFaceShapeControlDragPreviewAsync();
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceShape);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.FaceShape,
+                RetouchRenderQuality.Preview,
+                "Face Shape");
         }
         catch (Exception ex)
         {
@@ -6788,7 +6850,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            await ApplyFaceShapeSymmetrizeDragPreviewAsync();
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceShape);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.FaceShape,
+                RetouchRenderQuality.Preview,
+                "Face Shape");
         }
         catch (Exception ex)
         {

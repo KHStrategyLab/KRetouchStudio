@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using KRetouchStudio.Pipeline;
+using System.IO;
 using KRetouchStudio.Tabs;
 using System.Text.Json;
 using System.Threading;
@@ -138,14 +139,18 @@ public partial class MainWindow
 
     private async void BackgroundRetouchTab_BackgroundReplacementRequested(object? sender, EventArgs e)
     {
-        await ApplyBackgroundReplacementPreviewAsync();
+        await ApplyCurrentBackgroundPipelineAsync(
+            RetouchRenderQuality.FullResolution,
+            captureHistory: true);
     }
 
     private async void BackgroundRetouchTab_BackgroundReplacementPreviewChanged(object? sender, EventArgs e)
     {
         try
         {
-            await ApplyBackgroundReplacementDragPreviewAsync();
+            await ApplyCurrentBackgroundPipelineAsync(
+                RetouchRenderQuality.Preview,
+                captureHistory: false);
         }
         catch (Exception ex)
         {
@@ -180,7 +185,9 @@ public partial class MainWindow
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
         SaveBackgroundImageSettings(settings);
         SaveAppConfig();
-        await ApplyBackgroundReplacementPreviewAsync();
+        await ApplyCurrentBackgroundPipelineAsync(
+            RetouchRenderQuality.FullResolution,
+            captureHistory: true);
     }
 
     private async void BackgroundRetouchTab_BackgroundImageSelected(object? sender, BackgroundImageSelectedEventArgs e)
@@ -188,24 +195,21 @@ public partial class MainWindow
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
         SaveBackgroundImageSettings(settings);
         SaveAppConfig();
-        await ApplyBackgroundReplacementPreviewAsync();
+        await ApplyCurrentBackgroundPipelineAsync(
+            RetouchRenderQuality.FullResolution,
+            captureHistory: true);
     }
 
-    private void BackgroundRetouchTab_BackgroundImageRemoved(object? sender, BackgroundImageRemovedEventArgs e)
+    private async void BackgroundRetouchTab_BackgroundImageRemoved(object? sender, BackgroundImageRemovedEventArgs e)
     {
         BackgroundSettings settings = _appConfig.Background ??= new BackgroundSettings();
         SaveBackgroundImageSettings(settings);
         SaveAppConfig();
-        if (SelectedPhoto is PhotoItem photo &&
-            e.WasSelected &&
-            IsCurrentHistoryBackgroundReplacement())
+        if (SelectedPhoto is PhotoItem && e.WasSelected)
         {
-            photo.SetAdjustedImage(photo.BaseImage);
-            _editorUndoHistory.RemoveAt(_editorUndoHistory.Count - 1);
-            RefreshEditorHistoryPanel();
-            StoreCurrentEditorHistorySession(photo, persistToDisk: false);
-            UpdatePreviewLayout();
-            OnPropertyChanged(nameof(SinglePreviewImageSource));
+            await ApplyCurrentBackgroundPipelineAsync(
+                RetouchRenderQuality.FullResolution,
+                captureHistory: true);
         }
 
         MediaPipeStatusText = "Background: image removed";
@@ -298,17 +302,70 @@ public partial class MainWindow
 
     private async void BackgroundRetouchTab_BackgroundReplacementAdjustmentCommitted(object? sender, EventArgs e)
     {
-        if (!IsCurrentHistoryBackgroundReplacement())
-        {
-            return;
-        }
-
-        await ApplyBackgroundReplacementPreviewAsync();
+        await ApplyCurrentBackgroundPipelineAsync(
+            RetouchRenderQuality.FullResolution,
+            captureHistory: true);
     }
 
     private async void BackgroundRetouchTab_BackgroundResetRequested(object? sender, EventArgs e)
     {
-        await TryResetBackgroundHistoryAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        BackgroundRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Background);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Background,
+            RetouchRenderQuality.FullResolution,
+            "Background Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(BackgroundReplacementHistoryTitle, BackgroundResetHistoryDetail);
+            UpdateBackgroundHistoryResetState();
+        }
+    }
+
+    private async Task<bool> ApplyCurrentBackgroundPipelineAsync(
+        RetouchRenderQuality quality,
+        bool captureHistory)
+    {
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return false;
+        }
+
+        BackgroundAdjustmentSnapshot state = BackgroundRetouchTab.CaptureSnapshot();
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Background);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Background,
+            quality,
+            "Background");
+        if (applied && captureHistory && quality == RetouchRenderQuality.FullResolution)
+        {
+            if (!state.IsNeutral &&
+                (state.Mode != BackgroundReplacementMode.Image ||
+                 !string.IsNullOrWhiteSpace(state.SelectedImagePath)))
+            {
+                PushOrReplacePipelineHistory(
+                    photo,
+                    BackgroundReplacementHistoryTitle,
+                    CreateBackgroundPipelineHistoryDetail(state));
+            }
+            else
+            {
+                PushEditorHistorySnapshot(
+                    BackgroundReplacementHistoryTitle,
+                    BackgroundResetHistoryDetail);
+            }
+
+            UpdateBackgroundHistoryResetState();
+        }
+
+        return applied;
     }
 
     private bool CanUseBackgroundColorPickPreview()

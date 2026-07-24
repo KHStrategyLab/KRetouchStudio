@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,7 +17,18 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyMakeupDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            SetCommittedMakeupSectionState(HasEffectiveMakeupAdjustment(e.Snapshot) ? e.Snapshot : null);
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Makeup);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.Makeup,
+                RetouchRenderQuality.Preview,
+                "Makeup");
         }
         catch (Exception ex)
         {
@@ -26,12 +38,45 @@ public partial class MainWindow
 
     private async void MakeupRetouchTab_MakeupAdjustmentCommitted(object? sender, MakeupAdjustmentEventArgs e)
     {
-        await ApplyMakeupCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedMakeupSectionState(HasEffectiveMakeupAdjustment(e.Snapshot) ? e.Snapshot : null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Makeup);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Makeup,
+            RetouchRenderQuality.FullResolution,
+            "Makeup");
+        if (applied)
+        {
+            PushOrReplaceMakeupHistory(photo, e.OperationId, e.Value);
+            UpdateMakeupHistoryResetState();
+        }
     }
 
     private async void MakeupRetouchTab_MakeupResetRequested(object? sender, EventArgs e)
     {
-        await TryResetMakeupSectionAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedMakeupSectionState(null);
+        MakeupRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Makeup);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Makeup,
+            RetouchRenderQuality.FullResolution,
+            "Makeup Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(MakeupHistoryTitle, MakeupResetHistoryDetail);
+            UpdateMakeupHistoryResetState();
+        }
     }
 
     private async Task ApplyMakeupDragPreviewAsync(MakeupAdjustmentEventArgs args)

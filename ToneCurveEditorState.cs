@@ -279,6 +279,33 @@ public sealed class ToneCurveEditorState : INotifyPropertyChanged
         RefreshCurveHistogramPoints();
     }
 
+    public ToneCurveStateSnapshot CaptureSnapshot()
+    {
+        return new ToneCurveStateSnapshot(
+            CaptureChannelPoints(CurveChannel.All),
+            CaptureChannelPoints(CurveChannel.Red),
+            CaptureChannelPoints(CurveChannel.Green),
+            CaptureChannelPoints(CurveChannel.Blue),
+            Value);
+    }
+
+    public void RestoreSnapshot(ToneCurveStateSnapshot? snapshot)
+    {
+        ToneCurveStateSnapshot restored = snapshot ?? ToneCurveStateSnapshot.Neutral;
+        SelectedCurvePoint = null;
+        foreach (CurveChannel channel in Enum.GetValues<CurveChannel>())
+        {
+            RestoreChannelPoints(channel, restored.GetPoints(channel));
+        }
+
+        _value = double.IsFinite(restored.Strength)
+            ? Math.Clamp(restored.Strength, 0, 100)
+            : 100;
+        NotifyCurveChanged();
+        OnPropertyChanged(nameof(Value));
+        RefreshCurveHistogramPoints();
+    }
+
     public bool HasEffectiveAdjustment()
     {
         if (Value <= 0.001)
@@ -573,6 +600,45 @@ public sealed class ToneCurveEditorState : INotifyPropertyChanged
                 new CurvePoint(255, 255, isEndpoint: false)
             };
         }
+    }
+
+    private ToneCurvePointSnapshot[] CaptureChannelPoints(CurveChannel channel)
+    {
+        return GetCurvePoints(channel)
+            .OrderBy(point => point.Input)
+            .Select(point => new ToneCurvePointSnapshot(point.Input, point.Output))
+            .ToArray();
+    }
+
+    private void RestoreChannelPoints(
+        CurveChannel channel,
+        IEnumerable<ToneCurvePointSnapshot>? snapshotPoints)
+    {
+        ToneCurvePointSnapshot[] restoredPoints = snapshotPoints?
+            .Where(point => double.IsFinite(point.Input) && double.IsFinite(point.Output))
+            .OrderBy(point => point.Input)
+            .Take(MaxCurvePoints)
+            .ToArray() ?? [];
+        if (restoredPoints.Length < 2)
+        {
+            restoredPoints =
+            [
+                new ToneCurvePointSnapshot(0, 0),
+                new ToneCurvePointSnapshot(255, 255)
+            ];
+        }
+
+        ObservableCollection<CurvePoint> points = GetCurvePoints(channel);
+        points.Clear();
+        foreach (ToneCurvePointSnapshot point in restoredPoints)
+        {
+            points.Add(new CurvePoint(
+                Math.Clamp(point.Input, 0, 255),
+                Math.Clamp(point.Output, 0, 255),
+                isEndpoint: false));
+        }
+
+        SortCurvePoints(points);
     }
 
     private ObservableCollection<CurvePoint> GetCurvePoints(CurveChannel channel)

@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 
 using System.Windows.Media.Imaging;
 using Point = System.Windows.Point;
@@ -126,42 +127,48 @@ public partial class MainWindow
     private void PrepareRetouchSectionStateForHistoryCapture(string historyTitle, string historyDetail)
     {
         if (IsComposableRetouchSectionHistory(historyTitle, historyDetail) ||
-            (_committedSkinSectionState is null &&
-             _committedBlemishSectionState is null &&
-             _committedWrinkleSectionState is null &&
-             _committedMakeupSectionState is null &&
-             _committedHairSectionState is null))
+            IsNonRasterEditorHistoryTitle(historyTitle) ||
+            SelectedPhoto is not PhotoItem photo)
         {
             return;
         }
 
-        // Legacy tools flatten their result. Clear live section state so later connected edits
-        // start from that flattened image instead of discarding the newer operation.
-        _committedSkinSectionState = null;
-        _committedBlemishSectionState = null;
-        _committedWrinkleSectionState = null;
-        _committedMakeupSectionState = null;
-        _committedHairSectionState = null;
-        ClearConnectedRetouchSession();
-        ClearSkinRetouchSession();
-        ClearBlemishRetouchSession();
-        ClearWrinkleRetouchSession();
-        ClearMakeupRetouchSession();
-        ClearHairRetouchSession();
-        SkinRetouchTab?.RestoreSnapshot(null);
-        BlemishRetouchTab?.RestoreSnapshot(null);
-        WrinkleRetouchTab?.RestoreSnapshot(null);
-        MakeupRetouchTab?.RestoreSnapshot(null);
-        HairRetouchTab?.RestoreSnapshot(null);
+        PhotoEditStateSnapshot snapshot = CaptureCurrentPhotoEditState(photo);
+        if (!snapshot.HasAnyAdjustment)
+        {
+            return;
+        }
+
+        GetOrCreatePhotoEditState(photo).SetFlattenBarrier(historyTitle);
+        GetOrCreateRetouchPipelineSession(photo).CancelOutstandingRenders();
+    }
+
+    private static bool IsNonRasterEditorHistoryTitle(string historyTitle)
+    {
+        return string.Equals(historyTitle, "Open Photo", StringComparison.Ordinal) ||
+               string.Equals(historyTitle, "Type", StringComparison.Ordinal);
     }
 
     private static bool IsComposableRetouchSectionHistoryTitle(string historyTitle)
     {
-        return string.Equals(historyTitle, SkinHistoryTitle, StringComparison.Ordinal) ||
+        return string.Equals(historyTitle, ToneHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeSymmetryHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeUpperHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeCheekHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeBoneHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeJawHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeChinHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeFaceTiltHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeFaceTurnHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeHeadTiltHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceShapeResetHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, FaceDetailHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, SkinHistoryTitle, StringComparison.Ordinal) ||
                string.Equals(historyTitle, BlemishHistoryTitle, StringComparison.Ordinal) ||
                string.Equals(historyTitle, WrinkleHistoryTitle, StringComparison.Ordinal) ||
                string.Equals(historyTitle, MakeupHistoryTitle, StringComparison.Ordinal) ||
-               string.Equals(historyTitle, HairHistoryTitle, StringComparison.Ordinal);
+               string.Equals(historyTitle, HairHistoryTitle, StringComparison.Ordinal) ||
+               string.Equals(historyTitle, BackgroundReplacementHistoryTitle, StringComparison.Ordinal);
     }
 
     private static bool IsComposableRetouchSectionHistory(string historyTitle, string historyDetail)

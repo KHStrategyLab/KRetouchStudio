@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,7 +17,18 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyWrinkleDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            SetCommittedWrinkleSectionState(HasEffectiveWrinkleAdjustment(e.Snapshot) ? e.Snapshot : null);
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Wrinkle);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.Wrinkle,
+                RetouchRenderQuality.Preview,
+                "Wrinkle");
         }
         catch (Exception ex)
         {
@@ -26,12 +38,45 @@ public partial class MainWindow
 
     private async void WrinkleRetouchTab_WrinkleAdjustmentCommitted(object? sender, WrinkleAdjustmentEventArgs e)
     {
-        await ApplyWrinkleCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedWrinkleSectionState(HasEffectiveWrinkleAdjustment(e.Snapshot) ? e.Snapshot : null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Wrinkle);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Wrinkle,
+            RetouchRenderQuality.FullResolution,
+            "Wrinkle");
+        if (applied)
+        {
+            PushOrReplaceWrinkleHistory(photo, e.OperationId, e.Value);
+            UpdateWrinkleHistoryResetState();
+        }
     }
 
     private async void WrinkleRetouchTab_WrinkleResetRequested(object? sender, EventArgs e)
     {
-        await TryResetWrinkleSectionAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedWrinkleSectionState(null);
+        WrinkleRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Wrinkle);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Wrinkle,
+            RetouchRenderQuality.FullResolution,
+            "Wrinkle Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(WrinkleHistoryTitle, WrinkleResetHistoryDetail);
+            UpdateWrinkleHistoryResetState();
+        }
     }
 
     private async Task ApplyWrinkleDragPreviewAsync(WrinkleAdjustmentEventArgs args)

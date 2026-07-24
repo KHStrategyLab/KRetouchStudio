@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using KRetouchStudio.Pipeline;
+using System.Buffers;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -392,7 +393,17 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyFaceShapeHeadPoseDragPreviewAsync();
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceShape);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.FaceShape,
+                RetouchRenderQuality.Preview,
+                "Face Shape");
         }
         catch (Exception ex)
         {
@@ -403,12 +414,43 @@ public partial class MainWindow
 
     private async void FaceShapeRetouchTab_FaceShapeAdjustmentCommitted(object? sender, EventArgs e)
     {
-        await ApplyFaceShapeCommittedAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceShape);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.FaceShape,
+            RetouchRenderQuality.FullResolution,
+            "Face Shape");
+        if (applied)
+        {
+            PushCurrentFaceShapePipelineHistory(photo);
+            UpdateFaceShapeHistoryResetState();
+        }
     }
 
     private async void FaceShapeRetouchTab_FaceShapeResetRequested(object? sender, EventArgs e)
     {
-        await TryResetFaceShapeHistoryAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        FaceShapeRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.FaceShape);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.FaceShape,
+            RetouchRenderQuality.FullResolution,
+            "Face Shape Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(FaceShapeResetHistoryTitle, FaceShapeResetHistoryDetail);
+            UpdateFaceShapeHistoryResetState();
+        }
     }
 
     private async Task ApplyFaceShapeCommittedAsync()

@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -17,7 +18,18 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyHairDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            SetCommittedHairSectionState(HasEffectiveHairAdjustment(e.Snapshot) ? e.Snapshot : null);
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Hair);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.Hair,
+                RetouchRenderQuality.Preview,
+                "Hair");
         }
         catch (Exception ex)
         {
@@ -27,12 +39,45 @@ public partial class MainWindow
 
     private async void HairRetouchTab_HairAdjustmentCommitted(object? sender, HairAdjustmentEventArgs e)
     {
-        await ApplyHairCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedHairSectionState(HasEffectiveHairAdjustment(e.Snapshot) ? e.Snapshot : null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Hair);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Hair,
+            RetouchRenderQuality.FullResolution,
+            "Hair");
+        if (applied)
+        {
+            PushOrReplaceHairHistory(photo, e.OperationId, e.Value);
+            UpdateHairHistoryResetState();
+        }
     }
 
     private async void HairRetouchTab_HairResetRequested(object? sender, EventArgs e)
     {
-        await TryResetHairSectionAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedHairSectionState(null);
+        HairRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Hair);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Hair,
+            RetouchRenderQuality.FullResolution,
+            "Hair Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(HairHistoryTitle, HairResetHistoryDetail);
+            UpdateHairHistoryResetState();
+        }
     }
 
     private async Task ApplyHairDragPreviewAsync(HairAdjustmentEventArgs args)

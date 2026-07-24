@@ -1,4 +1,5 @@
-﻿using KRetouchStudio.Tabs;
+﻿using KRetouchStudio.Pipeline;
+using KRetouchStudio.Tabs;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,7 +17,18 @@ public partial class MainWindow
     {
         try
         {
-            await ApplyBlemishDragPreviewAsync(e);
+            if (SelectedPhoto is not PhotoItem photo)
+            {
+                return;
+            }
+
+            SetCommittedBlemishSectionState(HasEffectiveBlemishAdjustment(e.Snapshot) ? e.Snapshot : null);
+            PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Blemish);
+            await RenderAndPublishPhotoEditPipelineAsync(
+                photo,
+                RetouchStageId.Blemish,
+                RetouchRenderQuality.Preview,
+                "Blemish");
         }
         catch (Exception ex)
         {
@@ -26,12 +38,45 @@ public partial class MainWindow
 
     private async void BlemishRetouchTab_BlemishAdjustmentCommitted(object? sender, BlemishAdjustmentEventArgs e)
     {
-        await ApplyBlemishCommittedAsync(e);
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedBlemishSectionState(HasEffectiveBlemishAdjustment(e.Snapshot) ? e.Snapshot : null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Blemish);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Blemish,
+            RetouchRenderQuality.FullResolution,
+            "Blemish");
+        if (applied)
+        {
+            PushOrReplaceBlemishHistory(photo, e.OperationId, e.Value);
+            UpdateBlemishHistoryResetState();
+        }
     }
 
     private async void BlemishRetouchTab_BlemishResetRequested(object? sender, EventArgs e)
     {
-        await TryResetBlemishSectionAsync();
+        if (SelectedPhoto is not PhotoItem photo)
+        {
+            return;
+        }
+
+        SetCommittedBlemishSectionState(null);
+        BlemishRetouchTab.RestoreSnapshot(null);
+        PreparePhotoEditPipelineStageChange(photo, RetouchStageId.Blemish);
+        bool applied = await RenderAndPublishPhotoEditPipelineAsync(
+            photo,
+            RetouchStageId.Blemish,
+            RetouchRenderQuality.FullResolution,
+            "Blemish Reset");
+        if (applied)
+        {
+            PushEditorHistorySnapshot(BlemishHistoryTitle, BlemishResetHistoryDetail);
+            UpdateBlemishHistoryResetState();
+        }
     }
 
     private async Task ApplyBlemishDragPreviewAsync(BlemishAdjustmentEventArgs args)
