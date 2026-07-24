@@ -13,17 +13,7 @@ namespace KRetouchStudio.Tabs;
 
 public partial class BackgroundTabView : System.Windows.Controls.UserControl, INotifyPropertyChanged
 {
-    private enum BackgroundMode
-    {
-        None,
-        White,
-        Gray,
-        Color,
-        Pick,
-        Image
-    }
-
-    private BackgroundMode _activeBackgroundMode = BackgroundMode.None;
+    private BackgroundReplacementMode _activeBackgroundMode = BackgroundReplacementMode.None;
     private double _backgroundOpacity = 100;
     private double _boundaryProbeStrength;
     private double _boundaryCleanStrength;
@@ -31,12 +21,14 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
     private double _alphaShrinkStrength;
     private double _softAlphaStrength;
     private double _alphaGammaStrength;
+    private bool _isPickBackgroundModeActive;
     private bool _isBackgroundAdjustmentSliderInteracting;
+    private bool _isRestoringSnapshot;
     private bool _canResetBackgroundTab;
 
     public BackgroundTabView()
     {
-        CustomBackgroundBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(238, 240, 242));
+        CustomBackgroundBrush = new SolidColorBrush(ColorFromArgb(BackgroundAdjustmentSnapshot.DefaultSolidColorArgb));
         InitializeComponent();
     }
 
@@ -79,15 +71,29 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     public string? SelectedBackgroundImagePath { get; private set; }
 
-    public bool IsWhiteBackgroundModeActive => _activeBackgroundMode == BackgroundMode.White;
+    public BackgroundReplacementMode ActiveBackgroundMode => _activeBackgroundMode;
 
-    public bool IsGrayBackgroundModeActive => _activeBackgroundMode == BackgroundMode.Gray;
+    public bool IsWhiteBackgroundModeActive =>
+        !_isPickBackgroundModeActive &&
+        _activeBackgroundMode == BackgroundReplacementMode.White;
 
-    public bool IsColorBackgroundModeActive => _activeBackgroundMode == BackgroundMode.Color;
+    public bool IsGrayBackgroundModeActive =>
+        !_isPickBackgroundModeActive &&
+        _activeBackgroundMode == BackgroundReplacementMode.Gray;
 
-    public bool IsPickBackgroundModeActive => _activeBackgroundMode == BackgroundMode.Pick;
+    public bool IsColorBackgroundModeActive =>
+        !_isPickBackgroundModeActive &&
+        _activeBackgroundMode == BackgroundReplacementMode.SolidColor;
 
-    public bool IsImageBackgroundModeActive => _activeBackgroundMode == BackgroundMode.Image;
+    public bool IsPickBackgroundModeActive => _isPickBackgroundModeActive;
+
+    public bool IsImageBackgroundModeActive =>
+        !_isPickBackgroundModeActive &&
+        _activeBackgroundMode == BackgroundReplacementMode.Image;
+
+    public bool IsBackgroundAdjustmentNeutral => _activeBackgroundMode == BackgroundReplacementMode.None;
+
+    public bool HasEffectiveBackgroundAdjustment => CaptureSnapshot().HasEffectiveAdjustment;
 
     public double BackgroundOpacity
     {
@@ -155,18 +161,74 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     public void ResetAfterHistoryReset()
     {
-        _activeBackgroundMode = BackgroundMode.None;
-        _backgroundOpacity = 100;
-        _boundaryProbeStrength = 0;
-        _boundaryCleanStrength = 0;
-        _edgeBlurStrength = 0;
-        _alphaShrinkStrength = 0;
-        _softAlphaStrength = 0;
-        _alphaGammaStrength = 0;
-        _isBackgroundAdjustmentSliderInteracting = false;
-        CanResetBackgroundTab = false;
-        NotifyBackgroundModeProperties();
-        OnPropertyChanged(string.Empty);
+        ResetToNeutral();
+    }
+
+    public void ResetForPhotoChange()
+    {
+        ResetToNeutral();
+    }
+
+    public void ResetToNeutral()
+    {
+        RestoreSnapshot(null);
+    }
+
+    public BackgroundAdjustmentSnapshot CaptureSnapshot()
+    {
+        uint colorArgb = CustomBackgroundBrush is SolidColorBrush solidColorBrush
+            ? ColorToArgb(solidColorBrush.Color)
+            : BackgroundAdjustmentSnapshot.DefaultSolidColorArgb;
+
+        return new BackgroundAdjustmentSnapshot(
+            BackgroundAdjustmentSnapshot.CurrentSchemaVersion,
+            _activeBackgroundMode,
+            colorArgb,
+            SelectedBackgroundImagePath,
+            _backgroundOpacity,
+            _boundaryProbeStrength,
+            _boundaryCleanStrength,
+            _edgeBlurStrength,
+            _alphaShrinkStrength,
+            _softAlphaStrength,
+            _alphaGammaStrength);
+    }
+
+    public void RestoreSnapshot(BackgroundAdjustmentSnapshot? snapshot)
+    {
+        BackgroundAdjustmentSnapshot restored = snapshot ?? BackgroundAdjustmentSnapshot.Neutral;
+
+        _isRestoringSnapshot = true;
+        try
+        {
+            _activeBackgroundMode = Enum.IsDefined(restored.Mode)
+                ? restored.Mode
+                : BackgroundReplacementMode.None;
+            _isPickBackgroundModeActive = false;
+            _backgroundOpacity = ClampAdjustment(restored.BackgroundOpacity, 100);
+            _boundaryProbeStrength = ClampAdjustment(restored.BoundaryProbeStrength);
+            _boundaryCleanStrength = ClampAdjustment(restored.BoundaryCleanStrength);
+            _edgeBlurStrength = ClampAdjustment(restored.EdgeBlurStrength);
+            _alphaShrinkStrength = ClampAdjustment(restored.AlphaShrinkStrength);
+            _softAlphaStrength = ClampAdjustment(restored.SoftAlphaStrength);
+            _alphaGammaStrength = ClampAdjustment(restored.AlphaGammaStrength);
+            SelectedBackgroundImagePath = string.IsNullOrWhiteSpace(restored.SelectedImagePath)
+                ? null
+                : restored.SelectedImagePath;
+
+            if (CustomBackgroundBrush is SolidColorBrush solidColorBrush)
+            {
+                solidColorBrush.Color = ColorFromArgb(restored.SolidColorArgb);
+            }
+
+            _isBackgroundAdjustmentSliderInteracting = false;
+            _canResetBackgroundTab = CaptureSnapshot().HasEffectiveAdjustment;
+            OnPropertyChanged(string.Empty);
+        }
+        finally
+        {
+            _isRestoringSnapshot = false;
+        }
     }
 
     private void ResetBackgroundTabButton_Click(object sender, RoutedEventArgs e)
@@ -240,14 +302,14 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private void WhiteBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveBackgroundMode(BackgroundMode.White, forceRefresh: true);
+        SetActiveBackgroundMode(BackgroundReplacementMode.White, forceRefresh: true);
         BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
     private void GrayBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveBackgroundMode(BackgroundMode.Gray, forceRefresh: true);
+        SetActiveBackgroundMode(BackgroundReplacementMode.Gray, forceRefresh: true);
         BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
@@ -275,7 +337,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private void PickBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveBackgroundMode(BackgroundMode.Pick, forceRefresh: true);
+        SetPickBackgroundModeActive();
         e.Handled = true;
     }
 
@@ -292,13 +354,13 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
             OnPropertyChanged(nameof(CustomBackgroundBrush));
         }
 
-        SetActiveBackgroundMode(BackgroundMode.Color, forceRefresh: true);
+        SetActiveBackgroundMode(BackgroundReplacementMode.SolidColor, forceRefresh: true);
         BackgroundReplacementRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void ImageBackgroundButton_Click(object sender, RoutedEventArgs e)
     {
-        SetActiveBackgroundMode(BackgroundMode.Image, forceRefresh: true);
+        SetActiveBackgroundMode(BackgroundReplacementMode.Image, forceRefresh: true);
         BackgroundImageImportRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
@@ -377,7 +439,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         {
             SelectedBackgroundImagePath = null;
             OnPropertyChanged(nameof(SelectedBackgroundImagePath));
-            SetActiveBackgroundMode(BackgroundMode.None, forceRefresh: true);
+            SetActiveBackgroundMode(BackgroundReplacementMode.None, forceRefresh: true);
         }
 
         BackgroundImageRemoved?.Invoke(this, new BackgroundImageRemovedEventArgs(path, wasSelected));
@@ -392,7 +454,7 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
         SelectedBackgroundImagePath = path;
         OnPropertyChanged(nameof(SelectedBackgroundImagePath));
-        SetActiveBackgroundMode(BackgroundMode.Image, forceRefresh: true);
+        SetActiveBackgroundMode(BackgroundReplacementMode.Image, forceRefresh: true);
 
         if (raiseEvent)
         {
@@ -413,7 +475,8 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private void BoundarySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (sender is not System.Windows.Controls.Slider slider ||
+        if (_isRestoringSnapshot ||
+            sender is not System.Windows.Controls.Slider slider ||
             (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
         {
             return;
@@ -426,7 +489,11 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
         SyncBackgroundAdjustmentSliderValue(slider);
 
-        if (_activeBackgroundMode is BackgroundMode.White or BackgroundMode.Gray or BackgroundMode.Color or BackgroundMode.Image)
+        if (!_isPickBackgroundModeActive &&
+            _activeBackgroundMode is BackgroundReplacementMode.White or
+                BackgroundReplacementMode.Gray or
+                BackgroundReplacementMode.SolidColor or
+                BackgroundReplacementMode.Image)
         {
             BackgroundReplacementPreviewChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -477,7 +544,12 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
 
     private void CommitWhiteBackgroundAdjustment()
     {
-        if (_activeBackgroundMode is not (BackgroundMode.White or BackgroundMode.Gray or BackgroundMode.Color or BackgroundMode.Image))
+        if (_isRestoringSnapshot ||
+            _isPickBackgroundModeActive ||
+            _activeBackgroundMode is not (BackgroundReplacementMode.White or
+                BackgroundReplacementMode.Gray or
+                BackgroundReplacementMode.SolidColor or
+                BackgroundReplacementMode.Image))
         {
             return;
         }
@@ -485,9 +557,11 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         BackgroundReplacementAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
 
-    private void SetActiveBackgroundMode(BackgroundMode mode, bool forceRefresh = false)
+    private void SetActiveBackgroundMode(BackgroundReplacementMode mode, bool forceRefresh = false)
     {
-        if (_activeBackgroundMode == mode)
+        bool modeChanged = _activeBackgroundMode != mode;
+        bool pickModeChanged = _isPickBackgroundModeActive;
+        if (!modeChanged && !pickModeChanged)
         {
             if (forceRefresh)
             {
@@ -498,16 +572,56 @@ public partial class BackgroundTabView : System.Windows.Controls.UserControl, IN
         }
 
         _activeBackgroundMode = mode;
+        _isPickBackgroundModeActive = false;
+        NotifyBackgroundModeProperties();
+    }
+
+    private void SetPickBackgroundModeActive()
+    {
+        if (_isPickBackgroundModeActive)
+        {
+            NotifyBackgroundModeProperties();
+            return;
+        }
+
+        _isPickBackgroundModeActive = true;
         NotifyBackgroundModeProperties();
     }
 
     private void NotifyBackgroundModeProperties()
     {
+        OnPropertyChanged(nameof(ActiveBackgroundMode));
         OnPropertyChanged(nameof(IsWhiteBackgroundModeActive));
         OnPropertyChanged(nameof(IsGrayBackgroundModeActive));
         OnPropertyChanged(nameof(IsColorBackgroundModeActive));
         OnPropertyChanged(nameof(IsPickBackgroundModeActive));
         OnPropertyChanged(nameof(IsImageBackgroundModeActive));
+        OnPropertyChanged(nameof(IsBackgroundAdjustmentNeutral));
+        OnPropertyChanged(nameof(HasEffectiveBackgroundAdjustment));
+    }
+
+    private static double ClampAdjustment(double value, double fallback = 0)
+    {
+        return double.IsFinite(value)
+            ? Math.Clamp(Math.Round(value), 0, 100)
+            : fallback;
+    }
+
+    private static uint ColorToArgb(System.Windows.Media.Color color)
+    {
+        return ((uint)color.A << 24) |
+               ((uint)color.R << 16) |
+               ((uint)color.G << 8) |
+               color.B;
+    }
+
+    private static System.Windows.Media.Color ColorFromArgb(uint argb)
+    {
+        return System.Windows.Media.Color.FromArgb(
+            (byte)(argb >> 24),
+            (byte)(argb >> 16),
+            (byte)(argb >> 8),
+            (byte)argb);
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
