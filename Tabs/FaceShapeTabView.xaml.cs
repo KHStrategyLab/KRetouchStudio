@@ -33,6 +33,7 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     private double _faceTurnStrength = 50;
     private double _headTiltStrength = 50;
     private double _alignStrength;
+    private bool _isRestoringSnapshot;
     private bool _isHeadPoseStrengthSliderInteracting;
     private bool _isFaceShapeControlStrengthSliderInteracting;
     private bool _isSymmetrizeStrengthSliderInteracting;
@@ -180,9 +181,69 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     public double AlignFaceShapeStrength => _alignStrength;
 
+    public bool HasEffectiveAdjustment => !CaptureSnapshot().IsNeutral;
+
+    public bool IsNeutral => !HasEffectiveAdjustment;
+
     public void Collapse()
     {
         FaceShapeExpander.IsExpanded = false;
+    }
+
+    public FaceShapeAdjustmentSnapshot CaptureSnapshot()
+    {
+        return new FaceShapeAdjustmentSnapshot(
+            SymFaceShapeStrength,
+            AlignFaceShapeStrength,
+            CheekFaceShapeStrength,
+            BoneFaceShapeStrength,
+            JawFaceShapeStrength,
+            ChinFaceShapeStrength,
+            FaceTiltFaceShapeStrength,
+            FaceTurnFaceShapeStrength,
+            HeadTiltFaceShapeStrength);
+    }
+
+    public void RestoreSnapshot(FaceShapeAdjustmentSnapshot? snapshot)
+    {
+        FaceShapeAdjustmentSnapshot state = snapshot ?? FaceShapeAdjustmentSnapshot.Neutral;
+        _isRestoringSnapshot = true;
+        try
+        {
+            _symStrength = NormalizeSnapshotValue(state.Symmetry, 0);
+            _alignStrength = NormalizeSnapshotValue(state.UpperAlign, 0);
+            _cheekStrength = NormalizeSnapshotValue(state.Cheek, 0);
+            _boneStrength = NormalizeSnapshotValue(state.Bone, 0);
+            _jawStrength = NormalizeSnapshotValue(state.Jaw, 0);
+            _chinStrength = NormalizeSnapshotValue(state.Chin, 0);
+            _faceTiltStrength = NormalizeSnapshotValue(state.FaceTilt, 50);
+            _faceTurnStrength = NormalizeSnapshotValue(state.FaceTurn, 50);
+            _headTiltStrength = NormalizeSnapshotValue(state.HeadTilt, 50);
+            _isHeadPoseStrengthSliderInteracting = false;
+            _isFaceShapeControlStrengthSliderInteracting = false;
+            _isSymmetrizeStrengthSliderInteracting = false;
+            ResetFaceShapeControlPreviewTracking();
+            ResetSymmetrizePreviewTracking();
+            NotifyFaceShapeModeProperties();
+            OnPropertyChanged(nameof(ActiveFaceShapeControlStrength));
+            OnPropertyChanged(nameof(ActiveSymmetrizeStrength));
+            OnPropertyChanged(nameof(ActiveHeadPoseStrength));
+            OnPropertyChanged(nameof(SymFaceShapeStrength));
+            OnPropertyChanged(nameof(CheekFaceShapeStrength));
+            OnPropertyChanged(nameof(BoneFaceShapeStrength));
+            OnPropertyChanged(nameof(JawFaceShapeStrength));
+            OnPropertyChanged(nameof(ChinFaceShapeStrength));
+            OnPropertyChanged(nameof(FaceTiltFaceShapeStrength));
+            OnPropertyChanged(nameof(FaceTurnFaceShapeStrength));
+            OnPropertyChanged(nameof(HeadTiltFaceShapeStrength));
+            OnPropertyChanged(nameof(AlignFaceShapeStrength));
+            OnPropertyChanged(nameof(HasEffectiveAdjustment));
+            OnPropertyChanged(nameof(IsNeutral));
+        }
+        finally
+        {
+            _isRestoringSnapshot = false;
+        }
     }
 
     public void ResetForPhotoChange()
@@ -201,29 +262,7 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void ResetFaceShapeAdjustmentValues()
     {
-        _symStrength = 0;
-        _cheekStrength = 0;
-        _boneStrength = 0;
-        _jawStrength = 0;
-        _chinStrength = 0;
-        _faceTiltStrength = 50;
-        _faceTurnStrength = 50;
-        _headTiltStrength = 50;
-        _alignStrength = 0;
-
-        NotifyFaceShapeModeProperties();
-        OnPropertyChanged(nameof(ActiveFaceShapeControlStrength));
-        OnPropertyChanged(nameof(ActiveSymmetrizeStrength));
-        OnPropertyChanged(nameof(ActiveHeadPoseStrength));
-        OnPropertyChanged(nameof(SymFaceShapeStrength));
-        OnPropertyChanged(nameof(CheekFaceShapeStrength));
-        OnPropertyChanged(nameof(BoneFaceShapeStrength));
-        OnPropertyChanged(nameof(JawFaceShapeStrength));
-        OnPropertyChanged(nameof(ChinFaceShapeStrength));
-        OnPropertyChanged(nameof(FaceTiltFaceShapeStrength));
-        OnPropertyChanged(nameof(FaceTurnFaceShapeStrength));
-        OnPropertyChanged(nameof(HeadTiltFaceShapeStrength));
-        OnPropertyChanged(nameof(AlignFaceShapeStrength));
+        RestoreSnapshot(null);
     }
 
     private void ResetFaceShapeHistoryButton_Click(object sender, RoutedEventArgs e)
@@ -333,7 +372,8 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void FaceShapeControlStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (sender is not System.Windows.Controls.Slider slider ||
+        if (_isRestoringSnapshot ||
+            sender is not System.Windows.Controls.Slider slider ||
             (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
         {
             return;
@@ -384,7 +424,8 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void SymmetrizeStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (sender is not System.Windows.Controls.Slider slider ||
+        if (_isRestoringSnapshot ||
+            sender is not System.Windows.Controls.Slider slider ||
             (Mouse.LeftButton != MouseButtonState.Pressed && !slider.IsMouseCaptureWithin))
         {
             return;
@@ -423,12 +464,22 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void CommitFaceShapeControlAdjustment()
     {
+        if (_isRestoringSnapshot)
+        {
+            return;
+        }
+
         SetActiveFaceShapeMode(_activeFaceShapeControlMode);
         FaceShapeAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
 
     private void CommitSymmetrizeAdjustment()
     {
+        if (_isRestoringSnapshot)
+        {
+            return;
+        }
+
         SetActiveFaceShapeMode(_activeSymmetrizeMode);
         FaceShapeAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
@@ -477,6 +528,11 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
 
     private void CommitHeadPoseAdjustment()
     {
+        if (_isRestoringSnapshot)
+        {
+            return;
+        }
+
         SetActiveFaceShapeMode(_activeHeadPoseMode);
         HeadPoseAdjustmentCommitted?.Invoke(this, EventArgs.Empty);
     }
@@ -571,7 +627,16 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
         }
 
         storage = clamped;
+        OnPropertyChanged(nameof(HasEffectiveAdjustment));
+        OnPropertyChanged(nameof(IsNeutral));
         return true;
+    }
+
+    private static double NormalizeSnapshotValue(double value, double neutralValue)
+    {
+        return double.IsFinite(value)
+            ? Math.Clamp(Math.Round(value), 0, 100)
+            : neutralValue;
     }
 
     private ref double GetFaceShapeStrengthStorage(FaceShapeMode mode)
@@ -603,4 +668,40 @@ public partial class FaceShapeTabView : System.Windows.Controls.UserControl, INo
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+}
+
+[Serializable]
+public sealed record FaceShapeAdjustmentSnapshot(
+    double Symmetry,
+    double UpperAlign,
+    double Cheek,
+    double Bone,
+    double Jaw,
+    double Chin,
+    double FaceTilt,
+    double FaceTurn,
+    double HeadTilt)
+{
+    public static FaceShapeAdjustmentSnapshot Neutral { get; } = new(
+        Symmetry: 0,
+        UpperAlign: 0,
+        Cheek: 0,
+        Bone: 0,
+        Jaw: 0,
+        Chin: 0,
+        FaceTilt: 50,
+        FaceTurn: 50,
+        HeadTilt: 50);
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsNeutral =>
+        Math.Abs(Symmetry) <= 0.001 &&
+        Math.Abs(UpperAlign) <= 0.001 &&
+        Math.Abs(Cheek) <= 0.001 &&
+        Math.Abs(Bone) <= 0.001 &&
+        Math.Abs(Jaw) <= 0.001 &&
+        Math.Abs(Chin) <= 0.001 &&
+        Math.Abs(FaceTilt - 50) <= 0.001 &&
+        Math.Abs(FaceTurn - 50) <= 0.001 &&
+        Math.Abs(HeadTilt - 50) <= 0.001;
 }

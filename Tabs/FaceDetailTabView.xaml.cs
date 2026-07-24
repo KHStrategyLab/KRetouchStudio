@@ -66,6 +66,7 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     private double _rightSideNeck = NeutralFaceDetailSliderValue;
     private double _leftTrapezius = NeutralFaceDetailSliderValue;
     private double _rightTrapezius = NeutralFaceDetailSliderValue;
+    private bool _isRestoringSnapshot;
     private bool _isSingleSliderInteracting;
     private string? _lastSinglePreviewOperationId;
     private double _lastSinglePreviewValue = double.NaN;
@@ -365,9 +366,128 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         set => SetSliderValue(ref _rightTrapezius, value);
     }
 
+    public bool HasEffectiveAdjustment => !CaptureSnapshot().IsNeutral;
+
+    public bool IsNeutral => !HasEffectiveAdjustment;
+
     public void Collapse()
     {
         FaceDetailExpander.IsExpanded = false;
+    }
+
+    public FaceDetailAdjustmentSnapshot CaptureSnapshot()
+    {
+        return new FaceDetailAdjustmentSnapshot(
+            EyeSize,
+            LeftEyeHeight,
+            RightEyeHeight,
+            LeftEyeTilt,
+            RightEyeTilt,
+            EyeDistance,
+            LeftDarkCircle,
+            RightDarkCircle,
+            LeftUnderEye,
+            RightUnderEye,
+            LeftBrowThickness,
+            RightBrowThickness,
+            BrowDistance,
+            LeftBrowTilt,
+            RightBrowTilt,
+            LeftBrowArch,
+            RightBrowArch,
+            LeftBrowPosition,
+            RightBrowPosition,
+            LeftBrowTail,
+            RightBrowTail,
+            NoseSize,
+            NoseLength,
+            NoseBridge,
+            NoseWidth,
+            NoseTip,
+            LeftNostril,
+            RightNostril,
+            MouthWidth,
+            LeftMouthCorner,
+            RightMouthCorner,
+            UpperLip,
+            LowerLip,
+            NeckSlim,
+            NeckLength,
+            NeckWrinkle,
+            DoubleChin,
+            LeftSideNeck,
+            RightSideNeck,
+            LeftTrapezius,
+            RightTrapezius);
+    }
+
+    public void RestoreSnapshot(FaceDetailAdjustmentSnapshot? snapshot)
+    {
+        _isRestoringSnapshot = true;
+        try
+        {
+            if (snapshot is null)
+            {
+                SetSnapshotValuesToNeutral();
+            }
+            else
+            {
+                _eyeSize = NormalizeSnapshotValue(snapshot.EyeSize, NeutralFaceDetailSliderValue);
+                _leftEyeHeight = NormalizeSnapshotValue(snapshot.LeftEyeHeight, NeutralFaceDetailSliderValue);
+                _rightEyeHeight = NormalizeSnapshotValue(snapshot.RightEyeHeight, NeutralFaceDetailSliderValue);
+                _leftEyeTilt = NormalizeSnapshotValue(snapshot.LeftEyeTilt, NeutralFaceDetailSliderValue);
+                _rightEyeTilt = NormalizeSnapshotValue(snapshot.RightEyeTilt, NeutralFaceDetailSliderValue);
+                _eyeDistance = NormalizeSnapshotValue(snapshot.EyeDistance, NeutralFaceDetailSliderValue);
+                _leftDarkCircle = NormalizeSnapshotValue(snapshot.LeftDarkCircle, 0);
+                _rightDarkCircle = NormalizeSnapshotValue(snapshot.RightDarkCircle, 0);
+                _leftUnderEye = NormalizeSnapshotValue(snapshot.LeftUnderEye, 0);
+                _rightUnderEye = NormalizeSnapshotValue(snapshot.RightUnderEye, 0);
+
+                _leftBrowThickness = NormalizeSnapshotValue(snapshot.LeftBrowThickness, NeutralFaceDetailSliderValue);
+                _rightBrowThickness = NormalizeSnapshotValue(snapshot.RightBrowThickness, NeutralFaceDetailSliderValue);
+                _browDistance = NormalizeSnapshotValue(snapshot.BrowDistance, NeutralFaceDetailSliderValue);
+                _leftBrowTilt = NormalizeSnapshotValue(snapshot.LeftBrowTilt, NeutralFaceDetailSliderValue);
+                _rightBrowTilt = NormalizeSnapshotValue(snapshot.RightBrowTilt, NeutralFaceDetailSliderValue);
+                _leftBrowArch = NormalizeSnapshotValue(snapshot.LeftBrowArch, NeutralFaceDetailSliderValue);
+                _rightBrowArch = NormalizeSnapshotValue(snapshot.RightBrowArch, NeutralFaceDetailSliderValue);
+                _leftBrowPosition = NormalizeSnapshotValue(snapshot.LeftBrowPosition, NeutralFaceDetailSliderValue);
+                _rightBrowPosition = NormalizeSnapshotValue(snapshot.RightBrowPosition, NeutralFaceDetailSliderValue);
+                _leftBrowTail = NormalizeSnapshotValue(snapshot.LeftBrowTail, NeutralFaceDetailSliderValue);
+                _rightBrowTail = NormalizeSnapshotValue(snapshot.RightBrowTail, NeutralFaceDetailSliderValue);
+
+                _noseSize = NormalizeSnapshotValue(snapshot.NoseSize, NeutralFaceDetailSliderValue);
+                _noseLength = NormalizeSnapshotValue(snapshot.NoseLength, NeutralFaceDetailSliderValue);
+                _noseBridge = NormalizeSnapshotValue(snapshot.NoseBridge, NeutralFaceDetailSliderValue);
+                _noseWidth = NormalizeSnapshotValue(snapshot.NoseWidth, NeutralFaceDetailSliderValue);
+                _noseTip = NormalizeSnapshotValue(snapshot.NoseTip, NeutralFaceDetailSliderValue);
+                _leftNostril = NormalizeSnapshotValue(snapshot.LeftNostril, NeutralFaceDetailSliderValue);
+                _rightNostril = NormalizeSnapshotValue(snapshot.RightNostril, NeutralFaceDetailSliderValue);
+
+                _mouthWidth = NormalizeSnapshotValue(snapshot.MouthWidth, NeutralFaceDetailSliderValue);
+                _leftMouthCorner = NormalizeSnapshotValue(snapshot.LeftMouthCorner, NeutralFaceDetailSliderValue);
+                _rightMouthCorner = NormalizeSnapshotValue(snapshot.RightMouthCorner, NeutralFaceDetailSliderValue);
+                _upperLip = NormalizeSnapshotValue(snapshot.UpperLip, NeutralFaceDetailSliderValue);
+                _lowerLip = NormalizeSnapshotValue(snapshot.LowerLip, NeutralFaceDetailSliderValue);
+
+                _neckSlim = NormalizeSnapshotValue(snapshot.NeckSlim, NeutralFaceDetailSliderValue);
+                _neckLength = NormalizeSnapshotValue(snapshot.NeckLength, NeutralFaceDetailSliderValue);
+                _neckWrinkle = NormalizeSnapshotValue(snapshot.NeckWrinkle, 0);
+                _doubleChin = NormalizeSnapshotValue(snapshot.DoubleChin, 0);
+                _leftSideNeck = NormalizeSnapshotValue(snapshot.LeftSideNeck, NeutralFaceDetailSliderValue);
+                _rightSideNeck = NormalizeSnapshotValue(snapshot.RightSideNeck, NeutralFaceDetailSliderValue);
+                _leftTrapezius = NormalizeSnapshotValue(snapshot.LeftTrapezius, NeutralFaceDetailSliderValue);
+                _rightTrapezius = NormalizeSnapshotValue(snapshot.RightTrapezius, NeutralFaceDetailSliderValue);
+            }
+
+            _isSingleSliderInteracting = false;
+            _lastSinglePreviewOperationId = null;
+            _lastSinglePreviewValue = double.NaN;
+            OnPropertyChanged(string.Empty);
+        }
+        finally
+        {
+            _isRestoringSnapshot = false;
+        }
     }
 
     public void ResetForPhotoChange()
@@ -382,6 +502,11 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
     }
 
     private void ResetFaceDetailAdjustmentValues()
+    {
+        RestoreSnapshot(null);
+    }
+
+    private void SetSnapshotValuesToNeutral()
     {
         _eyeSize = NeutralFaceDetailSliderValue;
         _leftEyeHeight = NeutralFaceDetailSliderValue;
@@ -428,8 +553,6 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
         _rightSideNeck = NeutralFaceDetailSliderValue;
         _leftTrapezius = NeutralFaceDetailSliderValue;
         _rightTrapezius = NeutralFaceDetailSliderValue;
-
-        OnPropertyChanged(string.Empty);
     }
 
     private void ResetFaceDetailHistoryButton_Click(object sender, RoutedEventArgs e)
@@ -514,72 +637,26 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
 
     private void RaiseFaceDetailPreview(string operationId, double value)
     {
-        if (string.IsNullOrWhiteSpace(operationId))
+        if (_isRestoringSnapshot || string.IsNullOrWhiteSpace(operationId))
         {
             return;
         }
 
         FaceDetailAdjustmentPreviewChanged?.Invoke(
             this,
-            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
+            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CaptureSnapshot()));
     }
 
     private void RaiseFaceDetailCommitted(string operationId, double value)
     {
-        if (string.IsNullOrWhiteSpace(operationId))
+        if (_isRestoringSnapshot || string.IsNullOrWhiteSpace(operationId))
         {
             return;
         }
 
         FaceDetailAdjustmentCommitted?.Invoke(
             this,
-            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CreateSnapshot()));
-    }
-
-    private FaceDetailAdjustmentSnapshot CreateSnapshot()
-    {
-        return new FaceDetailAdjustmentSnapshot(
-            EyeSize,
-            LeftEyeHeight,
-            RightEyeHeight,
-            LeftEyeTilt,
-            RightEyeTilt,
-            EyeDistance,
-            LeftDarkCircle,
-            RightDarkCircle,
-            LeftUnderEye,
-            RightUnderEye,
-            LeftBrowThickness,
-            RightBrowThickness,
-            BrowDistance,
-            LeftBrowTilt,
-            RightBrowTilt,
-            LeftBrowArch,
-            RightBrowArch,
-            LeftBrowPosition,
-            RightBrowPosition,
-            LeftBrowTail,
-            RightBrowTail,
-            NoseSize,
-            NoseLength,
-            NoseBridge,
-            NoseWidth,
-            NoseTip,
-            LeftNostril,
-            RightNostril,
-            MouthWidth,
-            LeftMouthCorner,
-            RightMouthCorner,
-            UpperLip,
-            LowerLip,
-            NeckSlim,
-            NeckLength,
-            NeckWrinkle,
-            DoubleChin,
-            LeftSideNeck,
-            RightSideNeck,
-            LeftTrapezius,
-            RightTrapezius);
+            new FaceDetailAdjustmentEventArgs(operationId, Math.Clamp(Math.Round(value), 0, 100), CaptureSnapshot()));
     }
 
     private static string GetOperationId(Slider slider)
@@ -671,6 +748,11 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
 
     private bool SetSliderValue(ref double storage, double value, [CallerMemberName] string? propertyName = null)
     {
+        if (_isRestoringSnapshot)
+        {
+            return false;
+        }
+
         double clamped = Math.Clamp(Math.Round(value), 0, 100);
         if (Math.Abs(storage - clamped) < 0.01)
         {
@@ -679,7 +761,16 @@ public partial class FaceDetailTabView : System.Windows.Controls.UserControl, IN
 
         storage = clamped;
         OnPropertyChanged(propertyName);
+        OnPropertyChanged(nameof(HasEffectiveAdjustment));
+        OnPropertyChanged(nameof(IsNeutral));
         return true;
+    }
+
+    private static double NormalizeSnapshotValue(double value, double neutralValue)
+    {
+        return double.IsFinite(value)
+            ? Math.Clamp(Math.Round(value), 0, 100)
+            : neutralValue;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -712,6 +803,7 @@ public sealed class FaceDetailAdjustmentEventArgs(
     public FaceDetailAdjustmentSnapshot Snapshot { get; } = snapshot;
 }
 
+[Serializable]
 public sealed record FaceDetailAdjustmentSnapshot(
     double EyeSize,
     double LeftEyeHeight,
@@ -753,4 +845,49 @@ public sealed record FaceDetailAdjustmentSnapshot(
     double LeftSideNeck,
     double RightSideNeck,
     double LeftTrapezius,
-    double RightTrapezius);
+    double RightTrapezius)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsNeutral =>
+        Math.Abs(EyeSize - 50) <= 0.001 &&
+        Math.Abs(LeftEyeHeight - 50) <= 0.001 &&
+        Math.Abs(RightEyeHeight - 50) <= 0.001 &&
+        Math.Abs(LeftEyeTilt - 50) <= 0.001 &&
+        Math.Abs(RightEyeTilt - 50) <= 0.001 &&
+        Math.Abs(EyeDistance - 50) <= 0.001 &&
+        Math.Abs(LeftDarkCircle) <= 0.001 &&
+        Math.Abs(RightDarkCircle) <= 0.001 &&
+        Math.Abs(LeftUnderEye) <= 0.001 &&
+        Math.Abs(RightUnderEye) <= 0.001 &&
+        Math.Abs(LeftBrowThickness - 50) <= 0.001 &&
+        Math.Abs(RightBrowThickness - 50) <= 0.001 &&
+        Math.Abs(BrowDistance - 50) <= 0.001 &&
+        Math.Abs(LeftBrowTilt - 50) <= 0.001 &&
+        Math.Abs(RightBrowTilt - 50) <= 0.001 &&
+        Math.Abs(LeftBrowArch - 50) <= 0.001 &&
+        Math.Abs(RightBrowArch - 50) <= 0.001 &&
+        Math.Abs(LeftBrowPosition - 50) <= 0.001 &&
+        Math.Abs(RightBrowPosition - 50) <= 0.001 &&
+        Math.Abs(LeftBrowTail - 50) <= 0.001 &&
+        Math.Abs(RightBrowTail - 50) <= 0.001 &&
+        Math.Abs(NoseSize - 50) <= 0.001 &&
+        Math.Abs(NoseLength - 50) <= 0.001 &&
+        Math.Abs(NoseBridge - 50) <= 0.001 &&
+        Math.Abs(NoseWidth - 50) <= 0.001 &&
+        Math.Abs(NoseTip - 50) <= 0.001 &&
+        Math.Abs(LeftNostril - 50) <= 0.001 &&
+        Math.Abs(RightNostril - 50) <= 0.001 &&
+        Math.Abs(MouthWidth - 50) <= 0.001 &&
+        Math.Abs(LeftMouthCorner - 50) <= 0.001 &&
+        Math.Abs(RightMouthCorner - 50) <= 0.001 &&
+        Math.Abs(UpperLip - 50) <= 0.001 &&
+        Math.Abs(LowerLip - 50) <= 0.001 &&
+        Math.Abs(NeckSlim - 50) <= 0.001 &&
+        Math.Abs(NeckLength - 50) <= 0.001 &&
+        Math.Abs(NeckWrinkle) <= 0.001 &&
+        Math.Abs(DoubleChin) <= 0.001 &&
+        Math.Abs(LeftSideNeck - 50) <= 0.001 &&
+        Math.Abs(RightSideNeck - 50) <= 0.001 &&
+        Math.Abs(LeftTrapezius - 50) <= 0.001 &&
+        Math.Abs(RightTrapezius - 50) <= 0.001;
+}
