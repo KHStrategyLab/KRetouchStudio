@@ -6,12 +6,22 @@ namespace KRetouchStudio;
 
 public partial class MainWindow
 {
+    private enum FaceShapeHeadPosePreviewMode
+    {
+        None,
+        FaceTilt,
+        FaceTurn,
+        HeadTilt
+    }
+
     private static BitmapSource RenderFaceShapePipelineStage(
         BitmapSource source,
         IReadOnlyDictionary<int, Point> landmarkPoints,
         FaceShapePointArray pointArray,
         byte[]? personAlphaPixels,
         FaceShapeAdjustmentSnapshot state,
+        FaceShapeHeadPosePreviewMode headPosePreviewMode,
+        bool useHighQualitySampling,
         Func<bool> shouldCancel)
     {
         BitmapSource result = source;
@@ -76,7 +86,9 @@ public partial class MainWindow
                 shouldCancel);
         }
 
-        if (!shouldCancel() && Math.Abs(state.FaceTilt - 50) > 0.001)
+        if (!shouldCancel() &&
+            (Math.Abs(state.FaceTilt - 50) > 0.001 ||
+             headPosePreviewMode == FaceShapeHeadPosePreviewMode.FaceTilt))
         {
             if (TryBuildFaceShapeFaceTiltReliefPoints(
                     landmarkPoints,
@@ -98,7 +110,9 @@ public partial class MainWindow
             }
         }
 
-        if (!shouldCancel() && Math.Abs(state.FaceTurn - 50) > 0.001)
+        if (!shouldCancel() &&
+            (Math.Abs(state.FaceTurn - 50) > 0.001 ||
+             headPosePreviewMode == FaceShapeHeadPosePreviewMode.FaceTurn))
         {
             if (TryBuildFaceShapeFaceTurnRigidMaskPlan(
                     pointArray,
@@ -112,11 +126,16 @@ public partial class MainWindow
                 result = BuildFaceShapeHeadTiltRigidMaskPreview(
                     result,
                     faceTurnPlan,
-                    shouldCancel);
+                    shouldCancel,
+                    silhouetteMode: FaceShapeSilhouetteMode.Turn,
+                    personAlphaPixels: personAlphaPixels,
+                    useBicubicSampling: useHighQualitySampling);
             }
         }
 
-        if (!shouldCancel() && Math.Abs(state.HeadTilt - 50) > 0.001)
+        if (!shouldCancel() &&
+            (Math.Abs(state.HeadTilt - 50) > 0.001 ||
+             headPosePreviewMode == FaceShapeHeadPosePreviewMode.HeadTilt))
         {
             double renderStrength = 100.0 - state.HeadTilt;
             if (TryBuildFaceShapeHeadTiltRigidMaskPlan(
@@ -131,7 +150,9 @@ public partial class MainWindow
                 result = BuildFaceShapeHeadTiltRigidMaskPreview(
                     result,
                     headTiltPlan,
-                    shouldCancel);
+                    shouldCancel,
+                    silhouetteMode: FaceShapeSilhouetteMode.Jaw,
+                    personAlphaPixels: personAlphaPixels);
             }
         }
 

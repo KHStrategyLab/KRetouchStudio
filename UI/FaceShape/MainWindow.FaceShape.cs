@@ -37,10 +37,12 @@ public partial class MainWindow
     private const double FaceShapeFaceTiltOutsideFeatherPx = 28.0;
     private const string FaceShapeFaceTurnHistoryTitle = "Face Turn";
     private const string FaceShapeFaceTurnHistoryDetail = "Turn";
-    private const double FaceShapeFaceTurnMaxShiftRatio = 0.065;
-    private const double FaceShapeFaceTurnProjectionMaxDegrees = 24.0;
+    private const double FaceShapeFaceTurnMaxShiftRatio = 0.0195;
+    private const double FaceShapeFaceTurnProjectionMaxDegrees = 7.2;
     private const double FaceShapeFaceTurnContourDepthRatio = 0.05;
-    private const double FaceShapeFaceTurnVerticalProjectionRatio = 0.03;
+    private const double FaceShapeFaceTurnBaseDepthScale = 1.60;
+    private const double FaceShapeFaceTurnNoseDepthScale = 2.80;
+    private const double FaceShapeFaceTurnDepthBoostStart = 0.45;
     private const double FaceShapeHeadPoseBaseFocalLengthMm = 50.0;
     private const double FaceShapeHeadPoseBaseCameraDistanceMm = 1500.0;
     private const double FaceShapeHeadPoseCameraFocalLengthMm = 50.0;
@@ -52,7 +54,7 @@ public partial class MainWindow
     private const string FaceShapeHeadTiltHistoryTitle = "Face Up/Dn";
     private const string FaceShapeHeadTiltHistoryDetail = "Up/Dn";
     private const double FaceShapeHeadTiltMaxShiftRatio = 0.060;
-    private const double FaceShapeHeadTiltProjectionMaxDegrees = 8.75;
+    private const double FaceShapeHeadTiltProjectionMaxDegrees = 15.0;
     private const double FaceShapeHeadTiltProjectionZScale = 0.35;
     private const double FaceShapeHeadTiltProjectionPivotDepthRatio = 0.10;
     private const double FaceShapeHeadTiltMaskLiftDepthRatio = 0.12;
@@ -65,8 +67,18 @@ public partial class MainWindow
     private const double FaceShapeHeadTiltAttachBandInnerPx = 10.0;
     private const double FaceShapeHeadTiltAttachBandOuterPx = 50.0;
     private const double FaceShapeHeadTiltAttachBandStrength = 0.45;
-    private const double FaceShapeHeadTiltJawRiseCompensationStrength = 0.85;
-    private const double FaceShapeHeadTiltJawDropCompensationStrength = 0.35;
+    private const double FaceShapeHeadTiltJawAttachBandInnerRatio = 0.018;
+    private const double FaceShapeHeadTiltJawAttachBandOuterRatio = 0.11;
+    private const double FaceShapeHeadTiltJawAttachBandMaxStrength = 1.0;
+    private const double FaceShapeHeadTiltJawAttachLowerStartRatio = 0.42;
+    private const double FaceShapeFaceTurnAttachBandInnerRatio = 0.012;
+    private const double FaceShapeFaceTurnAttachBandOuterRatio = 0.05;
+    private const double FaceShapeFaceTurnAttachBandMaxStrength = 1.0;
+    private const double FaceShapeFaceTurnRigidEdgeFeatherRatio = 0.030;
+    private const double FaceShapeFaceTurnInnerBridgeRatio = 0.065;
+    private const double FaceShapeFaceTurnPersonEdgeFeatherRatio = 0.040;
+    private const double FaceShapeHeadTiltJawRiseCompensationStrength = 0.25;
+    private const double FaceShapeHeadTiltJawDropCompensationStrength = 0.25;
     private const double FaceShapeHeadTiltReliefFeatherPx = 15.0;
     private const double FaceShapeHeadTiltOutsideFeatherPx = 28.0;
     private const double FaceShapeHeadTiltOutsideFeatherStrength = 0.60;
@@ -376,6 +388,21 @@ public partial class MainWindow
         List<FaceShapeRigidTriangle> Triangles,
         List<Point> SourcePolygon,
         List<Point> ProjectedPolygon);
+
+    private enum FaceShapeSilhouetteMode
+    {
+        None,
+        Jaw,
+        Turn
+    }
+
+    private readonly record struct FaceShapeSkinToneProfile(
+        double MeanLuma,
+        double MeanCb,
+        double MeanCr,
+        double CbTolerance,
+        double CrTolerance,
+        bool IsValid);
 
     private readonly record struct FaceShapeRigidTriangle(int A, int B, int C);
 
@@ -1293,7 +1320,9 @@ public partial class MainWindow
             BuildFaceShapeHeadTiltRigidMaskPreview(
                 safeBase,
                 committedRigidMaskPlan,
-                () => renderVersion != _faceShapeSymmetryRenderVersion));
+                () => renderVersion != _faceShapeSymmetryRenderVersion,
+                silhouetteMode: FaceShapeSilhouetteMode.Turn,
+                useBicubicSampling: true));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -1371,7 +1400,8 @@ public partial class MainWindow
             BuildFaceShapeHeadTiltRigidMaskPreview(
                 safeBase,
                 committedRigidMaskPlan,
-                () => renderVersion != _faceShapeSymmetryRenderVersion));
+                () => renderVersion != _faceShapeSymmetryRenderVersion,
+                silhouetteMode: FaceShapeSilhouetteMode.Jaw));
 
         if (!ReferenceEquals(SelectedPhoto, targetPhoto) ||
             renderVersion != _faceShapeSymmetryRenderVersion)
@@ -1600,7 +1630,10 @@ public partial class MainWindow
             ? BuildFaceShapeHeadTiltRigidMaskPreview(
                 safeProxy,
                 rigidMaskPlan,
-                () => renderVersion != _faceShapeSymmetryRenderVersion)
+                () => renderVersion != _faceShapeSymmetryRenderVersion,
+                silhouetteMode: isHeadTilt
+                    ? FaceShapeSilhouetteMode.Jaw
+                    : FaceShapeSilhouetteMode.Turn)
             : BuildFaceShapeHeadTiltReliefPreview(
                 safeProxy,
                 reliefControls,
@@ -2573,7 +2606,16 @@ public partial class MainWindow
             return depth * FaceShapeFaceTurnContourDepthRatio;
         }
 
-        return depth;
+        double maxDepth = Math.Max(1.0, faceWidth * FaceShapeHeadTiltCanonicalDepthRatio);
+        double normalizedDepth = Math.Clamp(depth / maxDepth, 0.0, 1.0);
+        double noseWeight = SmoothStep01(
+            (normalizedDepth - FaceShapeFaceTurnDepthBoostStart) /
+            Math.Max(0.01, 1.0 - FaceShapeFaceTurnDepthBoostStart));
+        double depthScale =
+            FaceShapeFaceTurnBaseDepthScale +
+            ((FaceShapeFaceTurnNoseDepthScale - FaceShapeFaceTurnBaseDepthScale) *
+             noseWeight);
+        return depth * depthScale;
     }
 
     private static bool TryBuildFaceShapeHeadTiltProjectionDebugPoints(
@@ -2731,6 +2773,7 @@ public partial class MainWindow
 
         double faceWidth = Math.Max(1.0, bounds.Width);
         double faceHeight = Math.Max(1.0, bounds.Height);
+        double faceCenterX = bounds.Left + (bounds.Width * 0.5);
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
         double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
@@ -2757,7 +2800,7 @@ public partial class MainWindow
             sourcePoints.Add(sourcePoint);
             double correctedZ = maskLiftZ + GetFaceShapeFaceTurnCanonicalDepth(landmark.Index, faceWidth);
 
-            projectedPoints.Add(ProjectFaceShapeFaceTurnPoint(
+            Point projectedPoint = ProjectFaceShapeFaceTurnPoint(
                 sample.X,
                 sample.Y,
                 correctedZ,
@@ -2766,7 +2809,16 @@ public partial class MainWindow
                 pivotZ,
                 yawRadians,
                 focalLength,
-                cameraDistance));
+                cameraDistance);
+            if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, landmark.Index))
+            {
+                projectedPoint = ClampFaceShapeFaceTurnContourPoint(
+                    sourcePoint,
+                    projectedPoint,
+                    faceCenterX);
+            }
+
+            projectedPoints.Add(projectedPoint);
             sourcePointMap[landmark.Index] = sourcePoint;
             projectedPointMap[landmark.Index] = projectedPoints[^1];
         }
@@ -3022,9 +3074,14 @@ public partial class MainWindow
             projectedPointCount++;
         }
 
-        foreach (Point sourcePoint in sourcePolygon)
+        for (int polygonIndex = 0; polygonIndex < sourcePolygon.Count; polygonIndex++)
         {
-            double correctedZ = maskLiftZ;
+            Point sourcePoint = sourcePolygon[polygonIndex];
+            int canonicalIndex = polygonIndex < FaceShapeHeadTiltFaceOvalIndices.Length
+                ? FaceShapeHeadTiltFaceOvalIndices[polygonIndex]
+                : -1;
+            double correctedZ = maskLiftZ +
+                GetFaceShapeHeadTiltCanonicalDepth(canonicalIndex, faceWidth);
             Point projectedPoint = ProjectFaceShapeHeadTiltPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
@@ -3106,6 +3163,7 @@ public partial class MainWindow
 
         double faceWidth = Math.Max(1.0, bounds.Width);
         double faceHeight = Math.Max(1.0, bounds.Height);
+        double faceCenterX = bounds.Left + (bounds.Width * 0.5);
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
         double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
@@ -3143,14 +3201,27 @@ public partial class MainWindow
                 yawRadians,
                 focalLength,
                 cameraDistance);
+            if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, index))
+            {
+                projectedPoint = ClampFaceShapeFaceTurnContourPoint(
+                    sourcePoint,
+                    projectedPoint,
+                    faceCenterX);
+            }
+
             sourceVertices.Add(sourcePoint);
             projectedVertices.Add(projectedPoint);
             projectedPointCount++;
         }
 
-        foreach (Point sourcePoint in sourcePolygon)
+        for (int polygonIndex = 0; polygonIndex < sourcePolygon.Count; polygonIndex++)
         {
-            double correctedZ = maskLiftZ;
+            Point sourcePoint = sourcePolygon[polygonIndex];
+            int canonicalIndex = polygonIndex < FaceShapeHeadTiltFaceOvalIndices.Length
+                ? FaceShapeHeadTiltFaceOvalIndices[polygonIndex]
+                : -1;
+            double correctedZ = maskLiftZ +
+                GetFaceShapeFaceTurnCanonicalDepth(canonicalIndex, faceWidth);
             Point projectedPoint = ProjectFaceShapeFaceTurnPoint(
                 sourcePoint.X,
                 sourcePoint.Y,
@@ -3161,6 +3232,10 @@ public partial class MainWindow
                 yawRadians,
                 focalLength,
                 cameraDistance);
+            projectedPoint = ClampFaceShapeFaceTurnContourPoint(
+                sourcePoint,
+                projectedPoint,
+                faceCenterX);
             AddFaceShapeRigidMaskVertex(sourceVertices, projectedVertices, sourcePoint, projectedPoint);
             projectedPolygon.Add(projectedPoint);
         }
@@ -3217,6 +3292,7 @@ public partial class MainWindow
 
         double faceWidth = Math.Max(1.0, bounds.Width);
         double faceHeight = Math.Max(1.0, bounds.Height);
+        double faceCenterX = bounds.Left + (bounds.Width * 0.5);
         double normalized = Math.Clamp((strength - 50.0) / 50.0, -1.0, 1.0);
         double yawRadians = normalized * FaceShapeFaceTurnProjectionMaxDegrees * Math.PI / 180.0;
         double focalLength = Math.Max(faceWidth, faceHeight) * FaceShapeHeadPoseCameraFocalLengthRatio;
@@ -3248,6 +3324,14 @@ public partial class MainWindow
                 yawRadians,
                 focalLength,
                 cameraDistance);
+            if (ContainsFaceShapeIndex(FaceShapeHeadTiltFaceOvalIndices, index))
+            {
+                projectedPoints[index] = ClampFaceShapeFaceTurnContourPoint(
+                    sourcePoint,
+                    projectedPoints[index],
+                    faceCenterX);
+            }
+
             projectedPointCount++;
         }
 
@@ -3975,24 +4059,35 @@ public partial class MainWindow
         double focalLength,
         double cameraDistance)
     {
-        _ = cameraDistance;
-
-        double referenceLength = Math.Max(1.0, focalLength / FaceShapeHeadPoseCameraFocalLengthRatio);
-        double maxDepth = Math.Max(1.0, referenceLength * FaceShapeHeadTiltCanonicalDepthRatio);
-        double depthWeight = Math.Clamp((correctedZ - pivotZ) / maxDepth, 0.0, 1.0);
-        depthWeight = SmoothStep01(depthWeight);
-        double turnShiftX = Math.Sin(yawRadians) *
-            referenceLength *
-            FaceShapeFaceTurnMaxShiftRatio *
-            depthWeight;
-        double turnShiftY = (imageY - pivotY) *
-            FaceShapeFaceTurnVerticalProjectionRatio *
-            depthWeight *
-            Math.Abs(Math.Sin(yawRadians));
-
+        double z = correctedZ - pivotZ;
+        double depth = Math.Max(1.0, cameraDistance - z);
+        double x3 = (imageX - pivotX) * depth / focalLength;
+        double y3 = (imageY - pivotY) * depth / focalLength;
+        double sin = Math.Sin(yawRadians);
+        double cos = Math.Cos(yawRadians);
+        double rotatedX = (x3 * cos) + (z * sin);
+        double rotatedZ = (-x3 * sin) + (z * cos);
+        double projectedDepth = Math.Max(1.0, cameraDistance - rotatedZ);
         return new Point(
-            imageX + turnShiftX,
-            imageY + turnShiftY);
+            pivotX + (rotatedX * focalLength / projectedDepth),
+            pivotY + (y3 * focalLength / projectedDepth));
+    }
+
+    private static Point ClampFaceShapeFaceTurnContourPoint(
+        Point sourcePoint,
+        Point projectedPoint,
+        double faceCenterX)
+    {
+        double sideOffset = sourcePoint.X - faceCenterX;
+        if (Math.Abs(sideOffset) < 1.0)
+        {
+            return projectedPoint;
+        }
+
+        double clampedX = sideOffset < 0.0
+            ? Math.Max(sourcePoint.X, projectedPoint.X)
+            : Math.Min(sourcePoint.X, projectedPoint.X);
+        return new Point(clampedX, projectedPoint.Y);
     }
 
     private static void AddFaceShapeRigidMaskVertex(
@@ -4290,7 +4385,10 @@ public partial class MainWindow
     private static BitmapSource BuildFaceShapeHeadTiltRigidMaskPreview(
         BitmapSource source,
         FaceShapeRigidMaskPlan plan,
-        Func<bool>? shouldCancel = null)
+        Func<bool>? shouldCancel = null,
+        FaceShapeSilhouetteMode silhouetteMode = FaceShapeSilhouetteMode.None,
+        byte[]? personAlphaPixels = null,
+        bool useBicubicSampling = false)
     {
         BitmapSource bgraSource = EnsureBitmapFormat(source, PixelFormats.Bgra32);
         int width = bgraSource.PixelWidth;
@@ -4326,6 +4424,8 @@ public partial class MainWindow
                 height,
                 stride,
                 plan,
+                silhouetteMode,
+                useBicubicSampling,
                 shouldCancel);
             if (shouldCancel?.Invoke() == true)
             {
@@ -4339,6 +4439,9 @@ public partial class MainWindow
                 height,
                 stride,
                 plan,
+                silhouetteMode,
+                personAlphaPixels,
+                useBicubicSampling,
                 shouldCancel);
             if (shouldCancel?.Invoke() == true)
             {
@@ -4370,10 +4473,24 @@ public partial class MainWindow
         int height,
         int stride,
         FaceShapeRigidMaskPlan plan,
+        FaceShapeSilhouetteMode silhouetteMode,
+        bool useBicubicSampling,
         Func<bool>? shouldCancel)
     {
         Rect sourcePolygonBounds = BuildFaceShapeLandmarkBounds(plan.SourcePolygon, width, height);
         double lowerFeatherStartY = sourcePolygonBounds.Bottom - (sourcePolygonBounds.Height * 0.18);
+        double turnEdgeFeather = silhouetteMode == FaceShapeSilhouetteMode.Turn
+            ? Math.Clamp(
+                sourcePolygonBounds.Width * FaceShapeFaceTurnRigidEdgeFeatherRatio,
+                FaceShapeHeadTiltRigidEdgeFeatherPx,
+                48.0)
+            : FaceShapeHeadTiltRigidEdgeFeatherPx;
+        double turnInnerBridge = silhouetteMode == FaceShapeSilhouetteMode.Turn
+            ? Math.Clamp(
+                sourcePolygonBounds.Width * FaceShapeFaceTurnInnerBridgeRatio,
+                14.0,
+                72.0)
+            : 0.0;
 
         for (int triangleIndex = 0; triangleIndex < plan.Triangles.Count; triangleIndex++)
         {
@@ -4446,29 +4563,63 @@ public partial class MainWindow
                         continue;
                     }
 
-                    double sourceX = (sourceA.X * weightA) + (sourceB.X * weightB) + (sourceC.X * weightC);
-                    double sourceY = (sourceA.Y * weightA) + (sourceB.Y * weightB) + (sourceC.Y * weightC);
-                    double edgeFeather = sourceY >= lowerFeatherStartY
-                        ? FaceShapeHeadTiltLowerEdgeFeatherPx
-                        : FaceShapeHeadTiltRigidEdgeFeatherPx;
+                    double mappedSourceX =
+                        (sourceA.X * weightA) +
+                        (sourceB.X * weightB) +
+                        (sourceC.X * weightC);
+                    double mappedSourceY =
+                        (sourceA.Y * weightA) +
+                        (sourceB.Y * weightB) +
+                        (sourceC.Y * weightC);
+                    double sourceX = mappedSourceX - 0.5;
+                    double sourceY = mappedSourceY - 0.5;
+                    double edgeFeather = silhouetteMode == FaceShapeSilhouetteMode.Turn
+                        ? turnEdgeFeather
+                        : mappedSourceY >= lowerFeatherStartY
+                            ? FaceShapeHeadTiltLowerEdgeFeatherPx
+                            : FaceShapeHeadTiltRigidEdgeFeatherPx;
                     double faceWeight = GetFaceShapePolygonFeatherWeight(
-                        sourceX,
-                        sourceY,
+                        mappedSourceX,
+                        mappedSourceY,
                         plan.SourcePolygon,
                         edgeFeather,
                         0.0);
+                    if (silhouetteMode == FaceShapeSilhouetteMode.Turn &&
+                        TryGetFaceShapeNearestProjectedPolygonDelta(
+                            pixelX,
+                            pixelY,
+                            plan.SourcePolygon,
+                            plan.ProjectedPolygon,
+                            out double projectedEdgeDistance,
+                            out double contourDeltaX,
+                            out double contourDeltaY))
+                    {
+                        double bridgeWeight = 1.0 - SmoothStep01(
+                            projectedEdgeDistance /
+                            Math.Max(1.0, turnInnerBridge));
+                        if (bridgeWeight > 0.001)
+                        {
+                            double contourSourceX = x - contourDeltaX;
+                            double contourSourceY = y - contourDeltaY;
+                            sourceX += (contourSourceX - sourceX) * bridgeWeight;
+                            sourceY += (contourSourceY - sourceY) * bridgeWeight;
+                            faceWeight = Math.Max(faceWeight, bridgeWeight);
+                        }
+                    }
+
                     if (faceWeight <= 0.001)
                     {
                         continue;
                     }
 
-                    SampleBilinearBgra32(
+                    SampleFaceShapeTurnBgra32(
                         sourcePixels,
                         width,
                         height,
                         stride,
                         sourceX,
                         sourceY,
+                        useBicubicSampling,
                         out byte b,
                         out byte g,
                         out byte r,
@@ -4491,6 +4642,9 @@ public partial class MainWindow
         int height,
         int stride,
         FaceShapeRigidMaskPlan plan,
+        FaceShapeSilhouetteMode silhouetteMode,
+        byte[]? personAlphaPixels,
+        bool useBicubicSampling,
         Func<bool>? shouldCancel)
     {
         if (plan.SourcePolygon.Count < 3 ||
@@ -4500,11 +4654,73 @@ public partial class MainWindow
             return;
         }
 
-        Rect bounds = BuildFaceShapeLandmarkBounds(plan.SourcePolygon, width, height);
+        Rect faceBounds = BuildFaceShapeLandmarkBounds(plan.SourcePolygon, width, height);
+        if (faceBounds.IsEmpty)
+        {
+            return;
+        }
+
+        bool useAdaptiveSilhouette = silhouetteMode != FaceShapeSilhouetteMode.None;
+        double attachInnerRatio = silhouetteMode == FaceShapeSilhouetteMode.Turn
+            ? FaceShapeFaceTurnAttachBandInnerRatio
+            : FaceShapeHeadTiltJawAttachBandInnerRatio;
+        double attachOuterRatio = silhouetteMode == FaceShapeSilhouetteMode.Turn
+            ? FaceShapeFaceTurnAttachBandOuterRatio
+            : FaceShapeHeadTiltJawAttachBandOuterRatio;
+        double attachMaxStrength = silhouetteMode == FaceShapeSilhouetteMode.Turn
+            ? FaceShapeFaceTurnAttachBandMaxStrength
+            : FaceShapeHeadTiltJawAttachBandMaxStrength;
+        double adaptiveAttachInnerPx = useAdaptiveSilhouette
+            ? Math.Clamp(
+                faceBounds.Width * attachInnerRatio,
+                silhouetteMode == FaceShapeSilhouetteMode.Turn
+                    ? 4.0
+                    : FaceShapeHeadTiltAttachBandInnerPx,
+                silhouetteMode == FaceShapeSilhouetteMode.Turn ? 32.0 : 48.0)
+            : FaceShapeHeadTiltAttachBandInnerPx;
+        double adaptiveAttachOuterPx = useAdaptiveSilhouette
+            ? Math.Clamp(
+                faceBounds.Width * attachOuterRatio,
+                silhouetteMode == FaceShapeSilhouetteMode.Turn
+                    ? 12.0
+                    : FaceShapeHeadTiltAttachBandOuterPx,
+                silhouetteMode == FaceShapeSilhouetteMode.Turn ? 96.0 : 240.0)
+            : FaceShapeHeadTiltAttachBandOuterPx;
+        FaceShapeSkinToneProfile skinProfile = useAdaptiveSilhouette
+            ? BuildFaceShapeSkinToneProfile(
+                sourcePixels,
+                width,
+                height,
+                stride,
+                plan.SourcePolygon,
+                faceBounds)
+            : default;
+        bool hasPersonAlpha =
+            personAlphaPixels is not null &&
+            personAlphaPixels.Length >= width * height;
+        byte[]? turnPersonTransitionPixels =
+            silhouetteMode == FaceShapeSilhouetteMode.Turn && hasPersonAlpha
+                ? BuildFaceShapeFaceTurnPersonTransitionMask(
+                    personAlphaPixels!,
+                    width,
+                    height,
+                    faceBounds.Width)
+                : null;
+
+        Rect bounds = faceBounds;
         GetFaceShapePolygonMaxDelta(plan.SourcePolygon, plan.ProjectedPolygon, out double maxDx, out double maxDy);
+        double boundsDeltaX = maxDx;
+        double boundsDeltaY = maxDy;
+        if (silhouetteMode == FaceShapeSilhouetteMode.Turn)
+        {
+            double maxTurnDelta = Math.Sqrt((maxDx * maxDx) + (maxDy * maxDy));
+            boundsDeltaX = maxTurnDelta;
+            boundsDeltaY = maxTurnDelta;
+        }
+
         bounds.Inflate(
-            FaceShapeHeadTiltAttachBandOuterPx + maxDx + 2.0,
-            FaceShapeHeadTiltAttachBandOuterPx + maxDy + 2.0);
+            adaptiveAttachOuterPx + boundsDeltaX + 2.0,
+            adaptiveAttachOuterPx + boundsDeltaY + 2.0);
         bounds.Intersect(new Rect(0, 0, width, height));
 
         int left = Math.Max(0, (int)Math.Floor(bounds.Left));
@@ -4535,18 +4751,181 @@ public partial class MainWindow
                         plan.ProjectedPolygon,
                         out double distance,
                         out double deltaX,
-                        out double deltaY) ||
-                    distance > FaceShapeHeadTiltAttachBandOuterPx)
+                        out double deltaY,
+                        out double nearestX,
+                        out double nearestY))
                 {
                     continue;
                 }
 
-                double bandWeight = distance <= FaceShapeHeadTiltAttachBandInnerPx
+                if (silhouetteMode == FaceShapeSilhouetteMode.Turn)
+                {
+                    double deltaLength = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+                    if (deltaLength < 0.05)
+                    {
+                        continue;
+                    }
+
+                    double targetX = nearestX + deltaX;
+                    double targetY = nearestY + deltaY;
+                    double outwardX = -deltaX / deltaLength;
+                    double outwardY = -deltaY / deltaLength;
+                    double alongTransition =
+                        ((pixelX - targetX) * outwardX) +
+                        ((pixelY - targetY) * outwardY);
+                    double transitionLength = deltaLength + adaptiveAttachOuterPx;
+                    if (alongTransition < -1.0 || alongTransition > transitionLength)
+                    {
+                        continue;
+                    }
+
+                    double directionalWeight = 1.0 - SmoothStep01(
+                        Math.Max(0.0, alongTransition) /
+                        Math.Max(1.0, transitionLength));
+                    double radialOuterDistance = Math.Max(0.0, distance - deltaLength);
+                    if (radialOuterDistance > adaptiveAttachOuterPx)
+                    {
+                        continue;
+                    }
+
+                    double radialWeight = 1.0 - SmoothStep01(
+                        radialOuterDistance /
+                        Math.Max(1.0, adaptiveAttachOuterPx));
+                    double transitionWeight = Math.Min(directionalWeight, radialWeight);
+                    int sourceOffset = rowOffset + (x * 4);
+                    double boundarySupport;
+                    if (turnPersonTransitionPixels is not null)
+                    {
+                        boundarySupport = turnPersonTransitionPixels[(y * width) + x] / 255.0;
+                    }
+                    else
+                    {
+                        double skinSupport = GetFaceShapeSkinToneWeight(
+                            sourcePixels[sourceOffset],
+                            sourcePixels[sourceOffset + 1],
+                            sourcePixels[sourceOffset + 2],
+                            skinProfile,
+                            toleranceScale: 1.65,
+                            shadowMode: true);
+                        boundarySupport = 0.82 + (skinSupport * 0.18);
+                    }
+
+                    double turnAttachWeight = transitionWeight * boundarySupport;
+                    if (turnAttachWeight <= 0.001)
+                    {
+                        continue;
+                    }
+
+                    double turnAppliedDx = deltaX * turnAttachWeight;
+                    double turnAppliedDy = deltaY * turnAttachWeight;
+                    SampleFaceShapeTurnBgra32(
+                        sourcePixels,
+                        width,
+                        height,
+                        stride,
+                        x - turnAppliedDx,
+                        y - turnAppliedDy,
+                        useBicubicSampling,
+                        out byte turnB,
+                        out byte turnG,
+                        out byte turnR,
+                        out byte turnA);
+
+                    int turnOffset = rowOffset + (x * 4);
+                    resultPixels[turnOffset] =
+                        BlendFaceShapeByte(resultPixels[turnOffset], turnB, turnAttachWeight);
+                    resultPixels[turnOffset + 1] =
+                        BlendFaceShapeByte(resultPixels[turnOffset + 1], turnG, turnAttachWeight);
+                    resultPixels[turnOffset + 2] =
+                        BlendFaceShapeByte(resultPixels[turnOffset + 2], turnR, turnAttachWeight);
+                    resultPixels[turnOffset + 3] =
+                        BlendFaceShapeByte(resultPixels[turnOffset + 3], turnA, turnAttachWeight);
+                    continue;
+                }
+
+                double lowerContourWeight = useAdaptiveSilhouette
+                    ? SmoothStep01(
+                        (nearestY -
+                         (faceBounds.Top +
+                          (faceBounds.Height * FaceShapeHeadTiltJawAttachLowerStartRatio))) /
+                        Math.Max(
+                            1.0,
+                            faceBounds.Height *
+                            (1.0 - FaceShapeHeadTiltJawAttachLowerStartRatio)))
+                    : 0.0;
+                double adaptiveContourWeight =
+                    silhouetteMode == FaceShapeSilhouetteMode.Jaw
+                        ? lowerContourWeight
+                        : 0.0;
+                double activeInnerPx =
+                    FaceShapeHeadTiltAttachBandInnerPx +
+                    ((adaptiveAttachInnerPx - FaceShapeHeadTiltAttachBandInnerPx) *
+                     adaptiveContourWeight);
+                double activeOuterPx =
+                    FaceShapeHeadTiltAttachBandOuterPx +
+                    ((adaptiveAttachOuterPx - FaceShapeHeadTiltAttachBandOuterPx) *
+                     adaptiveContourWeight);
+                if (distance > activeOuterPx)
+                {
+                    continue;
+                }
+
+                double bandWeight = distance <= activeInnerPx
                     ? 1.0
                     : 1.0 - SmoothStep01(
-                        (distance - FaceShapeHeadTiltAttachBandInnerPx) /
-                        Math.Max(1.0, FaceShapeHeadTiltAttachBandOuterPx - FaceShapeHeadTiltAttachBandInnerPx));
-                double attachWeight = bandWeight * FaceShapeHeadTiltAttachBandStrength;
+                        (distance - activeInnerPx) /
+                        Math.Max(1.0, activeOuterPx - activeInnerPx));
+                double attachStrength = FaceShapeHeadTiltAttachBandStrength;
+                if (useAdaptiveSilhouette && adaptiveContourWeight > 0.001)
+                {
+                    int sourceOffset = rowOffset + (x * 4);
+                    byte sourceB = sourcePixels[sourceOffset];
+                    byte sourceG = sourcePixels[sourceOffset + 1];
+                    byte sourceR = sourcePixels[sourceOffset + 2];
+                    double skinWeight = GetFaceShapeSkinToneWeight(
+                        sourceB,
+                        sourceG,
+                        sourceR,
+                        skinProfile,
+                        toleranceScale: 1.0,
+                        shadowMode: false);
+                    double shadowColorWeight = GetFaceShapeSkinToneWeight(
+                        sourceB,
+                        sourceG,
+                        sourceR,
+                        skinProfile,
+                        toleranceScale: 1.65,
+                        shadowMode: true);
+                    double personWeight = hasPersonAlpha
+                        ? SmoothStep01(
+                            (personAlphaPixels![(y * width) + x] - 8.0) / 176.0)
+                        : 1.0;
+                    double skinPersonWeight = hasPersonAlpha
+                        ? 0.25 + (personWeight * 0.75)
+                        : 1.0;
+                    double halfShadowWidth = Math.Max(1.0, faceBounds.Width * 0.48);
+                    double centralWeight = 1.0 - SmoothStep01(
+                        Math.Abs(pixelX - (faceBounds.Left + (faceBounds.Width * 0.5))) /
+                        halfShadowWidth);
+                    double belowContourWeight = SmoothStep01(
+                        (pixelY - nearestY + activeInnerPx) /
+                        Math.Max(1.0, activeOuterPx * 0.55));
+                    double shadowSupport = centralWeight *
+                        belowContourWeight *
+                        (hasPersonAlpha ? personWeight : shadowColorWeight);
+                    double detectedSupport = Math.Max(
+                        skinWeight * skinPersonWeight,
+                        shadowSupport);
+                    double adaptiveStrength =
+                        FaceShapeHeadTiltAttachBandStrength +
+                        ((attachMaxStrength -
+                          FaceShapeHeadTiltAttachBandStrength) *
+                         adaptiveContourWeight *
+                         detectedSupport);
+                    attachStrength = Math.Max(attachStrength, adaptiveStrength);
+                }
+
+                double attachWeight = bandWeight * attachStrength;
                 if (attachWeight <= 0.001)
                 {
                     continue;
@@ -4559,13 +4938,14 @@ public partial class MainWindow
                     continue;
                 }
 
-                SampleBilinearBgra32(
+                SampleFaceShapeTurnBgra32(
                     sourcePixels,
                     width,
                     height,
                     stride,
                     x - appliedDx,
                     y - appliedDy,
+                    useBicubicSampling,
                     out byte b,
                     out byte g,
                     out byte r,
@@ -4610,6 +4990,313 @@ public partial class MainWindow
             });
     }
 
+    private static void SampleFaceShapeTurnBgra32(
+        byte[] pixels,
+        int width,
+        int height,
+        int stride,
+        double x,
+        double y,
+        bool useBicubicSampling,
+        out byte b,
+        out byte g,
+        out byte r,
+        out byte a)
+    {
+        if (!useBicubicSampling)
+        {
+            SampleBilinearBgra32(
+                pixels,
+                width,
+                height,
+                stride,
+                x,
+                y,
+                out b,
+                out g,
+                out r,
+                out a);
+            return;
+        }
+
+        double clampedX = Math.Clamp(x, 0, Math.Max(0, width - 1));
+        double clampedY = Math.Clamp(y, 0, Math.Max(0, height - 1));
+        int x1 = (int)Math.Floor(clampedX);
+        int y1 = (int)Math.Floor(clampedY);
+        double fx = clampedX - x1;
+        double fy = clampedY - y1;
+
+        Span<double> xWeights = stackalloc double[4];
+        Span<double> yWeights = stackalloc double[4];
+        BuildFaceShapeCatmullRomWeights(fx, xWeights);
+        BuildFaceShapeCatmullRomWeights(fy, yWeights);
+
+        double sampleB = 0.0;
+        double sampleG = 0.0;
+        double sampleR = 0.0;
+        double sampleA = 0.0;
+        for (int sampleRow = 0; sampleRow < 4; sampleRow++)
+        {
+            int sampleY = Math.Clamp(y1 + sampleRow - 1, 0, height - 1);
+            int rowOffset = sampleY * stride;
+            double rowWeight = yWeights[sampleRow];
+            for (int sampleColumn = 0; sampleColumn < 4; sampleColumn++)
+            {
+                int sampleX = Math.Clamp(x1 + sampleColumn - 1, 0, width - 1);
+                int offset = rowOffset + (sampleX * 4);
+                double weight = xWeights[sampleColumn] * rowWeight;
+                sampleB += pixels[offset] * weight;
+                sampleG += pixels[offset + 1] * weight;
+                sampleR += pixels[offset + 2] * weight;
+                sampleA += pixels[offset + 3] * weight;
+            }
+        }
+
+        int x2 = Math.Min(width - 1, x1 + 1);
+        int y2 = Math.Min(height - 1, y1 + 1);
+        int o00 = (y1 * stride) + (x1 * 4);
+        int o10 = (y1 * stride) + (x2 * 4);
+        int o01 = (y2 * stride) + (x1 * 4);
+        int o11 = (y2 * stride) + (x2 * 4);
+        b = ClampFaceShapeBicubicChannel(
+            sampleB,
+            pixels[o00],
+            pixels[o10],
+            pixels[o01],
+            pixels[o11]);
+        g = ClampFaceShapeBicubicChannel(
+            sampleG,
+            pixels[o00 + 1],
+            pixels[o10 + 1],
+            pixels[o01 + 1],
+            pixels[o11 + 1]);
+        r = ClampFaceShapeBicubicChannel(
+            sampleR,
+            pixels[o00 + 2],
+            pixels[o10 + 2],
+            pixels[o01 + 2],
+            pixels[o11 + 2]);
+        a = ClampFaceShapeBicubicChannel(
+            sampleA,
+            pixels[o00 + 3],
+            pixels[o10 + 3],
+            pixels[o01 + 3],
+            pixels[o11 + 3]);
+    }
+
+    private static void BuildFaceShapeCatmullRomWeights(double t, Span<double> weights)
+    {
+        double t2 = t * t;
+        double t3 = t2 * t;
+        weights[0] = (-0.5 * t) + t2 - (0.5 * t3);
+        weights[1] = 1.0 - (2.5 * t2) + (1.5 * t3);
+        weights[2] = (0.5 * t) + (2.0 * t2) - (1.5 * t3);
+        weights[3] = (-0.5 * t2) + (0.5 * t3);
+    }
+
+    private static byte ClampFaceShapeBicubicChannel(
+        double value,
+        byte c00,
+        byte c10,
+        byte c01,
+        byte c11)
+    {
+        int minimum = Math.Min(Math.Min(c00, c10), Math.Min(c01, c11));
+        int maximum = Math.Max(Math.Max(c00, c10), Math.Max(c01, c11));
+        return (byte)Math.Clamp((int)Math.Round(value), minimum, maximum);
+    }
+
+    private static byte[] BuildFaceShapeFaceTurnPersonTransitionMask(
+        byte[] personAlphaPixels,
+        int width,
+        int height,
+        double faceWidth)
+    {
+        int pixelCount = width * height;
+        if (width <= 0 ||
+            height <= 0 ||
+            personAlphaPixels.Length < pixelCount)
+        {
+            return [];
+        }
+
+        int featherRadius = Math.Clamp(
+            (int)Math.Round(faceWidth * FaceShapeFaceTurnPersonEdgeFeatherRatio),
+            6,
+            36);
+        byte[] transitionPixels = BoxBlurGray8(
+            personAlphaPixels,
+            width,
+            height,
+            featherRadius);
+
+        // Preserve the subject while tapering only the displacement outside its edge.
+        for (int index = 0; index < pixelCount; index++)
+        {
+            double coreSupport = SmoothStep01(
+                (personAlphaPixels[index] - 8.0) / 176.0);
+            double outerSupport = SmoothStep01(
+                (transitionPixels[index] - 2.0) / 126.0);
+            transitionPixels[index] = (byte)Math.Clamp(
+                (int)Math.Round(Math.Max(coreSupport, outerSupport) * 255.0),
+                0,
+                255);
+        }
+
+        return transitionPixels;
+    }
+
+    private static FaceShapeSkinToneProfile BuildFaceShapeSkinToneProfile(
+        byte[] sourcePixels,
+        int width,
+        int height,
+        int stride,
+        IReadOnlyList<Point> facePolygon,
+        Rect faceBounds)
+    {
+        if (facePolygon.Count < 3 ||
+            faceBounds.IsEmpty ||
+            faceBounds.Width < 20 ||
+            faceBounds.Height < 20)
+        {
+            return default;
+        }
+
+        double sumLuma = 0.0;
+        double sumCb = 0.0;
+        double sumCr = 0.0;
+        double sumCb2 = 0.0;
+        double sumCr2 = 0.0;
+        int sampleCount = 0;
+        int step = Math.Clamp((int)Math.Round(faceBounds.Width / 180.0), 2, 8);
+        int left = Math.Clamp((int)Math.Floor(faceBounds.Left), 0, width - 1);
+        int top = Math.Clamp((int)Math.Floor(faceBounds.Top), 0, height - 1);
+        int right = Math.Clamp((int)Math.Ceiling(faceBounds.Right), 0, width - 1);
+        int bottom = Math.Clamp((int)Math.Ceiling(faceBounds.Bottom), 0, height - 1);
+
+        void SampleCheeks(bool requireGenericSkinRange)
+        {
+            for (int y = top; y <= bottom; y += step)
+            {
+                double normalizedY = (y - faceBounds.Top) / Math.Max(1.0, faceBounds.Height);
+                if (normalizedY < 0.40 || normalizedY > 0.70)
+                {
+                    continue;
+                }
+
+                int rowOffset = y * stride;
+                for (int x = left; x <= right; x += step)
+                {
+                    double normalizedX = (x - faceBounds.Left) / Math.Max(1.0, faceBounds.Width);
+                    bool isCheek =
+                        (normalizedX >= 0.14 && normalizedX <= 0.39) ||
+                        (normalizedX >= 0.61 && normalizedX <= 0.86);
+                    if (!isCheek ||
+                        !IsPointInsideFaceShapePolygon(x + 0.5, y + 0.5, facePolygon))
+                    {
+                        continue;
+                    }
+
+                    int offset = rowOffset + (x * 4);
+                    ConvertFaceShapeBgraToYCbCr(
+                        sourcePixels[offset],
+                        sourcePixels[offset + 1],
+                        sourcePixels[offset + 2],
+                        out double luma,
+                        out double cb,
+                        out double cr);
+                    if (luma < 24.0 ||
+                        (requireGenericSkinRange &&
+                         (cb < 70.0 || cb > 150.0 || cr < 118.0 || cr > 192.0)))
+                    {
+                        continue;
+                    }
+
+                    sumLuma += luma;
+                    sumCb += cb;
+                    sumCr += cr;
+                    sumCb2 += cb * cb;
+                    sumCr2 += cr * cr;
+                    sampleCount++;
+                }
+            }
+        }
+
+        SampleCheeks(requireGenericSkinRange: true);
+        if (sampleCount < 48)
+        {
+            sumLuma = 0.0;
+            sumCb = 0.0;
+            sumCr = 0.0;
+            sumCb2 = 0.0;
+            sumCr2 = 0.0;
+            sampleCount = 0;
+            SampleCheeks(requireGenericSkinRange: false);
+        }
+
+        if (sampleCount < 24)
+        {
+            return default;
+        }
+
+        double meanLuma = sumLuma / sampleCount;
+        double meanCb = sumCb / sampleCount;
+        double meanCr = sumCr / sampleCount;
+        double cbVariance = Math.Max(0.0, (sumCb2 / sampleCount) - (meanCb * meanCb));
+        double crVariance = Math.Max(0.0, (sumCr2 / sampleCount) - (meanCr * meanCr));
+        double cbTolerance = Math.Clamp(Math.Sqrt(cbVariance) * 2.8, 16.0, 38.0);
+        double crTolerance = Math.Clamp(Math.Sqrt(crVariance) * 2.8, 16.0, 38.0);
+        return new FaceShapeSkinToneProfile(
+            meanLuma,
+            meanCb,
+            meanCr,
+            cbTolerance,
+            crTolerance,
+            IsValid: true);
+    }
+
+    private static double GetFaceShapeSkinToneWeight(
+        byte b,
+        byte g,
+        byte r,
+        FaceShapeSkinToneProfile profile,
+        double toleranceScale,
+        bool shadowMode)
+    {
+        if (!profile.IsValid)
+        {
+            return 0.0;
+        }
+
+        ConvertFaceShapeBgraToYCbCr(b, g, r, out double luma, out double cb, out double cr);
+        double cbDistance = (cb - profile.MeanCb) /
+            Math.Max(1.0, profile.CbTolerance * toleranceScale);
+        double crDistance = (cr - profile.MeanCr) /
+            Math.Max(1.0, profile.CrTolerance * toleranceScale);
+        double chromaDistance = Math.Sqrt((cbDistance * cbDistance) + (crDistance * crDistance));
+        double chromaWeight = 1.0 - SmoothStep01((chromaDistance - 0.65) / 1.15);
+
+        double lumaFloor = profile.MeanLuma * (shadowMode ? 0.12 : 0.32);
+        double lumaFull = profile.MeanLuma * (shadowMode ? 0.42 : 0.68);
+        double lumaWeight = SmoothStep01(
+            (luma - lumaFloor) /
+            Math.Max(1.0, lumaFull - lumaFloor));
+        return Math.Clamp(chromaWeight * lumaWeight, 0.0, 1.0);
+    }
+
+    private static void ConvertFaceShapeBgraToYCbCr(
+        byte b,
+        byte g,
+        byte r,
+        out double luma,
+        out double cb,
+        out double cr)
+    {
+        luma = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        cb = 128.0 - (0.168736 * r) - (0.331264 * g) + (0.5 * b);
+        cr = 128.0 + (0.5 * r) - (0.418688 * g) - (0.081312 * b);
+    }
+
     private static void GetFaceShapePolygonMaxDelta(
         IReadOnlyList<Point> sourcePolygon,
         IReadOnlyList<Point> projectedPolygon,
@@ -4627,6 +5314,82 @@ public partial class MainWindow
     }
 
     private static bool TryGetFaceShapeNearestPolygonDelta(
+        double x,
+        double y,
+        IReadOnlyList<Point> sourcePolygon,
+        IReadOnlyList<Point> projectedPolygon,
+        out double distance,
+        out double deltaX,
+        out double deltaY,
+        out double nearestPolygonX,
+        out double nearestPolygonY)
+    {
+        distance = 0;
+        deltaX = 0;
+        deltaY = 0;
+        nearestPolygonX = 0;
+        nearestPolygonY = 0;
+        int count = Math.Min(sourcePolygon.Count, projectedPolygon.Count);
+        if (count < 3)
+        {
+            return false;
+        }
+
+        double bestDistance2 = double.PositiveInfinity;
+        double bestDeltaX = 0;
+        double bestDeltaY = 0;
+        double bestNearestX = 0;
+        double bestNearestY = 0;
+        for (int i = 0; i < count; i++)
+        {
+            Point sourceA = sourcePolygon[i];
+            Point sourceB = sourcePolygon[(i + 1) % count];
+            Point projectedA = projectedPolygon[i];
+            Point projectedB = projectedPolygon[(i + 1) % count];
+            double segmentX = sourceB.X - sourceA.X;
+            double segmentY = sourceB.Y - sourceA.Y;
+            double length2 = (segmentX * segmentX) + (segmentY * segmentY);
+            double t = 0.0;
+            if (length2 > 0.000001)
+            {
+                t = Math.Clamp((((x - sourceA.X) * segmentX) + ((y - sourceA.Y) * segmentY)) / length2, 0.0, 1.0);
+            }
+
+            double nearestX = sourceA.X + (segmentX * t);
+            double nearestY = sourceA.Y + (segmentY * t);
+            double dx = x - nearestX;
+            double dy = y - nearestY;
+            double distance2 = (dx * dx) + (dy * dy);
+            if (distance2 >= bestDistance2)
+            {
+                continue;
+            }
+
+            double deltaAX = projectedA.X - sourceA.X;
+            double deltaAY = projectedA.Y - sourceA.Y;
+            double deltaBX = projectedB.X - sourceB.X;
+            double deltaBY = projectedB.Y - sourceB.Y;
+            bestDistance2 = distance2;
+            bestDeltaX = deltaAX + ((deltaBX - deltaAX) * t);
+            bestDeltaY = deltaAY + ((deltaBY - deltaAY) * t);
+            bestNearestX = nearestX;
+            bestNearestY = nearestY;
+        }
+
+        if (double.IsPositiveInfinity(bestDistance2))
+        {
+            return false;
+        }
+
+        distance = Math.Sqrt(bestDistance2);
+        deltaX = bestDeltaX;
+        deltaY = bestDeltaY;
+        nearestPolygonX = bestNearestX;
+        nearestPolygonY = bestNearestY;
+        return true;
+    }
+
+    private static bool TryGetFaceShapeNearestProjectedPolygonDelta(
         double x,
         double y,
         IReadOnlyList<Point> sourcePolygon,
@@ -4653,20 +5416,24 @@ public partial class MainWindow
             Point sourceB = sourcePolygon[(i + 1) % count];
             Point projectedA = projectedPolygon[i];
             Point projectedB = projectedPolygon[(i + 1) % count];
-            double segmentX = sourceB.X - sourceA.X;
-            double segmentY = sourceB.Y - sourceA.Y;
+            double segmentX = projectedB.X - projectedA.X;
+            double segmentY = projectedB.Y - projectedA.Y;
             double length2 = (segmentX * segmentX) + (segmentY * segmentY);
             double t = 0.0;
             if (length2 > 0.000001)
             {
-                t = Math.Clamp((((x - sourceA.X) * segmentX) + ((y - sourceA.Y) * segmentY)) / length2, 0.0, 1.0);
+                t = Math.Clamp(
+                    (((x - projectedA.X) * segmentX) + ((y - projectedA.Y) * segmentY)) /
+                    length2,
+                    0.0,
+                    1.0);
             }
 
-            double nearestX = sourceA.X + (segmentX * t);
-            double nearestY = sourceA.Y + (segmentY * t);
-            double dx = x - nearestX;
-            double dy = y - nearestY;
-            double distance2 = (dx * dx) + (dy * dy);
+            double nearestX = projectedA.X + (segmentX * t);
+            double nearestY = projectedA.Y + (segmentY * t);
+            double pointDx = x - nearestX;
+            double pointDy = y - nearestY;
+            double distance2 = (pointDx * pointDx) + (pointDy * pointDy);
             if (distance2 >= bestDistance2)
             {
                 continue;

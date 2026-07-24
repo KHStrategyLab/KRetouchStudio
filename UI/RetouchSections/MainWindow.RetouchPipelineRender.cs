@@ -16,6 +16,32 @@ public partial class MainWindow
     {
         PhotoEditState state = GetOrCreatePhotoEditState(photo);
         PhotoEditStateSnapshot snapshot = state.CaptureSnapshot();
+        FaceShapeHeadPosePreviewMode headPosePreviewMode = FaceShapeHeadPosePreviewMode.None;
+        if (quality == RetouchRenderQuality.Preview &&
+            changedStage == RetouchStageId.FaceShape &&
+            FaceShapeRetouchTab is not null)
+        {
+            if (FaceShapeRetouchTab.IsFaceTiltFaceShapeModeSelected)
+            {
+                headPosePreviewMode = FaceShapeHeadPosePreviewMode.FaceTilt;
+            }
+            else if (FaceShapeRetouchTab.IsFaceTurnFaceShapeModeSelected)
+            {
+                headPosePreviewMode = FaceShapeHeadPosePreviewMode.FaceTurn;
+            }
+            else if (FaceShapeRetouchTab.IsHeadTiltFaceShapeModeSelected)
+            {
+                headPosePreviewMode = FaceShapeHeadPosePreviewMode.HeadTilt;
+            }
+        }
+
+        FaceShapeAdjustmentSnapshot? faceShapeState = snapshot.FaceShapeState;
+        if (faceShapeState is null &&
+            headPosePreviewMode != FaceShapeHeadPosePreviewMode.None)
+        {
+            faceShapeState = FaceShapeAdjustmentSnapshot.Neutral;
+        }
+
         PhotoRetouchPipelineSession session = GetOrCreateRetouchPipelineSession(photo);
         RetouchStageId firstDirtyStage = RetouchStageCatalog.GetFirstDirtyStage(changedStage);
         RetouchRenderTicket ticket = session.BeginRender(quality, firstDirtyStage);
@@ -114,9 +140,14 @@ public partial class MainWindow
                             ticket.CancellationToken);
                         break;
 
-                    case RetouchStageId.FaceShape when snapshot.FaceShapeState is not null:
+                    case RetouchStageId.FaceShape when faceShapeState is not null:
                         await EnsureLandmarksAsync();
-                        if (snapshot.FaceShapeState.UpperAlign > 0.001)
+                        bool requiresFaceShapePersonAlpha =
+                            faceShapeState.UpperAlign > 0.001 ||
+                            (quality == RetouchRenderQuality.FullResolution &&
+                             (Math.Abs(faceShapeState.FaceTurn - 50.0) > 0.001 ||
+                              Math.Abs(faceShapeState.HeadTilt - 50.0) > 0.001));
+                        if (requiresFaceShapePersonAlpha)
                         {
                             await EnsurePersonAlphaAsync();
                         }
@@ -130,7 +161,9 @@ public partial class MainWindow
                             safeFaceShapePoints,
                             safePointArray,
                             safeAlpha,
-                            snapshot.FaceShapeState,
+                            faceShapeState,
+                            headPosePreviewMode,
+                            quality == RetouchRenderQuality.FullResolution,
                             () => !session.IsCurrent(ticket)),
                             ticket.CancellationToken);
                         break;
