@@ -252,6 +252,7 @@ public partial class MainWindow
             return;
         }
 
+        StartBiRefNetWarmup();
         await PrepareBackgroundReplacementResourcesAsync(targetPhoto, reportStatus: true);
     }
 

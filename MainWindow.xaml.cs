@@ -370,10 +370,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private int _liquifyBaseStride;
     private float[]? _liquifyMapX;
     private float[]? _liquifyMapY;
-    private const int MaxEditorHistoryEntries = 40;
+    private const int MaxEditorHistoryEntries = 20;
+    private const int MaxEditorHistoryLoadEntries = 6;
+    private const long MaxEditorHistoryBitmapBytes = 512L * 1024 * 1024;
     private readonly List<EditorHistoryState> _editorUndoHistory = new();
     private readonly List<EditorHistoryState> _editorRedoHistory = new();
     private readonly Dictionary<string, EditorHistorySession> _editorHistorySessionsByPath = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _dirtyPhotoPaths = new(StringComparer.OrdinalIgnoreCase);
     private bool _isRestoringEditorHistory;
     private CancellationTokenSource? _toneCurvePreviewRenderCancellation;
     private int _toneCurvePreviewRenderVersion;
@@ -382,7 +385,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private BitmapSource? _toneCurveFastPreviewSource;
     private const string DevelopmentPackagePassword = "1234";
     private const string ManualUpdateUrl = "https://drive.google.com/drive/folders/1ndHczaHgBvHan_S0isOOtIoJRZtDs2TK";
-    private const string AutoUpdateVersionJsonUrl = "KRetouchStudio_update.json";
+    private const string AutoUpdateVersionJsonUrl = "https://raw.githubusercontent.com/KHStrategyLab/KRetouchStudio/codex/local-restart-2026-06-22/KRetouchStudio_update.json";
     private static readonly string RepositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
     private static readonly DevelopmentPackageService _developmentPackageService = new(RepositoryRootPath);
     private static readonly string[] SupportedImageExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".raw"];
@@ -455,6 +458,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadAppConfig();
         UpdateToolboxSelection();
         Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
         Closed += MainWindow_Closed;
         if (startupImagePaths.Count > 0)
         {
@@ -485,7 +489,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
 
             PhotoItem? previousPhoto = _selectedPhoto;
-            StoreCurrentEditorHistorySession(previousPhoto, persistToDisk: true);
+            bool previousHistoryPersisted = StoreCurrentEditorHistorySession(
+                previousPhoto,
+                persistToDisk: true);
+            if (previousHistoryPersisted && previousPhoto is not null)
+            {
+                _editorHistorySessionsByPath.Remove(NormalizeFilePath(previousPhoto.Path));
+            }
             CancelRetouchPipelineRenders(previousPhoto);
 
             if (_selectedPhoto is not null)
@@ -1076,8 +1086,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkSelfSavedOutputPath(outputPath);
             BitmapEncoder encoder = CreateSaveEncoder(outputExtension, jpegQualityLevel: 100);
             encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension, embedColorProfile: true));
-            using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            encoder.Save(stream);
+            SaveBitmapEncoderAtomically(encoder, outputPath, overwriteExisting: false);
+            MarkPhotoSaved(photo);
         }
         catch (Exception ex)
         {
@@ -1132,8 +1142,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkSelfSavedOutputPath(outputPath);
             BitmapEncoder encoder = CreateSaveEncoder(outputExtension, jpegQualityLevel);
             encoder.Frames.Add(CreateSrgbSaveFrame(image, outputExtension, embedColorProfile));
-            using FileStream stream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            encoder.Save(stream);
+            SaveBitmapEncoderAtomically(encoder, outputPath, overwriteExisting: true);
+            MarkPhotoSaved(photo);
         }
         catch (Exception ex)
         {
@@ -1315,6 +1325,61 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return new PngBitmapEncoder();
     }
 
+    private static void SaveBitmapEncoderAtomically(
+        BitmapEncoder encoder,
+        string outputPath,
+        bool overwriteExisting)
+    {
+        string fullOutputPath = Path.GetFullPath(outputPath);
+        string outputDirectory = Path.GetDirectoryName(fullOutputPath)
+            ?? throw new DirectoryNotFoundException("The save directory could not be resolved.");
+        string outputFileName = Path.GetFileName(fullOutputPath);
+        string operationId = Guid.NewGuid().ToString("N");
+        string temporaryPath = Path.Combine(outputDirectory, $".{outputFileName}.{operationId}.tmp");
+        string backupPath = Path.Combine(outputDirectory, $".{outputFileName}.{operationId}.bak");
+
+        try
+        {
+            using (FileStream stream = new(
+                       temporaryPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None))
+            {
+                encoder.Save(stream);
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (overwriteExisting && File.Exists(fullOutputPath))
+            {
+                File.Replace(temporaryPath, fullOutputPath, backupPath, ignoreMetadataErrors: true);
+                TryDeleteTemporarySaveFile(backupPath);
+            }
+            else
+            {
+                File.Move(temporaryPath, fullOutputPath, overwrite: false);
+            }
+        }
+        finally
+        {
+            TryDeleteTemporarySaveFile(temporaryPath);
+        }
+    }
+
+    private static void TryDeleteTemporarySaveFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static BitmapFrame CreateSrgbSaveFrame(BitmapSource image, string outputExtension, bool embedColorProfile)
     {
         PixelFormat outputFormat = IsJpegExtension(outputExtension)
@@ -1398,12 +1463,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (!ConfirmDiscardUnsavedEdits("작업폴더를 새로고침하면"))
+        {
+            return;
+        }
+
         try
         {
             _isRefreshingWorkArea = true;
             _lastWorkAreaRefreshAt = now;
             PruneEditorHistoryOutsideWorkArea(_appConfig.WorkAreaFolderPath);
             LoadPhotosFromWorkArea(_appConfig.WorkAreaFolderPath);
+            _dirtyPhotoPaths.Clear();
         }
         finally
         {
@@ -1689,7 +1760,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (Uri.TryCreate(AutoUpdateVersionJsonUrl, UriKind.Absolute, out Uri? uri) &&
                 (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
-                using HttpClient client = new();
+                using HttpClient client = new()
+                {
+                    Timeout = TimeSpan.FromSeconds(10)
+                };
                 using HttpResponseMessage response = await client.GetAsync(uri);
                 if (!response.IsSuccessStatusCode)
                 {
@@ -1747,14 +1821,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Information);
 
-            if (result != MessageBoxResult.Yes || string.IsNullOrWhiteSpace(manifest.DownloadUrl))
+            if (result != MessageBoxResult.Yes ||
+                string.IsNullOrWhiteSpace(manifest.DownloadUrl) ||
+                !Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out Uri? downloadUri) ||
+                (downloadUri.Scheme != Uri.UriSchemeHttp &&
+                 downloadUri.Scheme != Uri.UriSchemeHttps))
             {
                 return false;
             }
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = manifest.DownloadUrl,
+                FileName = downloadUri.AbsoluteUri,
                 UseShellExecute = true
             });
 
@@ -1845,6 +1923,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ColorManagementMode previousMode = _appConfig.ColorManagementMode;
         string? previousManualProfilePath = _appConfig.ManualDisplayColorProfilePath;
 
+        if (!ConfirmDiscardUnsavedEdits("색상 관리 설정을 변경하면"))
+        {
+            RaiseColorManagementPropertyChanged();
+            return;
+        }
+
         _appConfig.ManualDisplayColorProfilePath = null;
         if (_appConfig.ColorManagementMode == ColorManagementMode.Manual)
         {
@@ -1859,6 +1943,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             !string.Equals(previousManualProfilePath, _appConfig.ManualDisplayColorProfilePath, StringComparison.OrdinalIgnoreCase))
         {
             ReloadPhotosForColorManagement();
+            _dirtyPhotoPaths.Clear();
         }
     }
 
@@ -3167,8 +3252,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void AddPhotos(IEnumerable<string> fileNames)
     {
         List<PhotoItem> addedPhotos = [];
+        List<string> failedPhotoNames = [];
         foreach (string fileName in fileNames.Where(File.Exists))
         {
+            string normalizedPath = NormalizeFilePath(fileName);
+            if (Photos.Any(photo =>
+                    string.Equals(
+                        NormalizeFilePath(photo.Path),
+                        normalizedPath,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
             try
             {
                 PhotoItem photo = PhotoItem.Load(fileName);
@@ -3177,6 +3273,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
             {
+                failedPhotoNames.Add(Path.GetFileName(fileName));
             }
         }
 
@@ -3188,6 +3285,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(PhotoSelectionText));
+        if (failedPhotoNames.Count > 0)
+        {
+            MediaPipeStatusText =
+                $"Photo load skipped: {failedPhotoNames.Count} | " +
+                string.Join(", ", failedPhotoNames.Take(3));
+        }
+    }
+
+    internal void OpenPhotosFromExternalRequest(IReadOnlyList<string> photoPaths)
+    {
+        if (photoPaths.Count > 0)
+        {
+            AddPhotos(photoPaths);
+            PhotoItem? requestedPhoto = Photos.LastOrDefault(photo =>
+                photoPaths.Contains(photo.Path, StringComparer.OrdinalIgnoreCase));
+            if (requestedPhoto is not null)
+            {
+                SelectOnly(requestedPhoto);
+            }
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Show();
+        Activate();
     }
 
     private void QueuePreviewProxy1200Builds(IEnumerable<PhotoItem> photos)
@@ -3606,6 +3731,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         ColorManagementMode previousMode = _appConfig.ColorManagementMode;
         string? previousManualProfilePath = _appConfig.ManualDisplayColorProfilePath;
+        string? nextManualProfilePath = !string.IsNullOrWhiteSpace(manualProfilePath)
+            ? manualProfilePath
+            : previousManualProfilePath;
+        bool settingsChanged =
+            previousMode != mode ||
+            !string.Equals(previousManualProfilePath, nextManualProfilePath, StringComparison.OrdinalIgnoreCase);
+        if (settingsChanged && !ConfirmDiscardUnsavedEdits("색상 관리 설정을 변경하면"))
+        {
+            RaiseColorManagementPropertyChanged();
+            return;
+        }
 
         _appConfig.ColorManagementMode = mode;
         if (!string.IsNullOrWhiteSpace(manualProfilePath))
@@ -3621,6 +3757,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             !string.Equals(previousManualProfilePath, _appConfig.ManualDisplayColorProfilePath, StringComparison.OrdinalIgnoreCase))
         {
             ReloadPhotosForColorManagement();
+            _dirtyPhotoPaths.Clear();
         }
     }
 
@@ -3639,10 +3776,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PinWorkArea(string folderPath)
     {
+        if (!ConfirmDiscardUnsavedEdits("작업폴더를 변경하면"))
+        {
+            return;
+        }
+
         _appConfig.WorkAreaFolderPath = folderPath;
         SaveAppConfig();
         OnPropertyChanged(nameof(WorkAreaDisplayText));
         LoadPhotosFromWorkArea(folderPath);
+        _dirtyPhotoPaths.Clear();
     }
 
     private void LoadPhotosFromWorkArea(string folderPath)
@@ -3723,10 +3866,57 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StopWorkAreaWatcher();
     }
 
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_dirtyPhotoPaths.Count == 0)
+        {
+            return;
+        }
+
+        string photoCountText = _dirtyPhotoPaths.Count == 1
+            ? "사진 1장"
+            : $"사진 {_dirtyPhotoPaths.Count}장";
+        MessageBoxResult result = System.Windows.MessageBox.Show(
+            this,
+            $"{photoCountText}의 편집 결과가 출력 파일로 저장되지 않았어.\n그래도 종료할까?",
+            "저장하지 않은 편집",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (result != MessageBoxResult.Yes)
+        {
+            e.Cancel = true;
+        }
+    }
+
+    private bool ConfirmDiscardUnsavedEdits(string actionDescription)
+    {
+        if (_dirtyPhotoPaths.Count == 0)
+        {
+            return true;
+        }
+
+        string photoCountText = _dirtyPhotoPaths.Count == 1
+            ? "사진 1장"
+            : $"사진 {_dirtyPhotoPaths.Count}장";
+        MessageBoxResult result = System.Windows.MessageBox.Show(
+            this,
+            $"{photoCountText}의 편집 결과가 출력 파일로 저장되지 않았어.\n{actionDescription} 편집 내용이 사라져. 계속할까?",
+            "저장하지 않은 편집",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (result != MessageBoxResult.Yes)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         StartMediaPipeWarmup();
-        StartBiRefNetWarmup();
     }
 
     private void StartWorkAreaWatcher(string folderPath)
@@ -3952,7 +4142,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (_dirtyPhotoPaths.Contains(NormalizeFilePath(removedPhoto.Path)))
+        {
+            MediaPipeStatusText = $"Edited photo kept after source removal: {Path.GetFileName(removedPhoto.Path)}";
+            return;
+        }
+
         bool removedWasSelected = removedPhoto.IsSelected || ReferenceEquals(SelectedPhoto, removedPhoto);
+        _dirtyPhotoPaths.Remove(NormalizeFilePath(removedPhoto.Path));
         Photos.RemoveAt(removedIndex);
         if (ReferenceEquals(_selectionAnchor, removedPhoto))
         {
@@ -4064,19 +4261,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _appConfig.PhotoListSortMode = sortMode;
         SaveAppConfig();
-        if (Directory.Exists(_appConfig.WorkAreaFolderPath))
+        if (Photos.Count > 1)
         {
-            LoadPhotosFromWorkArea(_appConfig.WorkAreaFolderPath);
-        }
-        else if (Photos.Count > 1)
-        {
-            string[] currentFiles = Photos.Select(photo => photo.Path).ApplySort(sortMode).ToArray();
-            ResetPreviewProxy1200BuildQueue();
+            PhotoItem[] sortedPhotos = Photos
+                .OrderBy(
+                    photo => photo.Path,
+                    Comparer<string>.Create(ComparePhotoListPathOrder))
+                .ToArray();
             Photos.Clear();
-            SelectedPhoto = null;
-            SelectedPreviewPhotos.Clear();
-            _selectionAnchor = null;
-            AddPhotos(currentFiles);
+            foreach (PhotoItem photo in sortedPhotos)
+            {
+                Photos.Add(photo);
+            }
+
+            UpdatePreviewLayout();
         }
     }
 
@@ -4091,7 +4289,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(AppConfigPath)) ?? new AppConfig();
         }
-        catch (JsonException)
+        catch (Exception ex) when (
+            ex is JsonException or
+            IOException or
+            UnauthorizedAccessException or
+            NotSupportedException)
         {
             return new AppConfig();
         }
@@ -4099,9 +4301,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SaveAppConfig()
     {
-        Directory.CreateDirectory(AppConfigDirectory);
-        JsonSerializerOptions options = new() { WriteIndented = true };
-        File.WriteAllText(AppConfigPath, JsonSerializer.Serialize(_appConfig, options));
+        string operationId = Guid.NewGuid().ToString("N");
+        string temporaryPath = AppConfigPath + "." + operationId + ".tmp";
+        string backupPath = AppConfigPath + "." + operationId + ".bak";
+        try
+        {
+            Directory.CreateDirectory(AppConfigDirectory);
+            JsonSerializerOptions options = new() { WriteIndented = true };
+            File.WriteAllText(
+                temporaryPath,
+                JsonSerializer.Serialize(_appConfig, options),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            if (File.Exists(AppConfigPath))
+            {
+                File.Replace(temporaryPath, AppConfigPath, backupPath, ignoreMetadataErrors: true);
+                TryDeleteTemporarySaveFile(backupPath);
+            }
+            else
+            {
+                File.Move(temporaryPath, AppConfigPath, overwrite: false);
+            }
+        }
+        catch (Exception ex) when (
+            ex is IOException or
+            UnauthorizedAccessException or
+            NotSupportedException)
+        {
+            MediaPipeStatusText = "Settings save failed: " + ex.Message;
+        }
+        finally
+        {
+            TryDeleteTemporarySaveFile(temporaryPath);
+        }
     }
 
     private void SelectOnly(PhotoItem photo)
@@ -4563,11 +4795,75 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             File.Move(currentFilePath, targetPath);
             SelectedPhoto.Rename(targetPath);
+            MigrateRenamedPhotoState(SelectedPhoto, currentFilePath, targetPath);
             OnPropertyChanged(nameof(SelectedPhoto));
         }
         catch (Exception ex)
         {
             System.Windows.MessageBox.Show(this, $"이름 바꾸기 실패: {ex.Message}", "이름 바꾸기", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void MigrateRenamedPhotoState(PhotoItem photo, string previousPath, string currentPath)
+    {
+        string previousNormalizedPath = NormalizeFilePath(previousPath);
+        string currentNormalizedPath = NormalizeFilePath(currentPath);
+
+        RewriteEditorHistoryPhotoPath(_editorUndoHistory, currentPath);
+        RewriteEditorHistoryPhotoPath(_editorRedoHistory, currentPath);
+
+        if (_editorHistorySessionsByPath.Remove(
+                previousNormalizedPath,
+                out EditorHistorySession? previousHistorySession))
+        {
+            _editorHistorySessionsByPath[currentNormalizedPath] = new EditorHistorySession(
+                previousHistorySession.UndoHistory
+                    .Select(state => state.WithPhotoPath(currentPath))
+                    .ToList(),
+                previousHistorySession.RedoHistory
+                    .Select(state => state.WithPhotoPath(currentPath))
+                    .ToList());
+        }
+
+        if (ReferenceEquals(SelectedPhoto, photo))
+        {
+            _editorHistorySessionsByPath[currentNormalizedPath] = new EditorHistorySession(
+                _editorUndoHistory.ToList(),
+                _editorRedoHistory.ToList());
+        }
+
+        if (_retouchPipelineSessionsByPath.Remove(
+                previousNormalizedPath,
+                out PhotoRetouchPipelineSession? previousPipelineSession))
+        {
+            previousPipelineSession.Dispose();
+        }
+
+        if (_photoEditStatesByPath.Remove(
+                previousNormalizedPath,
+                out PhotoEditState? previousEditState))
+        {
+            PhotoEditState migratedEditState = new(currentPath);
+            migratedEditState.RestoreSnapshot(
+                previousEditState.CaptureSnapshot() with { PhotoPath = currentPath });
+            _photoEditStatesByPath[currentNormalizedPath] = migratedEditState;
+        }
+
+        if (_dirtyPhotoPaths.Remove(previousNormalizedPath))
+        {
+            _dirtyPhotoPaths.Add(currentNormalizedPath);
+        }
+
+        ClearFaceShapeLandmarkCache();
+    }
+
+    private static void RewriteEditorHistoryPhotoPath(
+        List<EditorHistoryState> history,
+        string photoPath)
+    {
+        for (int index = 0; index < history.Count; index++)
+        {
+            history[index] = history[index].WithPhotoPath(photoPath);
         }
     }
 
@@ -6069,6 +6365,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _editorUndoHistory.AddRange(session.UndoHistory);
             _editorRedoHistory.AddRange(session.RedoHistory);
+            TrimEditorHistoryToBudget(_editorUndoHistory);
+            TrimEditorHistoryToBudget(_editorRedoHistory);
             RestoreEditorHistoryState(_editorUndoHistory[^1]);
             RefreshEditorHistoryPanel();
             return;
@@ -6095,13 +6393,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return false;
     }
 
-    private void StoreCurrentEditorHistorySession(PhotoItem? photo, bool persistToDisk)
+    private bool StoreCurrentEditorHistorySession(PhotoItem? photo, bool persistToDisk)
     {
         if (!EnableEditorHistoryPersistence ||
             photo is null ||
             _editorUndoHistory.Count == 0)
         {
-            return;
+            return false;
         }
 
         string normalizedPath = NormalizeFilePath(photo.Path);
@@ -6112,15 +6410,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (!persistToDisk)
         {
-            return;
+            return true;
         }
 
         try
         {
             SaveEditorHistorySessionToDisk(normalizedPath, photo.Path, session);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
+            return false;
         }
     }
 
@@ -6133,14 +6433,61 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         EditorHistoryState snapshot = CaptureEditorHistoryState(photo, title, detail);
         _editorUndoHistory.Add(snapshot);
-        if (_editorUndoHistory.Count > MaxEditorHistoryEntries)
-        {
-            _editorUndoHistory.RemoveAt(0);
-        }
+        TrimEditorHistoryToBudget(_editorUndoHistory);
 
         _editorRedoHistory.Clear();
         RefreshEditorHistoryPanel();
         StoreCurrentEditorHistorySession(photo, persistToDisk: false);
+        if (!string.Equals(title, "Open Photo", StringComparison.Ordinal))
+        {
+            MarkPhotoDirty(photo);
+        }
+    }
+
+    private void MarkPhotoDirty(PhotoItem photo)
+    {
+        _dirtyPhotoPaths.Add(NormalizeFilePath(photo.Path));
+    }
+
+    private void MarkPhotoSaved(PhotoItem photo)
+    {
+        _dirtyPhotoPaths.Remove(NormalizeFilePath(photo.Path));
+    }
+
+    private static void TrimEditorHistoryToBudget(List<EditorHistoryState> history)
+    {
+        while (history.Count > 1 &&
+               (history.Count > MaxEditorHistoryEntries ||
+                EstimateEditorHistoryBitmapBytes(history) > MaxEditorHistoryBitmapBytes))
+        {
+            bool preserveOpenPhotoBaseline =
+                history.Count > 2 &&
+                string.Equals(history[0].Title, "Open Photo", StringComparison.Ordinal);
+            int removalIndex = preserveOpenPhotoBaseline ? 1 : 0;
+            if (removalIndex >= history.Count - 1)
+            {
+                break;
+            }
+
+            history.RemoveAt(removalIndex);
+        }
+    }
+
+    private static long EstimateEditorHistoryBitmapBytes(
+        IReadOnlyList<EditorHistoryState> history)
+    {
+        long totalBytes = 0;
+        foreach (EditorHistoryState state in history)
+        {
+            if (state.AdjustedImage is not BitmapSource image)
+            {
+                continue;
+            }
+
+            totalBytes += (long)image.PixelWidth * image.PixelHeight * 4;
+        }
+
+        return totalBytes;
     }
 
     private EditorHistoryState CaptureEditorHistoryState(PhotoItem photo, string title, string detail)
@@ -6199,6 +6546,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RestoreEditorHistoryState(_editorUndoHistory[^1]);
         RefreshEditorHistoryPanel();
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
+        MarkPhotoDirty(SelectedPhoto);
     }
 
     private void TryRedoEditorHistory()
@@ -6214,6 +6562,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RestoreEditorHistoryState(snapshot);
         RefreshEditorHistoryPanel();
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
+        MarkPhotoDirty(SelectedPhoto);
     }
 
     private void HistoryPanelListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -6256,6 +6605,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RestoreEditorHistoryState(_editorUndoHistory[^1]);
         RefreshEditorHistoryPanel();
         StoreCurrentEditorHistorySession(SelectedPhoto, persistToDisk: false);
+        MarkPhotoDirty(SelectedPhoto);
     }
 
     private static HistoryPanelItem? FindHistoryPanelItemFromOriginalSource(object originalSource)
@@ -6280,28 +6630,69 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         EditorHistorySession session)
     {
         string sessionDirectory = GetEditorHistorySessionDirectory(normalizedPath);
-        if (Directory.Exists(sessionDirectory))
+        string operationId = Guid.NewGuid().ToString("N");
+        string stagingDirectory = sessionDirectory + ".staging-" + operationId;
+        string backupDirectory = sessionDirectory + ".backup-" + operationId;
+        Directory.CreateDirectory(stagingDirectory);
+
+        try
         {
-            Directory.Delete(sessionDirectory, recursive: true);
+            PersistedEditorHistoryDocument document = new()
+            {
+                SchemaVersion = PhotoEditStateSnapshot.CurrentSchemaVersion,
+                PhotoPath = photoPath,
+                NormalizedPath = normalizedPath,
+                SavedAtUtc = DateTime.UtcNow,
+                UndoHistory = PersistEditorHistoryStates(session.UndoHistory, stagingDirectory, "undo"),
+                RedoHistory = PersistEditorHistoryStates(session.RedoHistory, stagingDirectory, "redo")
+            };
+
+            JsonSerializerOptions options = new() { WriteIndented = true };
+            File.WriteAllText(
+                Path.Combine(stagingDirectory, "history.json"),
+                JsonSerializer.Serialize(document, options),
+                Encoding.UTF8);
+
+            if (Directory.Exists(sessionDirectory))
+            {
+                Directory.Move(sessionDirectory, backupDirectory);
+            }
+
+            try
+            {
+                Directory.Move(stagingDirectory, sessionDirectory);
+            }
+            catch
+            {
+                if (!Directory.Exists(sessionDirectory) &&
+                    Directory.Exists(backupDirectory))
+                {
+                    Directory.Move(backupDirectory, sessionDirectory);
+                }
+
+                throw;
+            }
+
+            TryDeleteEditorHistoryDirectory(backupDirectory);
         }
-
-        Directory.CreateDirectory(sessionDirectory);
-
-        PersistedEditorHistoryDocument document = new()
+        finally
         {
-            SchemaVersion = PhotoEditStateSnapshot.CurrentSchemaVersion,
-            PhotoPath = photoPath,
-            NormalizedPath = normalizedPath,
-            SavedAtUtc = DateTime.UtcNow,
-            UndoHistory = PersistEditorHistoryStates(session.UndoHistory, sessionDirectory, "undo"),
-            RedoHistory = PersistEditorHistoryStates(session.RedoHistory, sessionDirectory, "redo")
-        };
+            TryDeleteEditorHistoryDirectory(stagingDirectory);
+        }
+    }
 
-        JsonSerializerOptions options = new() { WriteIndented = true };
-        File.WriteAllText(
-            Path.Combine(sessionDirectory, "history.json"),
-            JsonSerializer.Serialize(document, options),
-            Encoding.UTF8);
+    private static void TryDeleteEditorHistoryDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private static List<PersistedEditorHistoryState> PersistEditorHistoryStates(
@@ -6397,8 +6788,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IReadOnlyList<PersistedEditorHistoryState> persistedStates,
         string sessionDirectory)
     {
-        List<EditorHistoryState> states = new(persistedStates.Count);
-        foreach (PersistedEditorHistoryState persistedState in persistedStates)
+        IReadOnlyList<PersistedEditorHistoryState> selectedStates =
+            SelectPersistedEditorHistoryStatesForLoad(persistedStates);
+        List<EditorHistoryState> states = new(selectedStates.Count);
+        foreach (PersistedEditorHistoryState persistedState in selectedStates)
         {
             BitmapSource? adjustedImage = null;
             if (!string.IsNullOrWhiteSpace(persistedState.AdjustedImageFile))
@@ -6426,6 +6819,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         return states;
+    }
+
+    private static IReadOnlyList<PersistedEditorHistoryState> SelectPersistedEditorHistoryStatesForLoad(
+        IReadOnlyList<PersistedEditorHistoryState> persistedStates)
+    {
+        if (persistedStates.Count <= MaxEditorHistoryLoadEntries)
+        {
+            return persistedStates;
+        }
+
+        List<PersistedEditorHistoryState> selected = new(MaxEditorHistoryLoadEntries)
+        {
+            persistedStates[0]
+        };
+        int tailStart = persistedStates.Count - (MaxEditorHistoryLoadEntries - 1);
+        for (int index = tailStart; index < persistedStates.Count; index++)
+        {
+            selected.Add(persistedStates[index]);
+        }
+
+        return selected;
     }
 
     private static PreviewTextItemSnapshot RestorePreviewTextItemSnapshot(PersistedPreviewTextItemSnapshot snapshot)
@@ -6753,6 +7167,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public string Detail { get; }
 
         public DateTime Timestamp { get; }
+
+        public EditorHistoryState WithPhotoPath(string photoPath)
+        {
+            return new EditorHistoryState(
+                photoPath,
+                AdjustedImage,
+                TextItems,
+                EditState is null ? null : EditState with { PhotoPath = photoPath },
+                SkinState,
+                BlemishState,
+                WrinkleState,
+                MakeupState,
+                HairState,
+                Title,
+                Detail,
+                Timestamp);
+        }
     }
 
     private sealed class PreviewTextItemSnapshot

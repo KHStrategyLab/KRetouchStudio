@@ -1,5 +1,5 @@
 ﻿{
-  "latestVersion": "0.1.9",
+  "latestVersion": "0.1.10",
   "downloadUrl": "https://drive.google.com/drive/folders/1ndHczaHgBvHan_S0isOOtIoJRZtDs2TK",
-  "releaseNotes": "Development package v0.1.9 created on 2026-06-17 22:36:38."
+  "releaseNotes": "Release hardening: self-contained package, atomic saves, safer history, and remote update checks."
 }

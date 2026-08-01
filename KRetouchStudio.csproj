@@ -6,7 +6,7 @@
     <AssemblyName>KRetouchStudio</AssemblyName>
     <RootNamespace>KRetouchStudio</RootNamespace>
     <Product>KRetouch Studio</Product>
-    <Version>0.1.9</Version>
+    <Version>0.1.10</Version>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -21,12 +21,15 @@
   <ItemGroup>
     <None Remove="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.ico" />
-    <None Include="Assets\AiModels\*.onnx" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="Assets\AiModels\MediaPipe\*.*" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="Tools\BiRefNet\*.py" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="Tools\MediaPipe\*.py" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets\AiModels\HaarCascades\*.xml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="KRetouchStudio_update.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\AiModels\*.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="Assets\AiModels\MediaPipe\*.*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="Tools\BiRefNet\*.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="Tools\MediaPipe\*.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="Assets\AiModels\HaarCascades\*.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="KRetouchStudio_update.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="requirements.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs\PORTABILITY_AND_SETUP.md" Link="Documentation\PORTABILITY_AND_SETUP.md" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,9 +37,10 @@
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260602" />
   </ItemGroup>
 
-  <Target Name="PackageReleaseZip" AfterTargets="Build" Condition="'$(CreateReleasePackage)' == 'true'">
+  <Target Name="PackageReleaseZip" AfterTargets="Publish" Condition="'$(CreateReleasePackage)' == 'true'">
+    <Error Condition="'$(Configuration)' != 'Release'" Text="Release packages must be published with Configuration=Release." />
     <MakeDir Directories="$(ProjectDir)release\" />
-    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;Add-Type -AssemblyName System.IO.Compression.FileSystem; $outDir = '$(TargetDir)'; $stage = '$(ProjectDir)release\package_stage'; $zip = '$(ProjectDir)release\KRetouchStudio_latest.zip'; if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }; New-Item -ItemType Directory -Path $stage | Out-Null; Copy-Item -Path (Join-Path $outDir '*') -Destination $stage -Recurse -Force; if (Test-Path $zip) { Remove-Item $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false); $dstDir = Join-Path $env:USERPROFILE 'Documents\\KRetouchStudio\\Updates'; if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }; $dst = Join-Path $dstDir 'KRetouchStudio_latest.zip'; if (Test-Path $dst) { Remove-Item $dst -Force }; Copy-Item -Path $zip -Destination $dst -Force&quot;" />
+    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;Add-Type -AssemblyName System.IO.Compression.FileSystem; $outDir = '$(PublishDir)'; $stage = '$(ProjectDir)release\package_stage'; $zip = '$(ProjectDir)release\KRetouchStudio_latest.zip'; if (-not (Test-Path $outDir)) { throw 'Publish directory was not found.' }; if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }; New-Item -ItemType Directory -Path $stage | Out-Null; Copy-Item -Path (Join-Path $outDir '*') -Destination $stage -Recurse -Force; if (Test-Path $zip) { Remove-Item $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false); $dstDir = Join-Path $env:USERPROFILE 'Documents\\KRetouchStudio\\Updates'; if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }; $dst = Join-Path $dstDir 'KRetouchStudio_latest.zip'; if (Test-Path $dst) { Remove-Item $dst -Force }; Copy-Item -Path $zip -Destination $dst -Force&quot;" />
   </Target>
 
 </Project>

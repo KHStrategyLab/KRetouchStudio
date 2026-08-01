@@ -64,8 +64,10 @@ internal sealed class DevelopmentPackageService
             $"$repoRoot = '{EscapePowerShellSingleQuoted(_repositoryRootPath)}'" + newLine +
             $"$logPath = '{EscapePowerShellSingleQuoted(logPath)}'" + newLine +
             $"$appPath = '{EscapePowerShellSingleQuoted(appPath)}'" + newLine +
+            "$publishDir = Join-Path $repoRoot 'release\\publish_stage'" + newLine +
             newLine +
             "New-Item -ItemType Directory -Path (Split-Path $logPath) -Force | Out-Null" + newLine +
+            "if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }" + newLine +
             newLine +
             "while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {" + newLine +
             "    Start-Sleep -Milliseconds 200" + newLine +
@@ -73,7 +75,7 @@ internal sealed class DevelopmentPackageService
             newLine +
             "Push-Location $repoRoot" + newLine +
             "try {" + newLine +
-            "    & dotnet build .\\KRetouchStudio.sln -p:Platform=x64 -p:CreateReleasePackage=true *> $logPath" + newLine +
+            "    & dotnet publish .\\KRetouchStudio.csproj -c Release -r win-x64 --self-contained true --output $publishDir -p:Platform=x64 -p:CreateReleasePackage=true -p:DebugSymbols=false -p:DebugType=None *> $logPath" + newLine +
             "    $exitCode = $LASTEXITCODE" + newLine +
             "}" + newLine +
             "finally {" + newLine +

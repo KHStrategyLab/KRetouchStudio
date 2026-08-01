@@ -78,8 +78,10 @@ public partial class MainWindow
             string.Equals(_editorUndoHistory[^1].Title, title, StringComparison.Ordinal))
         {
             _editorUndoHistory[^1] = CaptureEditorHistoryState(photo, title, detail);
+            TrimEditorHistoryToBudget(_editorUndoHistory);
             RefreshEditorHistoryPanel();
             StoreCurrentEditorHistorySession(photo, persistToDisk: false);
+            MarkPhotoDirty(photo);
             return;
         }
 

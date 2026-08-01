@@ -18,5 +18,6 @@ obj/
 
 # Release staging
 release/package_stage/
+release/publish_stage/
 release/*.zip
 *.zip
