@@ -3268,7 +3268,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             try
             {
                 PhotoItem photo = PhotoItem.Load(fileName);
-                Photos.Add(photo);
+                InsertPhotoInCurrentList(photo);
                 addedPhotos.Add(photo);
             }
             catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
@@ -4109,7 +4109,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             PhotoItem photo = PhotoItem.Load(path);
-            Photos.Insert(GetWorkAreaPhotoInsertIndex(path), photo);
+            InsertPhotoInCurrentList(photo);
             QueuePreviewProxy1200Build(photo);
             if (ShouldFocusImportedWorkAreaPhoto())
             {
@@ -4231,6 +4231,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         return Photos.Count;
+    }
+
+    private void InsertPhotoInCurrentList(PhotoItem photo)
+    {
+        string? workAreaPath = _appConfig.WorkAreaFolderPath;
+        string? photoDirectoryPath = Path.GetDirectoryName(photo.Path);
+        if (!string.IsNullOrWhiteSpace(workAreaPath) &&
+            !string.IsNullOrWhiteSpace(photoDirectoryPath) &&
+            string.Equals(workAreaPath, photoDirectoryPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Photos.Insert(GetWorkAreaPhotoInsertIndex(photo.Path), photo);
+            return;
+        }
+
+        Photos.Add(photo);
     }
 
     private int ComparePhotoListPathOrder(string leftPath, string rightPath)
